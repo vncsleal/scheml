@@ -5,15 +5,20 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "prisml": "dist/cli/index.js"
+    "prisml": "dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/runtime/extension/client.js",
+    "./cli": null
   },
   "directories": {
     "doc": "docs",
     "example": "examples"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsup && tsc -b tsconfig.json",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
@@ -41,16 +46,17 @@
     "@vitest/ui": "^4.0.17",
     "prisma": "5.8.1",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
     "typedoc": "^0.28.16",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
   "dependencies": {
     "@prisma/client": "5.8.1",
-    "chalk": "^5.6.2",
+    "chalk": "^4.1.2",
     "commander": "^14.0.2",
     "onnxruntime-node": "^1.23.2",
-    "ora": "^9.0.0",
+    "ora": "^5.4.1",
     "zod": "^4.3.5"
   },
   "engines": {
@@ -62,7 +68,7 @@
   },
   "files": [
     "dist/",
-    "scripts/",
+    "assets/",
     "Dockerfile.trainer",
     "README.md",
     "LICENSE"

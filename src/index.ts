@@ -7,26 +7,27 @@
 
 // Core types and model definition
 export { defineModel } from './core/types';
-export type { 
-  PrisMLModel, 
-  FeatureDefinition, 
-  TrainingConfig, 
-  ScalarType 
+export type {
+  PrisMLModel,
+  FeatureDefinition,
+  TrainingConfig,
+  ScalarType
 } from './core/types';
 
 // Prisma Client Extension (Primary API)
-export { prisml } from './extension';
-export type { PrismaClientWithML } from './extension';
+export { prisml } from './runtime/extension/client';
+export type { PrismaClientWithML } from './runtime/extension/client';
 
 // Runtime inference engine (Advanced usage)
-export { ONNXInferenceEngine } from './engine/inference';
+export { ONNXInferenceEngine } from './runtime/engine/inference';
 
 // Feature processing (Advanced usage)
-export { FeatureProcessor } from './engine/processor';
+export { FeatureProcessor } from './core/processor';
 
 // Environment detection utilities
-export { detectTrainingBackend, getInstallInstructions } from './engine/environment';
-export type { TrainingBackend } from './engine/environment';
+// Environment utilities are now part of the Compiler/CLI and not exported from Runtime
+// export { detectTrainingBackend, getInstallInstructions } from './runtime/engine/environment';
+// export type { TrainingBackend } from './runtime/engine/environment';
 
 // Error classes for better error handling
 export {

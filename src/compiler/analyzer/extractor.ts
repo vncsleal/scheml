@@ -6,8 +6,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { PrisMLModel } from '../core/types';
-import { FeatureProcessor } from '../engine/processor';
+import { PrisMLModel } from '../../core/types';
+import { FeatureProcessor } from '../../core/processor';
 
 interface TrainingDataRow {
   features: number[];
@@ -89,10 +89,10 @@ export class PrismaDataExtractor {
       for (const entity of batch) {
         // Extract features using processor (returns Promise<number[]>)
         const features = await processor.processEntity(entity);
-        
+
         // Extract label (target variable)
         const label = this.extractLabel(entity, model.output);
-        
+
         if (label !== null) {
           rows.push({ features, label });
         }
@@ -146,10 +146,10 @@ export class PrismaDataExtractor {
     for (const [featureName, featureDef] of Object.entries(model.features)) {
       // Simple heuristic: look at resolve function string
       const resolveStr = featureDef.resolve.toString();
-      
+
       // Match patterns like: user.fieldName, entity.fieldName
       const matches = resolveStr.match(/\b(?:user|entity)\.([\w]+)/g) || [];
-      
+
       for (const match of matches) {
         const fieldName = match.split('.')[1];
         if (fieldName && !ignoredMethods.has(fieldName)) {
@@ -166,14 +166,14 @@ export class PrismaDataExtractor {
    */
   private buildSelectClause(requiredFields: string[], outputField: string): Record<string, boolean> {
     const select: Record<string, boolean> = {};
-    
+
     for (const field of requiredFields) {
       select[field] = true;
     }
-    
+
     // Ensure output field is included
     select[outputField] = true;
-    
+
     return select;
   }
 
@@ -182,7 +182,7 @@ export class PrismaDataExtractor {
    */
   private extractLabel(entity: any, outputField: string): number | null {
     const value = entity[outputField];
-    
+
     if (value === null || value === undefined) {
       return null;
     }

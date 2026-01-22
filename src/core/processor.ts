@@ -1,8 +1,8 @@
-import { PrisMLModel, FeatureDefinition } from '../core/types';
-import { FeatureExtractionError } from '../core/errors';
+import { PrisMLModel, FeatureDefinition } from './types';
+import { FeatureExtractionError } from './errors';
 
 export class FeatureProcessor {
-  constructor(private model: PrisMLModel) {}
+  constructor(private model: PrisMLModel) { }
 
   /**
    * Converts a single database entity into a feature vector.
@@ -10,7 +10,7 @@ export class FeatureProcessor {
    */
   async processEntity(entity: any): Promise<number[]> {
     const vector: number[] = [];
-    
+
     // Iterate deterministically over keys to ensure vector order matches
     const featureKeys = Object.keys(this.model.features).sort();
 
@@ -67,7 +67,7 @@ export class FeatureProcessor {
         // V1 Limitation: We do not support categorical encoding (One-Hot) yet.
         // For V1, we only allow numeric strings or length.
         // TODO: Implement LabelEncoding or Hashing.
-        return 0; 
+        return 0;
       default:
         return 0;
     }

@@ -2,7 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import { prisml, defineModel } from '../../src';
 
 const churnModel = defineModel({
-  name: 'churnPredictor',
   target: 'User',
   output: 'churnProbability',
   features: {
@@ -23,14 +22,12 @@ const churnModel = defineModel({
       }
     }
   },
-  label: {
-    field: 'isChurned',
-    type: 'boolean'
-  },
   config: {
     minAccuracy: 0.75
   }
 });
+
+churnModel.name = 'churnPredictor';
 
 const prisma = new PrismaClient().$extends(prisml([churnModel]));
 
@@ -39,6 +36,7 @@ async function main() {
 
   // Example 1: Process recent users
   console.log('Example 1: Recent high-risk users');
+  // @ts-ignore - Dynamic extension method
   const recentUsers = await prisma.user.withMLMany({
     where: {
       createdAt: {
@@ -54,6 +52,7 @@ async function main() {
 
   // Example 2: Segment customers by risk
   console.log('Example 2: Customer segmentation');
+  // @ts-ignore - Dynamic extension method
   const allUsers = await prisma.user.withMLMany({
     take: 1000,
     orderBy: { totalSpent: 'desc' }
@@ -75,6 +74,7 @@ async function main() {
   // Example 3: Daily batch prediction job
   console.log('Example 3: Daily batch job simulation');
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // @ts-ignore - Dynamic extension method
   const activeUsers = await prisma.user.withMLMany({
     where: {
       OR: [
@@ -102,11 +102,12 @@ async function main() {
 
   // Example 4: Performance metrics
   console.log('\nExample 4: Performance comparison');
-  
+
   // Sequential approach (slower)
   const start1 = Date.now();
   const sequentialResults = [];
   for (let i = 0; i < 10; i++) {
+    // @ts-ignore - Dynamic extension method
     const user = await prisma.user.withML({ where: { id: i + 1 } });
     if (user) sequentialResults.push(user);
   }
@@ -114,6 +115,7 @@ async function main() {
 
   // Batch approach (faster)
   const start2 = Date.now();
+  // @ts-ignore - Dynamic extension method
   const batchResults = await prisma.user.withMLMany({
     where: { id: { in: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } }
   });

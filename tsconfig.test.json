@@ -1,0 +1,15 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": [
+            "node",
+            "vitest"
+        ]
+    },
+    "include": [
+        "src/__tests__/**/*",
+        "src/core/**/*",
+        "src/runtime/**/*",
+        "src/compiler/**/*"
+    ]
+}

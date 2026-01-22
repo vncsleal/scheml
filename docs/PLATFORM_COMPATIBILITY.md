@@ -300,7 +300,7 @@ Models >100MB (memory issues)
 
 ```typescript
 // test-platform.ts
-import { inferenceEngine } from '@vncsleal/prisml';
+import { ONNXInferenceEngine } from '@vncsleal/prisml';
 
 async function testSetup() {
   console.log(`Node: ${process.version}`);

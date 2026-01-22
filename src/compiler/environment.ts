@@ -9,7 +9,7 @@ export type TrainingBackend = 'docker' | 'local' | 'js';
  */
 export function detectTrainingBackend(): TrainingBackend {
   const envOverride = process.env.PRISML_TRAIN_BACKEND as TrainingBackend | undefined;
-  
+
   if (envOverride) {
     console.log(chalk.gray(`Using environment override: ${envOverride}`));
     return envOverride;

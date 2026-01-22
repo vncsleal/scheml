@@ -19,7 +19,7 @@ npm install @vncsleal/prisml
 ### 2. Define Model
 ```typescript
 // ml/churn.ts
-import { defineModel } from 'prisml';
+import { defineModel } from '@vncsleal/prisml';
 
 export const churnModel = defineModel({
   target: 'User',
@@ -92,7 +92,7 @@ users.forEach(user => {
 - **Zero-Config** - Docker handles Python automatically
 - **Quality Gates** - Build fails if accuracy < threshold
 - **Fast Inference** - <10ms predictions with ONNX
-- **No Runtime Deps** - Pure Node.js in production
+- **Minimal Runtime** - Pure Node.js in production (zero Python runtime dependency)
 
 ### Advanced Features (V1.1)
 - **Batch Predictions** - Process multiple entities efficiently with `withMLMany()`

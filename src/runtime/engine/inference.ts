@@ -1,9 +1,9 @@
 import * as ort from 'onnxruntime-node';
 import fs from 'fs';
 import path from 'path';
-import { PrisMLModel } from '../core/types';
-import { FeatureProcessor } from './processor';
-import { ModelNotFoundError, ModelLoadError, InferenceNotInitializedError } from '../core/errors';
+import { PrisMLModel } from '../../core/types';
+import { FeatureProcessor } from '../../core/processor';
+import { ModelNotFoundError, ModelLoadError, InferenceNotInitializedError } from '../../core/errors';
 
 /**
  * ONNX Runtime Inference Engine
@@ -37,7 +37,7 @@ export class ONNXInferenceEngine {
       this.session = await ort.InferenceSession.create(this.modelPath, {
         executionProviders: ['cpu'], // V1: CPU only, V2: add GPU support
       });
-      
+
       console.log(`✓ ONNX model loaded: ${this.model.name}`);
     } catch (error: any) {
       throw new ModelLoadError(this.modelPath, error);
@@ -72,16 +72,16 @@ export class ONNXInferenceEngine {
       // For regression: output shape [1, 1]
       // Try common output names: sklearn exports use 'variable', others use 'output', 'label', or 'probabilities'
       const outputTensor = results.variable || results.output || results.label || results.probabilities;
-      
+
       if (!outputTensor) {
         throw new Error('Model output not found. Check ONNX export configuration.');
       }
 
       const prediction = outputTensor.data as Float32Array;
-      
+
       // Return first value (probability or regression score)
       return prediction[0];
-      
+
     } catch (error: any) {
       throw new Error(`Inference failed: ${error.message}`);
     }
@@ -100,11 +100,11 @@ export class ONNXInferenceEngine {
 
     // 1. Extract all feature vectors
     const featureMatrix = await this.processor.processBatch(entities);
-    
+
     // 2. Flatten to 1D array for ONNX
     const numSamples = featureMatrix.length;
     const numFeatures = featureMatrix[0]?.length || 0;
-    
+
     if (numFeatures === 0) {
       return [];
     }
@@ -123,20 +123,20 @@ export class ONNXInferenceEngine {
 
       // Try common output names: sklearn exports use 'variable', others use 'output', 'label', or 'probabilities'
       const outputTensor = results.variable || results.output || results.label || results.probabilities;
-      
+
       if (!outputTensor) {
         throw new Error('Model output not found. Check ONNX export configuration.');
       }
 
       const predictions = Array.from(outputTensor.data as Float32Array);
-      
+
       // For binary classification with 2 outputs per sample, take positive class probability
       if (predictions.length === numSamples * 2) {
         return predictions.filter((_, idx) => idx % 2 === 1); // Take every second value
       }
-      
+
       return predictions;
-      
+
     } catch (error: any) {
       throw new Error(`Batch inference failed: ${error.message}`);
     }

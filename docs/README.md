@@ -201,7 +201,7 @@ Return entity + _ml
 
 ## Implementation Status
 
-### Complete (V1.0)
+### Complete (V1.1)
 - ONNX inference engine
 - Python training pipeline
 - Prisma data extractor
@@ -209,10 +209,10 @@ Return entity + _ml
 - Docker auto-detection
 - Quality gates
 - Feature processor
-
-### Planned (Future)
 - Batch predictions API (`withMLMany`)
 - Model versioning
+
+### Planned (Future)
 - A/B testing
 - Gen Layer (embeddings, LLM)
 - GPU acceleration
@@ -237,7 +237,7 @@ Check feature resolve functions - they might reference non-existent fields
 ## Examples
 
 See `/examples` directory:
-- `churn-prediction.ts` - Binary classification
+- `churn-prediction/model.ts` - Binary classification
 - `test-extension.ts` - Extension API testing
 
 ## License

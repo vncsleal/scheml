@@ -2,6 +2,31 @@
 
 All notable changes to PrisML will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-01-21
+
+### Changed (Architectural Refactor)
+- **Runtime/Compiler Isolation**: Restructured codebase into strict `src/runtime`, `src/compiler`, and `src/core` domains.
+  - Root export is now **Runtime-Only** to prevent application bloat.
+  - CLI and heavier dependencies are strictly isolated from the production runtime.
+- **Directory Restructuring**:
+  - Moved Python assets to `assets/python/trainer.py` for better bundling.
+  - Organized core logic into `src/core` for shared types and utilities.
+  - Organized runtime engines into `src/runtime/engine`.
+- **Package Distribution**:
+  - Full support for scoped package `@vncsleal/prisml`.
+  - Updated `package.json` with strict `exports` map for public API enforcement.
+- **Build System**:
+  - Switched to `tsup` for high-performance dual-format (CJS/ESM) bundling.
+  - Implemented composite TypeScript projects with isolated configurations.
+- **Improved Type Safety**:
+  - Created specialized TSConfigs for Runtime, Compiler, Tests, and Examples.
+  - Resolved several deep-import issues in example code.
+
+### Added
+- **Batch Predictions**: Promoted `withMLMany()` to stable feature status.
+- **Asset Resolution**: Secure, relative path resolution for Python assets within the npm package.
+- **Migration Guide**: Added `docs/MIGRATION.md` for upgrading from v1.0.
+
 ## [1.0.0] - 2025-01-10
 
 ### Added

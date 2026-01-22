@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ONNXInferenceEngine } from '../engine/inference';
+import { ONNXInferenceEngine } from '../runtime/engine/inference';
 import { defineModel } from '../core/types';
 import fs from 'fs';
 import path from 'path';
@@ -14,7 +14,7 @@ vi.mock('onnxruntime-node', () => ({
     create: vi.fn()
   },
   Tensor: class MockTensor {
-    constructor(public type: string, public data: any, public shape: number[]) {}
+    constructor(public type: string, public data: any, public shape: number[]) { }
   }
 }));
 
@@ -52,7 +52,7 @@ describe('ONNXInferenceEngine', () => {
   describe('initialization', () => {
     it('should throw error if model file does not exist', async () => {
       const engine = new ONNXInferenceEngine(model, '/nonexistent/path');
-      
+
       await expect(engine.initialize()).rejects.toThrow(
         /Trained model not found/
       );
@@ -63,7 +63,7 @@ describe('ONNXInferenceEngine', () => {
     it('should throw error if predict called before initialize', async () => {
       const engine = new ONNXInferenceEngine(model);
       const entity = { daysSinceLastLogin: 10, totalSpent: 100 };
-      
+
       await expect(engine.predict(entity)).rejects.toThrow(
         /not initialized/
       );
@@ -74,7 +74,7 @@ describe('ONNXInferenceEngine', () => {
       const entities = [
         { daysSinceLastLogin: 10, totalSpent: 100 }
       ];
-      
+
       await expect(engine.predictBatch(entities)).rejects.toThrow(
         /not initialized/
       );

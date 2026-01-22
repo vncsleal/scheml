@@ -7,7 +7,7 @@ import { PrisMLModel } from '../core/types';
  */
 export async function loadDefinitions(filePath: string): Promise<PrisMLModel[]> {
   const absolutePath = path.resolve(process.cwd(), filePath);
-  
+
   // Register ts-node to handle the compilation on the fly
   register({
     transpileOnly: true,
@@ -16,9 +16,9 @@ export async function loadDefinitions(filePath: string): Promise<PrisMLModel[]> 
 
   try {
     const module = require(absolutePath);
-    
+
     const models: PrisMLModel[] = [];
-    
+
     // Inspect exports to find models
     Object.keys(module).forEach(key => {
       const exportItem = module[key];

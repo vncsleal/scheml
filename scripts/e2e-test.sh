@@ -7,7 +7,8 @@ echo ""
 
 # Step 1: Train model with Docker
 echo "📦 Step 1: Training model with Docker..."
-npx ts-node src/cli/index.ts train --file examples/churn-prediction.ts
+# Use built CLI
+node dist/cli.js train --file examples/churn-prediction/model.ts
 
 if [ $? -ne 0 ]; then
   echo " Training failed!"

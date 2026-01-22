@@ -10,8 +10,8 @@
  * 3. Run real-time predictions with ONNX
  */
 
-import { defineModel } from '../src';
-import { ONNXInferenceEngine } from '../src/engine/inference';
+import { defineModel } from '../../src';
+import { ONNXInferenceEngine } from '../../src';
 import { PrismaClient, User } from '@prisma/client';
 
 /**
@@ -23,7 +23,7 @@ import { PrismaClient, User } from '@prisma/client';
 export const churnPredictor = defineModel<User>({
   target: 'User',
   output: 'isChurned',
-  
+
   features: {
     daysSinceLastLogin: {
       type: 'Int',
@@ -33,13 +33,13 @@ export const churnPredictor = defineModel<User>({
         return Math.floor((now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24));
       }
     },
-    
+
     totalSpent: {
       type: 'Float',
       resolve: (user: User) => user.totalSpent || 0
     }
   },
-  
+
   config: {
     algorithm: 'RandomForest',
     minAccuracy: 0.75,

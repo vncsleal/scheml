@@ -6,7 +6,7 @@
  */
 
 import { Prisma } from '@prisma/client';
-import { PrisMLModel } from '../core/types';
+import { PrisMLModel } from '../../core/types';
 import { ONNXInferenceEngine } from '../engine/inference';
 import * as path from 'path';
 
@@ -47,7 +47,7 @@ export function prisml(models: PrisMLModel[]) {
     const modelDir = path.join(process.cwd(), 'prisml', 'generated');
     const engine = new ONNXInferenceEngine(model, modelDir);
     await engine.initialize();
-    
+
     engineCache[model.name] = engine;
     return engine;
   }
@@ -66,7 +66,7 @@ export function prisml(models: PrisMLModel[]) {
 
   for (const [target, modelList] of targetMap.entries()) {
     const targetLower = target.toLowerCase();
-    
+
     extensionConfig.model[targetLower] = {
       async withML(args: any) {
         // @ts-ignore - this context is provided by Prisma

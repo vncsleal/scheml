@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { FeatureProcessor } from '../engine/processor';
+import { FeatureProcessor } from '../core/processor';
 import { defineModel } from '../core/types';
 
 describe('FeatureProcessor', () => {
@@ -26,9 +26,9 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const entity = { age: 25, balance: 100.5 };
-      
+
       const result = await processor.processEntity(entity);
-      
+
       expect(result).toEqual([25, 100.5]);
     });
 
@@ -50,9 +50,9 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const entity = { age: null, balance: undefined };
-      
+
       const result = await processor.processEntity(entity);
-      
+
       expect(result).toEqual([0, 0]); // Imputed with 0
     });
 
@@ -74,9 +74,9 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const entity = { isActive: true, isPremium: false };
-      
+
       const result = await processor.processEntity(entity);
-      
+
       expect(result).toEqual([1, 0]);
     });
 
@@ -93,9 +93,9 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const entity = { a: 1, m: 2, z: 3 };
-      
+
       const result = await processor.processEntity(entity);
-      
+
       // Should be sorted alphabetically: aScore, mScore, zScore
       expect(result).toEqual([1, 2, 3]);
     });
@@ -116,9 +116,9 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const entity = { value: 50 };
-      
+
       const result = await processor.processEntity(entity);
-      
+
       expect(result).toEqual([100]);
     });
   });
@@ -142,9 +142,9 @@ describe('FeatureProcessor', () => {
         { value: 20 },
         { value: 30 }
       ];
-      
+
       const result = await processor.processBatch(entities);
-      
+
       expect(result).toEqual([[10], [20], [30]]);
     });
 
@@ -159,7 +159,7 @@ describe('FeatureProcessor', () => {
 
       const processor = new FeatureProcessor(model);
       const result = await processor.processBatch([]);
-      
+
       expect(result).toEqual([]);
     });
   });

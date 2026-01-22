@@ -7,7 +7,7 @@
  * Use case: E-commerce platform preventing payment fraud
  */
 
-import { defineModel } from '../../src/core/types';
+import { defineModel } from '../../src';
 
 interface Transaction {
   id: number;
@@ -18,7 +18,7 @@ interface Transaction {
   deviceId: string;
   isInternational: boolean;
   userId: number;
-  
+
   // Relations
   user?: {
     createdAt: Date;
@@ -26,7 +26,7 @@ interface Transaction {
     totalSpent: number;
     isVerified: boolean;
   };
-  
+
   // Label (ground truth)
   isFraud: boolean;
 }
@@ -44,7 +44,7 @@ interface Transaction {
 export const fraudDetector = defineModel<Transaction>({
   target: 'Transaction',
   output: 'fraudScore',
-  
+
   features: {
     // Transaction amount (normalized by user's average)
     amountRatio: {
@@ -57,7 +57,7 @@ export const fraudDetector = defineModel<Transaction>({
         return tx.amount / Math.max(avgSpent, 1);
       }
     },
-    
+
     // Account age in days
     accountAge: {
       type: 'Int',
@@ -68,25 +68,25 @@ export const fraudDetector = defineModel<Transaction>({
         return Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
       }
     },
-    
+
     // International transaction flag
     isInternational: {
       type: 'Boolean',
       resolve: (tx) => tx.isInternational
     },
-    
+
     // Account verification status
     isVerified: {
       type: 'Boolean',
       resolve: (tx) => tx.user?.isVerified || false
     },
-    
+
     // Transaction history count
     transactionCount: {
       type: 'Int',
       resolve: (tx) => tx.user?.totalTransactions || 0
     },
-    
+
     // Time of day (0-23) - fraud more common at night
     hourOfDay: {
       type: 'Int',
@@ -95,7 +95,7 @@ export const fraudDetector = defineModel<Transaction>({
         return date.getHours();
       }
     },
-    
+
     // Day of week (0-6) - patterns differ by day
     dayOfWeek: {
       type: 'Int',
@@ -104,7 +104,7 @@ export const fraudDetector = defineModel<Transaction>({
         return date.getDay();
       }
     },
-    
+
     // Amount in USD cents (normalized)
     amountCents: {
       type: 'Float',
@@ -115,7 +115,7 @@ export const fraudDetector = defineModel<Transaction>({
       }
     }
   },
-  
+
   config: {
     algorithm: 'XGBoost', // Best for fraud detection
     minAccuracy: 0.85,    // High accuracy required for production

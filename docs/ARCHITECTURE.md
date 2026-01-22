@@ -77,7 +77,7 @@ const { features, labels } = await extractor.extractTrainingData();
 ### 1.2 Phase 2: Python Training
 
 ```python
-# Runs in subprocess (scripts/train.py)
+# Runs in subprocess (assets/python/trainer.py)
 from sklearn.ensemble import RandomForestClassifier
 from skl2onnx import convert_sklearn
 
@@ -302,7 +302,7 @@ git push
 
 **Core Package (`npm`):**
 ```bash
-npm install prisml
+npm install @vncsleal/prisml
 ```
 
 **Contents:**

@@ -16,6 +16,7 @@ We will acknowledge receipt within 48 hours and provide a status update within 7
 
 | Version | Supported | Security Updates |
 |---------|-----------|------------------|
+| 1.1.x   | Yes       | Latest stable    |
 | 1.0.x   | Yes       | Until 1.2.0 release |
 | <1.0    | No        | No updates |
 
