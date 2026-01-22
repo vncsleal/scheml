@@ -113,7 +113,7 @@ export class PrismaDataExtractor {
       }
     }
 
-    console.log(`✓ Extracted ${rows.length} training samples\n`);
+    console.log(`Extracted ${rows.length} training samples\n`);
 
     // Convert to Python-friendly format
     return {

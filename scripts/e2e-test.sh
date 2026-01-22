@@ -6,7 +6,7 @@ echo "===================================="
 echo ""
 
 # Step 1: Train model with Docker
-echo "📦 Step 1: Training model with Docker..."
+echo "Step 1: Training model with Docker..."
 # Use built CLI
 node dist/cli.js train --file examples/churn-prediction/model.ts
 
@@ -20,7 +20,7 @@ echo " Training complete!"
 echo ""
 
 # Step 2: Verify model files exist
-echo "📁 Step 2: Verifying model files..."
+echo "Step 2: Verifying model files..."
 if [ ! -f "prisml/generated/churnPredictor.onnx" ]; then
   echo " ONNX model not found!"
   exit 1
@@ -51,7 +51,7 @@ fi
 
 echo ""
 echo " End-to-End test PASSED!"
-echo "🎉 The 'Invisible Python' promise is fulfilled:"
-echo "   - Docker training: ✓"
-echo "   - ONNX export: ✓"
-echo "   - Zero-dependency inference: ✓"
+echo "The 'Invisible Python' promise is fulfilled:"
+echo "   - Docker training: OK"
+echo "   - ONNX export: OK"
+echo "   - Zero-dependency inference: OK"

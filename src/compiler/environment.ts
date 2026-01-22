@@ -17,18 +17,18 @@ export function detectTrainingBackend(): TrainingBackend {
 
   // Priority 1: Check for Docker
   if (isDockerAvailable()) {
-    console.log(chalk.gray('✓ Docker detected - using containerized training'));
+    console.log(chalk.gray('Docker detected - using containerized training'));
     return 'docker';
   }
 
   // Priority 2: Check for local Python
   if (isPythonAvailable()) {
-    console.log(chalk.gray('✓ Python detected - using local training'));
+    console.log(chalk.gray('Python detected - using local training'));
     return 'local';
   }
 
   // Priority 3: Fallback to Pure JS (limited)
-  console.log(chalk.yellow('⚠ No Docker or Python found - falling back to Pure JS (limited functionality)'));
+  console.log(chalk.yellow('No Docker or Python found - falling back to Pure JS (limited functionality)'));
   console.log(chalk.gray('  Install Docker for best experience: https://docs.docker.com/get-docker/'));
   return 'js';
 }

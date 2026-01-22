@@ -87,7 +87,7 @@ async function predictChurnRisk() {
     console.log(`Churn Risk: ${(churnProbability * 100).toFixed(1)}%`);
     
     if (churnProbability > 0.7) {
-      console.log('⚠️  High churn risk - trigger retention campaign');
+      console.log('High churn risk - trigger retention campaign');
     }
     
     // Batch prediction example

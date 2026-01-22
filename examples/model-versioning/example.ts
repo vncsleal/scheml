@@ -154,7 +154,7 @@ async function main() {
   console.log(`Current version: ${history.currentVersion}`);
   console.log('\nVersion timeline:');
   history.versions.forEach((v: any, i: number) => {
-    const status = v.isActive ? '✓ ACTIVE' : '  inactive';
+    const status = v.isActive ? '(active)' : '(inactive)';
     const deployed = v.deployedAt ? `deployed ${v.deployedAt.toLocaleDateString()}` : 'never deployed';
     console.log(`  ${i + 1}. ${v.version} ${status} - accuracy ${v.accuracy?.toFixed(2)} (${deployed})`);
   });

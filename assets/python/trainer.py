@@ -50,7 +50,7 @@ def load_training_data(input_path: str) -> Tuple[np.ndarray, np.ndarray, Dict]:
     y = np.array(data['labels'])
     metadata = data.get('metadata', {})
     
-    print(f"✓ Loaded {X.shape[0]} samples with {X.shape[1]} features")
+    print(f"Loaded {X.shape[0]} samples with {X.shape[1]} features")
     print(f"  Task: {metadata.get('task_type', 'classification')}")
     
     return X, y, metadata
@@ -110,7 +110,7 @@ def train_and_evaluate(
         mse = mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
         metrics = {'mse': float(mse), 'r2': float(r2)}
-        print(f"  ✓ MSE: {mse:.4f} | R²: {r2:.4f}")
+        print(f"  MSE: {mse:.4f} | R²: {r2:.4f}")
         
         # For regression, treat R² as "accuracy"
         if r2 < min_accuracy:
@@ -118,7 +118,7 @@ def train_and_evaluate(
     else:
         accuracy = accuracy_score(y_test, y_pred)
         metrics = {'accuracy': float(accuracy)}
-        print(f"  ✓ Accuracy: {accuracy * 100:.2f}%")
+        print(f"  Accuracy: {accuracy * 100:.2f}%")
         
         if accuracy < min_accuracy:
             raise ValueError(f"Training failed: Accuracy {accuracy:.4f} < threshold {min_accuracy}")
@@ -159,7 +159,7 @@ def export_to_onnx(
     with open(output_path, 'wb') as f:
         f.write(onnx_model.SerializeToString())
     
-    print(f"✓ ONNX model exported to: {output_path}")
+    print(f"ONNX model exported to: {output_path}")
     
     # Save metadata alongside
     metadata_path = output_path.replace('.onnx', '.metadata.json')
@@ -182,7 +182,7 @@ def main():
     
     args = parser.parse_args()
     
-    print(f"🤖 PrisML Training Pipeline")
+    print(f"PrisML Training Pipeline")
     print(f"   Input: {args.input}")
     print(f"   Algorithm: {args.algorithm}")
     print(f"   Min Accuracy: {args.min_accuracy}")

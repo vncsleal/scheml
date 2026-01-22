@@ -22,7 +22,7 @@ export async function trainCommand(options: TrainOptions) {
 
   try {
     const models = await loadDefinitions(options.file);
-    console.log(chalk.green(`✔ Loaded ${models.length} models.`));
+    console.log(chalk.green(`Loaded ${models.length} models.`));
 
     if (models.length === 0) {
       console.warn(chalk.yellow('No models found. Did you export them using `defineModel`?'));
@@ -42,8 +42,7 @@ export async function trainCommand(options: TrainOptions) {
 }
 
 async function trainSingleModel(model: PrisMLModel) {
-  console.log(chalk.blue(`
-🤖 Processing Model: ${chalk.bold(model.name)} (Target: ${model.target})`));
+  console.log(chalk.blue(`\nProcessing Model: ${chalk.bold(model.name)} (Target: ${model.target})`));
 
   const extractor = new PrismaDataExtractor();
 
@@ -54,7 +53,7 @@ async function trainSingleModel(model: PrisMLModel) {
     if (!connected) {
       throw new DatabaseConnectionError();
     }
-    console.log(chalk.green(`   ✔ Database connected`));
+    console.log(chalk.green(`   Database connected`));
 
     // 2. Check available data
     const availableCount = await extractor.getAvailableCount(model);
@@ -71,7 +70,7 @@ async function trainSingleModel(model: PrisMLModel) {
     });
     const extractTime = Date.now() - startExtract;
 
-    console.log(chalk.green(`   ✔ Extracted ${dataset.labels.length} samples in ${extractTime}ms`));
+    console.log(chalk.green(`   Extracted ${dataset.labels.length} samples in ${extractTime}ms`));
     console.log(chalk.gray(`   Features: ${dataset.featureNames.join(', ')}`));
 
     // 4. Prepare Training Data for Python
@@ -175,7 +174,7 @@ async function trainSingleModel(model: PrisMLModel) {
         throw new PythonNotFoundError('docker', installInstructions);
       }
 
-      console.log(chalk.green(`   ✔ Training Complete!`));
+      console.log(chalk.green(`   Training Complete!`));
 
       // Clean up temp data file
       fs.unlinkSync(dataPath);

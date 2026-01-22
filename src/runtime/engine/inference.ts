@@ -38,7 +38,7 @@ export class ONNXInferenceEngine {
         executionProviders: ['cpu'], // V1: CPU only, V2: add GPU support
       });
 
-      console.log(`✓ ONNX model loaded: ${this.model.name}`);
+      console.log(`ONNX model loaded: ${this.model.name}`);
     } catch (error: any) {
       throw new ModelLoadError(this.modelPath, error);
     }
