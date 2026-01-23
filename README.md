@@ -109,6 +109,8 @@ users.forEach(user => {
 - **[Architecture](./docs/ARCHITECTURE.md)** - System design and technical details
 - **[Roadmap](./docs/ROADMAP.md)** - Implementation status and future plans
 - **[Product Requirements](./docs/PRD.md)** - Product vision and requirements
+- **[Contributing](./CONTRIBUTING.md)** - Governance and contribution rules
+- **[Developer Handbook](./docs/DEVELOPMENT.md)** - Local development, tests, and workflow
 
 ## Examples
 

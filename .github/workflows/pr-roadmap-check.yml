@@ -1,0 +1,54 @@
+name: PR Roadmap Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR body for Roadmap and Issue references
+        env:
+          PR_BODY: "${{ github.event.pull_request.body }}"
+        run: |
+          set -euo pipefail
+          BODY="${PR_BODY:-}"
+          LENGTH=$(printf "%s" "$BODY" | wc -c)
+          echo "Validating PR body length: $LENGTH"
+
+          has_roadmap=false
+          has_issue=false
+          composite_checked=false
+
+          # Stronger roadmap pattern: P followed by digits and optional trailing letters (e.g. P05a, P0F, P09)
+          if echo "$BODY" | grep -qE 'Roadmap:\s*P[0-9]+[A-Za-z]*'; then
+            has_roadmap=true
+          fi
+          # Require Issue in form: Issue: #123
+          if echo "$BODY" | grep -qE 'Issue:\s*#[0-9]+'; then
+            has_issue=true
+          fi
+          # Detect checked Composite box or explicit Composite: true
+          if echo "$BODY" | grep -qE '\[x\].*Composite' || echo "$BODY" | grep -qE 'Composite:\s*true'; then
+            composite_checked=true
+          fi
+
+          # If both roadmap and issue present, OK
+          if [ "$has_roadmap" = true ] && [ "$has_issue" = true ]; then
+            echo "PR contains Roadmap and Issue references — OK"
+            exit 0
+          fi
+
+          # Composite exception must still include at least one Roadmap reference
+          if [ "$composite_checked" = true ]; then
+            if echo "$BODY" | grep -qE 'Roadmap:\s*P[0-9]+'; then
+              echo "Composite PR with Roadmap reference — OK"
+              exit 0
+            fi
+            echo "Composite PR detected, but still requires at least one 'Roadmap: Pxxxx' reference."
+            exit 1
+          fi
+
+          echo "ERROR: PR body must include 'Roadmap: Pxxxx' and 'Issue: #nnn' lines, or check 'Composite' in the template to allow an exception."
+          exit 1

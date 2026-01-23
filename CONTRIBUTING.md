@@ -1,45 +1,41 @@
-# Contributing to PrisML
+If you are fixing a bug, implementing a feature, or making a non-trivial change, start by finding or creating a roadmap-backed Issue.
 
-Thank you for your interest in contributing to PrisML! We welcome contributions from the community.
+## Governance & Workflow (short)
 
-## Getting Started
+This section defines governance rules only. For local setup, testing, and implementation details, see `docs/DEVELOPMENT.md`.
 
-1. **Fork the repository** on GitHub
-2. **Clone your fork** locally
-3. **Install dependencies**: `pnpm install`
-4. **Generate Prisma client**: `pnpm prisma generate`
-5. **Run tests**: `pnpm test`
-6. **Build**: `pnpm build`
+This project uses a roadmap-driven workflow. Keep the following rules in mind — this file is the contract describing how work is governed.
 
-## Development Workflow
+1) Canonical spec
+- `prisml-internal/ALL_FIXES_AND_ROADMAP.md` is the authoritative spec. It contains acceptance criteria and high-level invariants.
 
-### Running Tests
+2) Issues
+- Create one Issue per roadmap item (maintainers may mirror the roadmap). Issues are the execution units and may be assigned and discussed.
+- Issue body should include a link to the corresponding `ALL_FIXES_AND_ROADMAP.md` section.
 
-```bash
-pnpm test                  # Run all tests
-pnpm test:watch           # Watch mode
-pnpm test:coverage        # With coverage report
-```
+3) PR requirements (enforced)
+ - Every PR must reference one primary roadmap ID and one Issue (default). Use the PR template to ensure this. Example lines in the PR body:
 
-### Code Quality
+  Roadmap: P05a
+  Issue: #42
 
-```bash
-pnpm lint                 # Check linting
-pnpm build                # TypeScript compilation
-```
+- Default rule: one PR → one roadmap ID. If your work legitimately touches multiple roadmap items, use the Composite exception (see PR template) and provide a brief justification. Maintainers must approve such exceptions.
 
-### Local Testing
+4) Roadmap edits
+- Edits to `ALL_FIXES_AND_ROADMAP.md` must be done via PR. A roadmap-edit PR must:
+  - explain motivation
+  - reference the Issue(s) that triggered the change
+  - update or add a `Last-Updated: YYYY-MM-DD` header near the affected entry
 
-```bash
-# Test the package locally
-pnpm pack                 # Creates tarball
-cd ../test-project
-npm install ../prisml/vncsleal-prisml-1.0.0.tgz
-```
+5) Onboarding and exceptions
+- If your PR is rejected for missing Roadmap/Issue references, the reviewer should guide the contributor to amend the PR rather than close immediately.
 
-## Contribution Guidelines
+6) Tooling
+- A lightweight GitHub Action validates PR bodies for `Roadmap:` and `Issue:` lines. Exceptions are allowed when the PR template `Composite` checkbox is checked.
 
-### What We're Looking For
+These rules are intentionally short: governance only. For development setup and mechanics, see `docs/DEVELOPMENT.md`.
+
+## What We're Looking For
 
 **High Priority:**
 - Bug fixes (especially platform-specific issues)
@@ -57,83 +53,6 @@ npm install ../prisml/vncsleal-prisml-1.0.0.tgz
 - Deep learning models (V2.0+)
 - Breaking API changes (wait for V2.0)
 - Cloud integrations (planned for V3.0)
-
-### Code Standards
-
-1. **TypeScript**: All code must be strongly typed
-2. **Tests**: Add tests for new features
-3. **Documentation**: Update README/docs for user-facing changes
-4. **Commits**: Use conventional commits format:
-   - `feat: add streaming predictions`
-   - `fix: handle null values in feature processor`
-   - `docs: update platform compatibility matrix`
-   - `test: add batch prediction edge cases`
-   - `perf: optimize ONNX session creation`
-
-### Pull Request Process
-
-1. **Create an issue first** (for non-trivial changes)
-2. **Branch naming**: `feature/your-feature` or `fix/bug-name`
-3. **Keep PRs focused**: One feature/fix per PR
-4. **Write tests**: Ensure all tests pass
-5. **Update docs**: If user-facing changes
-6. **Describe changes**: Clear PR description with context
-
-### Testing Requirements
-
-All PRs must:
-- Pass existing tests (57 tests across 6 suites)
-- Add new tests for new functionality
-- Maintain or improve code coverage
-- Pass TypeScript compilation
-- Pass linting (warnings are acceptable if justified)
-
-### Platform Testing
-
-If your change affects platform compatibility:
-- Test on macOS, Ubuntu, and Windows (if possible)
-- Document any platform-specific behavior
-- Update `docs/PLATFORM_COMPATIBILITY.md`
-
-## Project Structure
-
-```
-prisml/
-├── src/
-│   ├── core/          # Type definitions, model API
-│   ├── engine/        # ONNX inference, feature processing
-│   ├── extension/     # Prisma Client extension
-│   ├── cli/           # CLI commands (train, inspect)
-│   └── __tests__/     # Test suites
-├── scripts/           # Training scripts (Python)
-├── examples/          # Example projects
-├── docs/              # Documentation
-└── prisma/            # Prisma schema for testing
-```
-
-## Development Tips
-
-### Adding a New Algorithm
-
-1. Update `scripts/train.py` to support the algorithm
-2. Add algorithm to `TrainingConfig` type in `src/core/types.ts`
-3. Add tests in `src/__tests__/`
-4. Document in README.md
-
-### Adding a New Feature
-
-1. Define the API in `src/core/types.ts`
-2. Implement in relevant module (`engine/`, `extension/`, etc.)
-3. Add comprehensive tests
-4. Update examples if applicable
-5. Document in README and API docs
-
-### Fixing Bugs
-
-1. Write a failing test that reproduces the bug
-2. Fix the bug
-3. Verify the test now passes
-4. Check for similar issues elsewhere
 
 ## Community
 
@@ -158,6 +77,3 @@ Contributors will be:
 
 Be respectful, constructive, and professional. We're all here to build something useful.
 
----
-
-Thank you for contributing to PrisML!
