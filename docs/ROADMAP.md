@@ -13,7 +13,12 @@ graph TD
   P05a --> P04[P04: Schema synchronization guard]
   P06[P06: Extractor Hardening] --> P05b
   P06 --> P07
+  P06 --> P06a[P06a: Extractor diagnostics]
   P08[P08: Quality Gate Exit] --> P03[P03: Docker CI Job]
+  P03 --> P03a[P03a: Temp cleanup]
+  P03a --> P03b[P03b: Tooling resolution]
+  P05b --> P05c[P05c: Required Features]
+  M11 --> M11a[M11a: Doctor Command]
 ```
 
 Note: the dependency graph shows primary technical dependencies only; cross-cutting dependencies (CI commit/push patterns, batching/operational interactions) are described in acceptance criteria for individual items. Additional critical/high items (for example: the trainer correctness fix, feature-order parity, and version-registry persistence) are defined below and their dependencies are expressed in each item; include them when planning execution.
@@ -54,6 +59,18 @@ P05a — Model Metadata Schema & Validation (Foundation)
   - Metadata MUST also record training reproducibility information: `trainingSeed`, `trainerEnvironment` (python package names and versions used for training, e.g. scikit-learn, skl2onnx, xgboost), `pythonVersion`, and `trainerImageDigest` (if Docker used). Unit tests must validate these fields exist and are parsed by the runtime metadata validator.
   - Optional: `metadataSizeBytes` MAY be recorded at generation time to give immediate visibility into the size of `metadata.json` for telemetry and hot-path guidance. When present, tests should validate the field is a non-negative integer and CI size checks may use it for quick gating.
   - Documentation note: `metadata.json` may grow as features/encoders are persisted. Docs must clearly mark which fields are runtime-critical (ONNX I/O bindings, encoder checksums) and which are informational (train logs, metrics). Runtime-critical fields MUST be loadable into hot paths; large informational fields MUST be stored separately or lazily loaded and must not be loaded on the inference-critical code path.
+
+P05c — Required Features & Null Safety (NEW)
+- Priority: Critical — Effort: S
+- Domain: [compiler][runtime]
+- Owner: TBD — Est. Hours: 4
+- Dependencies: P05a
+- Summary: Allow marking features as `required: true`. If a resolver for a required feature returns `null` or `undefined`, the engine should throw a `RequiredFeatureMissingError` instead of falling back to default imputation (0).
+- Files: `src/core/types.ts`, `src/core/processor.ts`.
+- Acceptance criteria:
+  - `FeatureProcessor` throws correct error for missing required features.
+  - Metadata correctly persists the `required` flag.
+  - Documentation updated in `docs/ARCHITECTURE.md`.
 
 
 P01 — Artifact lifecycle policy (enforce & tooling)
@@ -106,7 +123,7 @@ P05b — Feature Encoding Persistence & Runtime
   - Integration test `tests/integration/encoding-runtime.test.ts` also validates that the runtime applies persisted encoders identically to the trainer.
   - Supported encoders for V1 are explicitly enumerated in `docs/ARCHITECTURE.md` and `metadata.json` (examples: `Numeric` (passthrough), `OneHot`, `HashCategorical`, `StandardScale`). The docs MUST specify handling for missing values and unseen categories (e.g., reserved index / null / error). Runtime MUST error with `UnknownEncoderTypeError` on unknown encoder types for the metadata version in use.
 
-P09 — Trainer regression correctness & exit-code contract (NEW)
+P09 — Trainer regression correctness & exit-code contract 
 - Priority: Critical — Effort: S
 - Domain: [ml][cli][infra]
 - Owner: TBD — Est. Hours: 2
@@ -118,7 +135,7 @@ P09 — Trainer regression correctness & exit-code contract (NEW)
   - Trainer exits with documented codes: 0 (success), 2 (quality gate failure), 3 (infrastructure/unexpected error). Unit/integration tests assert these exit codes.
   - On failure, trainer writes a short machine-readable JSON summary to stderr (or a path supplied via `--error-json`) containing `{code, message, metrics?, stderrSnippet?}` for CI parsing.
 
-P0F — Feature-order parity invariant & canonical ordering (NEW)
+P10 — Feature-order parity invariant & canonical ordering (NEW)
 - Priority: Critical — Effort: S
 - Domain: [compiler][runtime][tests]
 - Owner: TBD — Est. Hours: 4
@@ -142,7 +159,7 @@ P06 — Extractor dependency detection hardening (Sync Resolver Enabler)
   - Unit test `tests/unit/extractor-closures.test.ts` correctly identifies dependencies in complex scenarios (destructuring, closures, helper functions) in `proxy-tracing` mode.
   - Extractor supports manual `dependsOn` override and rejects ambiguous heuristics unless `--allow-heuristics` is enabled.
   - Extractor must support streaming/batched exports and include tests that prove bounded memory usage for large tables (integration test `tests/integration/extractor-batching.test.ts`). The extractor must provide a configurable batch/page size and the `train` command must expose/validate these settings to avoid OOM on large datasets.
-  - Extractor error diagnostics: remove fragile regex-based `extractFieldName` heuristics from hot paths; error diagnostics should prefer structured stack/cause propagation (see P0z) and reliable field extraction strategies.
+  - Extractor error diagnostics: remove fragile regex-based `extractFieldName` heuristics from hot paths; error diagnostics should prefer structured stack/cause propagation (see P00z) and reliable field extraction strategies.
 
 P07 — Async / DB calls guard for `resolve` functions
 - Priority: Critical — Effort: M
@@ -182,7 +199,18 @@ P03 — Docker integration job in CI
   - Workflow is green for valid PRs and fails if P08 (quality gate) is triggered.
   - PR template updated to include a checklist item for "CI Smoke Tests Passed" and a link to the smoke job URL.
 
-P0x — Temp file / artifact cleanup & debug flags
+P06a — Preserve original error stacks in extraction errors
+- Priority: High — Effort: S
+- Domain: [compiler][runtime]
+- Owner: TBD — Est. Hours: 1
+- Dependencies: M08
+- Summary: Ensure `FeatureExtractionError` (and similar) chain the original error (`cause`) and preserve its stack for diagnostics.
+- Files: `src/core/errors.ts`, `src/core/processor.ts`, `tests/unit/feature-extraction-error.test.ts`.
+- Acceptance criteria:
+  - `FeatureExtractionError` accepts and exposes a `cause` property per Node 16+ `ErrorOptions` and includes the original `error.stack` in diagnostics returned in machine-readable JSON.
+  - Unit test `tests/unit/feature-extraction-error.test.ts` asserts that the thrown error includes the original stack and that CLI output includes `cause` when `--machine` or `--debug` is passed.
+
+P03a — Temp file / artifact cleanup & debug flags
 - Priority: Critical — Effort: S
 - Domain: [cli][ci][infra]
 - Owner: TBD — Est. Hours: 2
@@ -195,7 +223,7 @@ P0x — Temp file / artifact cleanup & debug flags
   - Provide a `--debug` and `--no-cleanup` CLI flag documented in `docs/PLATFORM_COMPATIBILITY.md`; when set, intermediate artifacts remain and a pointer to their absolute path is printed in machine-readable JSON output under the field `debugArtifactsPath`.
   - When `--debug` is not provided, cleanup must run in `finally` blocks and tolerate partial failures; trainers must exit with correct codes while still ensuring cleanup.
 
-P0y — Deterministic trainer script resolution
+P03b — Deterministic trainer script resolution
 - Priority: High — Effort: S
 - Domain: [cli][pkg][docs]
 - Owner: TBD — Est. Hours: 2
@@ -206,17 +234,6 @@ P0y — Deterministic trainer script resolution
   - CLI uses `find-up` or similar to locate `package.json` and `assets/python/trainer.py` from `--project-root` or `process.cwd()` reliably in pnpm/yarn/pnpm-workspace environments.
   - Add `--project-root` flag and `PRISML_PROJECT_ROOT` env var as explicit overrides.
   - Unit test `tests/unit/trainer-resolution.test.ts` validates resolution behavior for (a) installed package, (b) linked `npm link`/`pnpm link` usage, and (c) monorepo workspace where `assets/python/trainer.py` lives outside the package CWD.
-
-P0z — Preserve original error stacks in extraction errors
-- Priority: High — Effort: S
-- Domain: [compiler][cli][runtime]
-- Owner: TBD — Est. Hours: 1
-- Dependencies: M08
-- Summary: Ensure `FeatureExtractionError` (and similar) chain the original error (`cause`) and preserve its stack for diagnostics.
-- Files: `src/core/errors.ts`, `src/core/processor.ts`, `tests/unit/feature-extraction-error.test.ts`.
-- Acceptance criteria:
-  - `FeatureExtractionError` accepts and exposes a `cause` property per Node 16+ `ErrorOptions` and includes the original `error.stack` in diagnostics returned in machine-readable JSON.
-  - Unit test `tests/unit/feature-extraction-error.test.ts` asserts that the thrown error includes the original stack and that CLI output includes `cause` when `--machine` or `--debug` is passed.
 
 
 -------------------------------------------------------------------------------
@@ -251,7 +268,19 @@ H05 — Compile-time type-safety for `defineModel`
 - Summary: Improve TypeScript ergonomics for `resolve` inputs.
 - Acceptance criteria: `defineModel` test file shows compilation error when accessing non-existent field.
 
-H06 — Persistent ModelVersionManager storage + CLI (NEW)
+H05a — Type-Safe Extension Outputs (NEW)
+- Priority: High — Effort: M
+- Domain: [runtime][docs]
+- Owner: TBD — Est. Days: 1
+- Dependencies: H05
+- Summary: Enhance the `PrisML` extension to provide strong typing for prediction outputs. This ensures that methods like `withML` return an object where `_ml[model.output]` has the correct inferred type (e.g., `number` or `Boolean`).
+- Files: `src/runtime/extension/client.ts`, `src/index.ts`.
+- Acceptance criteria:
+  - `PrismaClientWithML` incorrectly infers the type of the prediction result based on the model definition.
+  - IDE autocomplete works for `user._ml.churnProbability` after a `withML` call.
+  - Unit test `tests/unit/extension-types.test.ts` validates type inference using `tsd` or similar.
+
+H06 — Persistent ModelVersionManager storage + CLI 
 - Priority: High — Effort: M
 - Domain: [runtime][cli][infra]
 - Owner: TBD — Est. Days: 1-2
@@ -262,6 +291,19 @@ H06 — Persistent ModelVersionManager storage + CLI (NEW)
   - `ModelVersionManager` persists registry to `storageDir` as an atomic JSON file and supports import/export with safe date conversions.
   - CLI commands: `prisml versions list`, `prisml versions activate <model> <version>`, `prisml versions rollback <model> <version>` are implemented and documented.
   - Persistence uses atomic write (write+rename) and handles concurrent access safely (simple file-lock or optimistic retry acceptable for V1).
+
+H06 — Dependency compatibility & ESM migration 
+- Priority: High — Effort: M
+- Domain: [build][cli][compiler][ci]
+- Owner: TBD — Est. Days: 2
+- Dependencies: None
+- Summary: Short-term: keep `chalk` and other runtime build-compatible versions to preserve CI and published artifacts. Long-term: audit ESM-only dependencies and migrate codebase (or add shims/dynamic imports) so ESM-only packages (e.g., `chalk@5`) can be adopted safely.
+- Files: `package.json`, `pnpm-lock.yaml`, `tsup.config.ts`, `src/cli/**`, `src/compiler/**`, `.github/workflows/ci.yml`
+- Acceptance criteria:
+  - Public repo restores/builds/tests pass on Node 18.x and 20.x with frozen lockfile.
+  - Create an audit PR listing ESM-only deps and required code changes (entrypoint/module format changes, dynamic imports, or `tsup` output config) and assign owners.
+  - Implement at least one migration PR that converts a single CLI/compiler entrypoint to ESM (or adds a safe dynamic-import shim) and add CI matrix test proving compatibility with an ESM-only `chalk` in that path.
+  - Document migration plan and acceptance criteria in `docs/MIGRATION.md` and reference the canonical roadmap entry `H06`.
 
 -------------------------------------------------------------------------------
 MEDIUM (quality improvements, test coverage, guardrails)
@@ -281,6 +323,18 @@ M11 — Environment detection hardening
 - Acceptance criteria:
   - Add `docs/PLATFORM_COMPATIBILITY.md` section with supported environment patterns and recommended fallbacks.
   - CLI detection emits clear, actionable messages and exits with a non-zero code when environment cannot be safely determined; include a documented opt-out flag for advanced users.
+
+M11a — CLI doctor command (NEW)
+- Priority: Medium — Effort: S
+- Domain: [cli][infra]
+- Owner: TBD — Est. Hours: 4
+- Dependencies: M11
+- Summary: Implement a `prisml doctor` command to diagnose environment issues. It should check Docker connectivity, Python availability, ONNX binary status, and Prisma Client generation state.
+- Files: `src/cli/commands/doctor.ts`.
+- Acceptance criteria:
+  - `npx prisml doctor` prints a color-coded status report.
+  - Exits non-zero if critical components (Docker/Python) are missing.
+  - Suggests specific fixes (links to docs).
 
 ---
 ### Decision: JS training fallback (V1)
@@ -303,6 +357,18 @@ M13 — Serverless model size smoke test
 - Summary: Add a simple CI smoke test that checks model artifact bundle size against a conservative threshold and warns if a model likely exceeds common serverless bundle limits.
 - Acceptance criteria:
   - CI smoke test `tests/smoke/serverless-size.test.ts` checks generated artifacts and fails the job if artifacts exceed configured serverless threshold (configurable per-repo).
+
+M14 — Extension Resource Disposal (NEW)
+- Priority: Medium — Effort: S
+- Domain: [runtime]
+- Owner: TBD — Est. Hours: 2
+- Dependencies: None
+- Summary: Implement lifecycle management for ONNX sessions in the Prisma extension. Long-running processes (APIs) need a way to release native memory held by ONNX models.
+- Files: `src/runtime/extension/client.ts`, `src/runtime/engine/inference.ts`.
+- Acceptance criteria:
+  - Add `.dispose()` method to the extension or provided as a utility.
+  - Implement automatic disposal on process exit using `process.on('exit', ...)`.
+  - Unit test `tests/unit/resource-leak.test.ts` verifies memory release.
 
 M08 — Runtime error semantics
 - Priority: Medium — Effort: S
