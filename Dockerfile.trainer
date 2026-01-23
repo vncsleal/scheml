@@ -16,8 +16,8 @@ WORKDIR /workspace
 COPY scripts/requirements.txt /workspace/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy training script
-COPY scripts/train.py /workspace/train.py
+# Copy training script (use packaged Python asset)
+COPY assets/python/trainer.py /workspace/train.py
 
 # Make script executable
 RUN chmod +x /workspace/train.py
