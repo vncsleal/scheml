@@ -38,13 +38,13 @@ importers:
       '@prisma/client':
         specifier: ^5.7.0
         version: 5.22.0
-      '@prisml/cli':
+      '@vncsleal/prisml-cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@prisml/core':
+      '@vncsleal/prisml-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@prisml/runtime':
+      '@vncsleal/prisml-runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
       tsx:
@@ -56,7 +56,7 @@ importers:
       '@prisma/client':
         specifier: ^5.7.0
         version: 5.22.0
-      '@prisml/core':
+      '@vncsleal/prisml-core':
         specifier: workspace:*
         version: link:../core
       chalk:
@@ -100,7 +100,7 @@ importers:
 
   packages/runtime:
     dependencies:
-      '@prisml/core':
+      '@vncsleal/prisml-core':
         specifier: workspace:*
         version: link:../core
       onnxruntime-node:

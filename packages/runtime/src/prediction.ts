@@ -14,14 +14,14 @@ import {
   FeatureSchema,
   ExtractedFeatures,
   normalizeFeatureVector,
-} from '@prisml/core';
+} from '@vncsleal/prisml-core';
 import {
   SchemaDriftError,
   ArtifactError,
   HydrationError,
   FeatureExtractionError,
   ONNXRuntimeError,
-} from '@prisml/core';
+} from '@vncsleal/prisml-core';
 
 /**
  * Loads and caches ONNX model metadata
@@ -305,21 +305,26 @@ export class PredictionSession {
         // Atomic abort: if any entity fails preflight, throw immediately
         // Attach batch index for debugging
         if (error instanceof FeatureExtractionError) {
-          throw new FeatureExtractionError(
-            modelName,
-            error.context.featureName as string,
-            error.context.reason as string,
-            i,
-            error.context
-          );
+          const context = error.context as {
+            featureName?: unknown;
+            reason?: unknown;
+          };
+          const featureName =
+            typeof context.featureName === 'string' ? context.featureName : 'unknown';
+          const reason =
+            typeof context.reason === 'string' ? context.reason : 'unknown';
+          throw new FeatureExtractionError(modelName, featureName, reason, i, error.context);
         }
         if (error instanceof HydrationError) {
-          throw new HydrationError(
-            modelName,
-            error.context.entityPath as string,
-            error.context.reason as string,
-            i
-          );
+          const context = error.context as {
+            entityPath?: unknown;
+            reason?: unknown;
+          };
+          const entityPath =
+            typeof context.entityPath === 'string' ? context.entityPath : 'unknown';
+          const reason =
+            typeof context.reason === 'string' ? context.reason : 'unknown';
+          throw new HydrationError(modelName, entityPath, reason, i);
         }
         // Re-throw other errors with batch context
         throw new FeatureExtractionError(

@@ -32,8 +32,8 @@ import {
   TrainingMetrics,
   buildCategoryMapping,
   normalizeFeatureVector,
-} from '@prisml/core';
-import { QualityGateError, ModelDefinitionError, ConfigurationError } from '@prisml/core';
+} from '@vncsleal/prisml-core';
+import { QualityGateError, ModelDefinitionError, ConfigurationError } from '@vncsleal/prisml-core';
 
 type ResolvedModel = ModelDefinition & {
   output: {

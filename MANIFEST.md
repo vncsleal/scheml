@@ -116,9 +116,9 @@
 - [x] Root package.json with workspaces
 - [x] Root tsconfig.json
 - [x] Root turbo.json
-- [x] @prisml/core package.json + tsconfig.json
-- [x] @prisml/cli package.json + tsconfig.json
-- [x] @prisml/runtime package.json + tsconfig.json
+- [x] @vncsleal/prisml-core package.json + tsconfig.json
+- [x] @vncsleal/prisml-cli package.json + tsconfig.json
+- [x] @vncsleal/prisml-runtime package.json + tsconfig.json
 - [x] .gitignore (root)
 
 ---
@@ -179,7 +179,7 @@
 
 ```
 ┌─────────────────────────────────────────┐
-│  @prisml/core                           │
+│  @vncsleal/prisml-core                  │
 │  ├── Types & interfaces                 │
 │  ├── Error hierarchy                    │
 │  ├── defineModel() API                  │
@@ -193,7 +193,7 @@
                     │
         ┌───────────┴──────────┐
         ▼                      ▼
-   @prisml/cli          @prisml/runtime
+   @vncsleal/prisml-cli   @vncsleal/prisml-runtime
    (prisml train)       (PredictionSession)
    ├── Load models      ├── Load metadata
    ├── Validate schema  ├── Validate schema

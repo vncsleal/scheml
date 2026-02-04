@@ -1,5 +1,5 @@
 {
-  "name": "@prisml/runtime",
+  "name": "@vncsleal/prisml-runtime",
   "version": "0.1.0",
   "description": "PrisML runtime: ONNX inference engine",
   "license": "MIT",
@@ -33,7 +33,7 @@
     "test:watch": "vitest --watch"
   },
   "dependencies": {
-    "@prisml/core": "workspace:*",
+    "@vncsleal/prisml-core": "workspace:*",
     "onnxruntime-node": "^1.16.3"
   },
   "devDependencies": {

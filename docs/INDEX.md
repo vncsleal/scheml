@@ -66,9 +66,9 @@
 
 ```
 packages/
-  core/              @prisml/core - Types, errors, schema hashing
-  cli/               @prisml/cli - prisml train command
-  runtime/           @prisml/runtime - ONNX inference
+  core/              @vncsleal/prisml-core - Types, errors, schema hashing
+  cli/               @vncsleal/prisml-cli - prisml train command
+  runtime/           @vncsleal/prisml-runtime - ONNX inference
   python/            Python training backend
 
 examples/

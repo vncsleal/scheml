@@ -1,5 +1,5 @@
 {
-  "name": "@prisml/cli",
+  "name": "@vncsleal/prisml-cli",
   "version": "0.1.0",
   "description": "PrisML CLI: prisml train compiler driver",
   "license": "MIT",
@@ -36,7 +36,7 @@
     "test:watch": "vitest --watch"
   },
   "dependencies": {
-    "@prisml/core": "workspace:*",
+    "@vncsleal/prisml-core": "workspace:*",
     "@prisma/client": "^5.7.0",
     "yargs": "^17.7.2",
     "chalk": "^5.3.0",

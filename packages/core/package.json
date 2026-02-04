@@ -1,5 +1,5 @@
 {
-  "name": "@prisml/core",
+  "name": "@vncsleal/prisml-core",
   "version": "0.1.0",
   "description": "PrisML core: model definitions, types, schema hashing",
   "license": "MIT",

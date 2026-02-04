@@ -1,7 +1,7 @@
 // This file is used by PrisML at compile time to discover models
 // Models are discovered via AST analysis and should use defineModel()
 
-import { defineModel } from '@prisml/core';
+import { defineModel } from '@vncsleal/prisml-core';
 
 type User = {
   id: string;

@@ -10,9 +10,9 @@
     "infer": "tsx src/infer.ts"
   },
   "dependencies": {
-    "@prisml/core": "workspace:*",
-    "@prisml/cli": "workspace:*",
-    "@prisml/runtime": "workspace:*",
+    "@vncsleal/prisml-core": "workspace:*",
+    "@vncsleal/prisml-cli": "workspace:*",
+    "@vncsleal/prisml-runtime": "workspace:*",
     "@prisma/client": "^5.7.0",
     "tsx": "^4.7.0"
   }

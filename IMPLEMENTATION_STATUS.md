@@ -8,7 +8,7 @@
 - [x] TypeScript configuration
 - [x] ESLint, Prettier setup
 
-### @prisml/core Package
+### @vncsleal/prisml-core Package
 - [x] Type definitions (ModelDefinition, TaskType, etc.)
 - [x] Error hierarchy (PrisMLError subclasses)
 - [x] defineModel() API
@@ -18,7 +18,7 @@
 - [x] Imputation rules
 - [x] Categorical encoding (label, hash)
 
-### @prisml/cli Package
+### @vncsleal/prisml-cli Package
 - [x] CLI entry point (bin.ts)
 - [x] `prisml train` command structure
 - [x] Argument parsing (config, schema, output, python backend)
@@ -28,7 +28,7 @@
 - [x] Quality gate evaluation
 - [x] ONNX artifact generation
 
-### @prisml/runtime Package
+### @vncsleal/prisml-runtime Package
 - [x] ONNX Runtime integration structure
 - [x] InferenceSession class
 - [x] Single entity inference

@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-npm install @vncsleal/prisml
+npm install @vncsleal/prisml-core @vncsleal/prisml-runtime @vncsleal/prisml-cli
 ```
 
 For monorepo development, clone and install:
@@ -44,7 +44,7 @@ model User {
 
 ```typescript
 // prisml.config.ts
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/prisml-core';
 
 export const userPredictionsModel = defineModel<{
   id: string;
@@ -87,7 +87,7 @@ This generates:
 ### 4. Run Predictions
 
 ```typescript
-import { PredictionSession } from '@vncsleal/prisml';
+import { PredictionSession } from '@vncsleal/prisml-runtime';
 
 const session = new PredictionSession();
 const schemaHash = '...'; // See docs for how to get this
