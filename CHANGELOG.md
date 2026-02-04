@@ -1,201 +1,127 @@
 # Changelog
 
-All notable changes to PrisML will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/).
+All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-01-21
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Changed (Architectural Refactor)
-- **Runtime/Compiler Isolation**: Restructured codebase into strict `src/runtime`, `src/compiler`, and `src/core` domains.
-  - Root export is now **Runtime-Only** to prevent application bloat.
-  - CLI and heavier dependencies are strictly isolated from the production runtime.
-- **Directory Restructuring**:
-  - Moved Python assets to `assets/python/trainer.py` for better bundling.
-  - Organized core logic into `src/core` for shared types and utilities.
-  - Organized runtime engines into `src/runtime/engine`.
-- **Package Distribution**:
-  - Full support for scoped package `@vncsleal/prisml`.
-  - Updated `package.json` with strict `exports` map for public API enforcement.
-- **Build System**:
-  - Switched to `tsup` for high-performance dual-format (CJS/ESM) bundling.
-  - Implemented composite TypeScript projects with isolated configurations.
-- **Improved Type Safety**:
-  - Created specialized TSConfigs for Runtime, Compiler, Tests, and Examples.
-  - Resolved several deep-import issues in example code.
-
-### Added
-- **Batch Predictions**: Promoted `withMLMany()` to stable feature status.
-- **Asset Resolution**: Secure, relative path resolution for Python assets within the npm package.
-- **Migration Guide**: Added `docs/MIGRATION.md` for upgrading from v1.0.
-
-## [1.0.0] - 2025-01-10
+## [0.1.0] - 2026-02-04
 
 ### Added
 
-#### Core Features (Tier 1)
-- **defineModel()** — TypeScript-first API for declaring ML models with Prisma
-  - Automatic data extraction from Prisma client
-  - Type-safe feature resolvers with `.select()` support
-  - Trained ONNX model storage and versioning
-  - Full TypeScript & JSDoc documentation
+- **Core Type System**: Complete type-safe model definition API with `defineModel()`
+  - `TaskType` enum: regression, binary_classification, multiclass_classification
+  - `AlgorithmConfig` with pinned versions and hyperparameters
+  - `QualityGate` for build-time model validation
+  - `ModelMetadata` contract for immutable artifacts
 
-- **prisml()** — Prisma extension for seamless model integration
-  - `findMany({ ml: { model, threshold } })` for batch predictions
-  - `create()` with automatic feature computation
-  - `update()` with prediction caching
-  - Works with existing Prisma queries (no migration needed)
+- **Prisma Schema Binding**: Deterministic schema hashing and drift detection
+  - SHA256 hashing of normalized Prisma schema
+  - Runtime schema hash validation with `SchemaDriftError`
+  - Prevents inference on schema-drifted models
 
-- **@prisma/client integration**
-  - Type-safe feature access via `model.$resolve(record)`
-  - Automatic SQL query optimization for feature extraction
-  - Transparent error handling and fallbacks
+- **Feature Encoding & Normalization**: Explicit, deterministic feature processing
+  - Support for scalar types: number, boolean, string, Date, null
+  - Categorical encoding: label and hash strategies
+  - Imputation rules: constant, mean, median, mode
+  - Unseen category detection with `UnseenCategoryError`
 
-#### Developer Experience (Tier 2)
-- **Model Training**
-  - Docker-based trainer (requires Python 3.11, scikit-learn, XGBoost)
-  - CLI: `prisml train --config config.json`
-  - Support for CSV input and validation set splitting
-  - Automatic ONNX conversion (skl2onnx)
-  - Minimum accuracy threshold enforcement
+- **Compilation/Training Phase**: Build-time model training via `prisml train`
+  - Prisma data extraction via ORM
+  - Deterministic feature vector generation
+  - Fixed-seed train/test split (80/20, seed=42)
+  - Quality gate evaluation on hold-out test set
+  - Artifact generation: ONNX + metadata JSON
+  - Python backend integration (scikit-learn + skl2onnx)
+  - Support for: linear, tree, forest, gbm algorithms
 
-- **Error Handling & Validation**
-  - Comprehensive TypeScript error types
-  - Runtime validation for model input/output
-  - Helpful error messages for misconfigured models
-  - Graceful fallback when ONNX runtime unavailable
+- **Runtime Prediction Engine**: ONNX Runtime integration
+  - `PredictionSession` for managing model lifecycle
+  - Single predictions: `predict<T>(modelName, entity, resolvers)`
+  - Batch predictions with atomic validation: `predictBatch<T>()`
+  - Preflight validation ensures no partial execution on error
+  - Feature extraction via resolver functions
+  - Synchronous, in-process inference
 
-- **Testing & Documentation**
-  - 57 comprehensive unit tests (6 test suites)
-  - E2E testing examples with Docker Compose
-  - 4 runnable examples:
-    - Next.js with Prisma ORM (bacon/)
-    - Churn prediction example
-    - Fraud detection example
-    - Batch prediction example
-  - Troubleshooting guide for common platform issues
+- **Error Handling**: Comprehensive, typed error taxonomy
+  - `PrisMLError` base class with structured context
+  - Specific error types: SchemaDriftError, HydrationError, UnseenCategoryError, etc.
+  - Batch index tracking for debugging
 
-#### Advanced Features (Tier 3)
-- **Batch Predictions**
-  - `withML()` for single record predictions
-  - `withMLMany()` for batch predictions with optimized database queries
-  - Configurable batch size for performance tuning
-  - Returns predictions alongside original data
+- **CLI**: Compiler driver for model training
+  - `prisml train` command with configurable options
+  - Status output with spinners and colored logging
+  - Quality gate enforcement with non-zero exit on failure
+  - Support for config, schema, output, and python backend options
 
-- **Model Versioning**
-  - Multiple model versions supported in single `defineModel()`
-  - `activeVersion` property to switch between versions
-  - Migration pattern for rolling out new models
-  - Training history and performance comparison
+- **Documentation**: Complete API and usage guides
+  - API.md: detailed function signatures and examples
+  - GUIDE.md: step-by-step user guide with code examples
+  - SECURITY.md: safety guarantees and design constraints
+  - ARCHITECTURE.md: system design and mental model
+  - FEATURES.md: feature specifications and rationale
 
-- **A/B Testing**
-  - `testingVersion` property for canary deployments
-  - Percentage-based traffic splitting (`testingPercent`)
-  - Metrics collection for variant comparison
-  - Automatic rollback to stable version
+- **Example Project**: End-to-end example in `examples/basic`
+  - Product Sales prediction model
+  - Model definition with regression task
+  - Training and inference workflows
 
-- **Prediction Confidence & Thresholds**
-  - Confidence scores for each prediction
-  - Customizable thresholds per model
-  - Fallback values when confidence is low
-  - Uncertainty quantification for decision-making
+### Fixed
 
-#### Production Readiness
-- **Package Distribution**
-  - Published to npm as `@vncsleal/prisml` (v1.0.0)
-  - Tarball size: 32.6 kB, 62 files
-  - Included: TypeScript definitions, source maps, README, examples
-  - Prebuilt artifacts for Node.js 18+
+- **Batch Inference Atomicity**: Implemented atomic two-phase execution
+  - Phase 1: Preflight validation of all entities
+  - Phase 2: ONNX inference (only if all entities validated)
+  - Throws on first failure with batch index context
+  - No partial results on error (matches PRD requirement)
 
-- **Docker Distribution**
-  - Multi-architecture trainer image: `vncsleal/prisml-trainer:1.0.0`
-  - Platforms: linux/amd64 (Intel/AMD), linux/arm64 (Apple Silicon, ARM servers)
-  - Tags: `latest` (current), version tags for pinning
-  - Verification: Docker image tested on both architectures
+- **CLI Build Script**: Removed non-standard chmod workaround
+  - Replaced `tsc && chmod +x` with standard shebang + npm bin field
+  - npm handles executable bit on install/publish (industry standard)
 
-- **Platform Compatibility**
-  - **Node.js**: 18.x (TESTED), 20.x (TESTED), 22.x (PARTIAL)
-  - **Operating Systems**: macOS Intel/ARM (TESTED), Ubuntu (TESTED), Debian (WORKS), Windows (PARTIAL — DLL issues), Alpine (NOT SUPPORTED — glibc incompatibility)
-  - **Cloud Platforms**: Vercel (PARTIAL — cold start 3-5s), AWS Lambda (PARTIAL — timeout/memory concerns), Railway (WORKS), Render (WORKS), Cloudflare (NOT SUPPORTED)
-  - **Databases**: PostgreSQL (TESTED), Neon (TESTED), Supabase (TESTED), PlanetScale (WORKS), SQLite (WORKS), CockroachDB (PARTIAL)
-  - **ONNX Runtime**: Native (prebuilt, <10ms latency), WebAssembly fallback (50-200ms for edge environments)
-  - Full compatibility matrix in `docs/PLATFORM_COMPATIBILITY.md`
+- **Runtime Naming**: Renamed inference.ts to prediction.ts
+  - Aligns with API naming convention (`predict()`, `PredictionSession`)
+  - Better semantic consistency across codebase
 
-- **Continuous Integration**
-  - GitHub Actions workflow (test.yml)
-  - Matrix testing: Node 18.x and 20.x on Ubuntu
-  - Automatic linting, building, testing, and packing on push/PR
-  - Lint failures do not block CI (advisory only)
+### Known Limitations
 
-- **Security Policy**
-  - Vulnerability reporting: security@iamvini.co
-  - Security best practices documented in SECURITY.md
-  - Known limitations: model integrity signing, training data access, model input validation
-  - Not suitable for safety-critical applications
+- AST static analysis stubbed (deferred to V1)
+  - Feature resolver access paths validated at runtime only
+  - Conservative static analysis is out of scope for MVP
+- Docker backend option not implemented (local Python only)
+  - Deferred to V1 as nice-to-have enhancement
+- Hash encoding uses simple sum mod 1000 (deterministic but basic)
+  - Will be replaced with MurmurHash3 in V1
 
-### Documentation
-- **README.md** — Quick start, installation, basic usage
-- **docs/PRD.md** — Complete feature specification and timeline
-- **docs/PLATFORM_COMPATIBILITY.md** — Comprehensive support matrix (Node versions, OS, cloud platforms, databases, ONNX runtime, known issues, deployment tiers)
-- **docs/TROUBLESHOOTING.md** — Common issues and solutions
-- **docs/API.md** — TypeScript API reference
-- **SECURITY.md** — Vulnerability reporting and security best practices
-- **CHANGELOG.md** (this file) — Version history
+### Technical Details
+
+- **Language**: TypeScript 5.3
+- **Runtime**: Node.js 18+
+- **Build System**: Turbo (monorepo)
+- **Package Manager**: pnpm
+- **ML Backend**: scikit-learn + ONNX Runtime
+- **Type Safety**: Complete end-to-end TypeScript support
 
 ### Breaking Changes
-None (initial release).
 
-### Known Issues
-1. **Windows**: Building ONNX Runtime requires Visual C++ Build Tools. Workaround: Use WSL2 or Docker.
-2. **Alpine Linux**: glibc incompatibility with Node.js prebuilt binaries. Workaround: Use Docker image or Node.js binary from Alpine repository.
-3. **Serverless (Vercel, AWS Lambda)**: Cold start latency 3-5s due to large ONNX runtime artifacts. Mitigation: Use HTTP caching or warm up with periodic requests.
-4. **Large Models**: Models >50 MB may exceed memory limits in serverless. Mitigation: Quantize ONNX model or split into multiple smaller models.
+None (initial release)
 
-### Compatibility Matrix
+### Contributors
 
-| Component | Support Level | Notes |
-|-----------|---------------|-------|
-| Node.js 18.x | ✅ TESTED | Primary target |
-| Node.js 20.x | ✅ TESTED | Recommended for new projects |
-| Node.js 22.x | ⚠️ PARTIAL | Works but not officially tested |
-| Node.js <18 | ❌ UNSUPPORTED | Requires upgrade |
-| macOS (Intel) | ✅ TESTED | Full support |
-| macOS (ARM/M1+) | ✅ TESTED | Full support |
-| Ubuntu 20.04+ | ✅ TESTED | Full support |
-| Windows 10/11 | ⚠️ PARTIAL | Use WSL2 or Docker |
-| Alpine Linux | ❌ UNSUPPORTED | Use Docker image |
-| PostgreSQL | ✅ TESTED | Production grade |
-| MySQL | ⚠️ WORKS | Supported but not extensively tested |
-| SQLite | ⚠️ WORKS | Development only |
-| Vercel | ⚠️ PARTIAL | Cold start latency ~3-5s |
-| AWS Lambda | ⚠️ PARTIAL | Time/memory constraints |
-| Railway | ✅ WORKS | Full support |
-| Cloudflare | ❌ UNSUPPORTED | No native binary support |
-
-### Performance Benchmarks
-
-- **ONNX Inference** (Linux, Node 20): <10ms for typical models
-- **Feature Extraction**: 50-200ms depending on database queries (network dependent)
-- **Model Training** (Docker): 30-120s for 10K-100K records (algorithm & data dependent)
-- **Cold Start** (Vercel): 3-5 seconds
-- **Batch Predictions** (100 records): 50-500ms depending on batch size
-
-### Migration Path
-If upgrading from experimental/beta versions:
-1. Backup existing ONNX model files
-2. Regenerate models using v1.0.0 trainer
-3. Update `defineModel()` calls if using previous alpha syntax (unlikely for v1.0)
-4. Run full test suite before deploying to production
-
-### Feedback & Contributions
-- Report bugs: [GitHub Issues](https://github.com/vncsleal/prisml/issues)
-- Security vulnerabilities: security@iamvini.co
-- Feature requests: [GitHub Discussions](https://github.com/vncsleal/prisml/discussions) (coming soon)
-- Contributions welcome: Fork → Branch → Test → PR
-
-### Future Roadmap
-- **v1.1** (Q1 2025): Streaming predictions, additional database adapters, improved error messages
-- **v1.2** (Q2 2025): GPU acceleration (ONNX GPU Runtime), distributed training
-- **v2.0** (H2 2025): Web UI for model management, multi-tenant support
+- PrisML Team
 
 ---
 
-**For detailed feature information, see [docs/PRD.md](docs/PRD.md) and [docs/API.md](docs/API.md).**
+## Unreleased
+
+### Planned for V1
+
+- Full AST static analysis for feature resolvers
+- Docker backend option for Python training
+- MurmurHash3 for categorical encoding
+- Performance optimizations (batch ONNX inference)
+- Advanced feature types (arrays, nested objects)
+- Custom imputation strategies
+
+---
+
+[0.1.0]: https://github.com/prisml/prisml/releases/tag/v0.1.0

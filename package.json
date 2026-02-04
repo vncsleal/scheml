@@ -1,76 +1,44 @@
 {
-  "name": "@vncsleal/prisml",
-  "version": "1.1.0",
-  "description": "Type-safe ML for Prisma - Train and deploy ML models directly from your database schema",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "bin": {
-    "prisml": "dist/cli.js"
-  },
-  "exports": {
-    ".": "./dist/index.js",
-    "./client": "./dist/runtime/extension/client.js",
-    "./cli": null
-  },
-  "directories": {
-    "doc": "docs",
-    "example": "examples"
-  },
-  "scripts": {
-    "build": "tsup && tsc -b tsconfig.json",
-    "dev": "tsup --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
-    "docs": "typedoc",
-    "docs:serve": "npx serve docs/api",
-    "prepublishOnly": "npm run build",
-    "docker:build": "./scripts/build-docker.sh",
-    "docker:push": "docker push vncsleal/prisml-trainer:latest && docker push vncsleal/prisml-trainer:1.1.0"
-  },
-  "keywords": [
-    "prisma",
-    "ml",
-    "machine-learning",
-    "onnx",
-    "scikit-learn",
-    "typescript",
-    "database"
-  ],
-  "author": "PrisML Team",
+  "name": "@prisml/root",
+  "version": "0.1.0",
+  "description": "PrisML: Compiler-first ML library for TypeScript + Prisma",
+  "private": true,
   "license": "MIT",
-  "type": "commonjs",
-  "devDependencies": {
-    "@types/node": "^25.0.8",
-    "@vitest/ui": "^4.0.17",
-    "prisma": "5.8.1",
-    "ts-node": "^10.9.2",
-    "tsup": "^8.5.1",
-    "typedoc": "^0.28.16",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.17"
-  },
-  "dependencies": {
-    "@prisma/client": "5.8.1",
-    "chalk": "^4.1.2",
-    "commander": "^14.0.2",
-    "onnxruntime-node": "^1.23.2",
-    "ora": "^9.0.0",
-    "zod": "^4.3.5"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
+  "author": "Vinicius Leal <hello@vncsleal.com> (https://github.com/vncsleal)",
   "repository": {
     "type": "git",
     "url": "https://github.com/vncsleal/prisml"
   },
-  "files": [
-    "dist/",
-    "assets/",
-    "Dockerfile.trainer",
-    "README.md",
-    "LICENSE"
-  ]
+  "bugs": {
+    "url": "https://github.com/vncsleal/prisml/issues"
+  },
+  "keywords": [
+    "machine-learning",
+    "typescript",
+    "prisma",
+    "compiler",
+    "onnx",
+    "inference"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "turbo": "^1.10.16",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  }
 }

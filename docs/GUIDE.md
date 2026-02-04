@@ -1,0 +1,434 @@
+# PrisML User Guide
+
+## Quick Start
+
+### 1. Define Models
+
+Create `prisml.config.ts` with your model definitions:
+
+```typescript
+import { defineModel } from '@vncsleal/prisml';
+
+export const userLTVModel = defineModel<User>({
+  name: 'userLTV',
+  modelName: 'User',
+  output: {
+    field: 'estimatedLTV',
+    taskType: 'regression',
+    resolver: (user) => user.actualLTV,
+  },
+  features: {
+    // Account age in days
+    accountAge: (user) => {
+      const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      return Math.floor(days);
+    },
+
+    // Categorical: converted to label-encoded integer
+    source: (user) => user.signupSource,
+
+    // Boolean: converted to 0/1
+    isPremium: (user) => user.plan === 'premium',
+  },
+  algorithm: {
+    name: 'forest',
+    version: '1.0.0',
+    hyperparameters: {
+      nEstimators: 100,
+      maxDepth: 10,
+    },
+  },
+  qualityGates: [
+    {
+      metric: 'rmse',
+      threshold: 500,
+      comparison: 'lte',
+      description: 'Must predict within $500',
+    },
+  ],
+});
+```
+
+### 2. Train
+
+Compile models to immutable artifacts:
+
+```bash
+npm run train
+```
+
+This:
+1. Loads Prisma schema
+2. Validates model definitions
+3. Extracts training data via Prisma
+4. Invokes Python backend
+5. Evaluates quality gates
+6. Exports `model.onnx` + `model.metadata.json`
+
+Artifacts are **immutable** and intended to be **committed to git**.
+
+### 3. Run Predictions
+
+Use trained models in your application:
+
+```typescript
+import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
+
+const session = new PredictionSession();
+const schemaHash = hashPrismaSchema(schemaContent);
+
+// Initialize model
+await session.initializeModel(
+  './artifacts/userLTV.metadata.json',
+  './artifacts/userLTV.onnx',
+  schemaHash
+);
+
+// Single prediction
+const result = await session.predict('userLTV', user, {
+  accountAge: (u) => (Date.now() - u.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+  source: (u) => u.signupSource,
+  isPremium: (u) => u.plan === 'premium',
+});
+
+console.log(result.prediction); // e.g., 1500
+```
+
+## Feature Resolvers
+
+Feature resolvers are pure functions that extract values from entities.
+
+### Scalar Types
+
+```typescript
+features: {
+  // Numeric
+  revenue: (user) => user.monthlySpend,
+
+  // Boolean → encoded as 0/1
+  isActive: (user) => user.lastActiveAt > new Date(Date.now() - 30 * 86400000),
+
+  // String → categorical encoding (label or hash)
+  region: (user) => user.country,
+
+  // Date → converted to Unix timestamp
+  createdAt: (user) => user.createdAt,
+
+  // Null handling
+  memberSince: (user) => user.joinDate || null,
+}
+```
+
+### Supported Patterns
+
+**Direct property access:**
+```typescript
+name: (user) => user.name
+```
+
+**Optional chaining:**
+```typescript
+bio: (user) => user.profile?.bio
+```
+
+**Nested property:**
+```typescript
+tier: (user) => user.account.subscription.tier
+```
+
+**Array length:**
+```typescript
+tagCount: (user) => user.tags.length
+```
+
+**Computed values:**
+```typescript
+accountAge: (user) => {
+  const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+  return Math.floor(days);
+}
+```
+
+### Unsupported Patterns
+
+❌ Dynamic keys:
+```typescript
+value: (user) => user[fieldName] // NOT EXTRACTABLE
+```
+
+❌ Array indexing:
+```typescript
+firstTag: (user) => user.tags[0] // NOT EXTRACTABLE
+```
+
+❌ Iteration:
+```typescript
+totalTags: (user) => user.tags.map(t => t.length).sum() // NOT EXTRACTABLE
+```
+
+❌ Opaque function calls:
+```typescript
+processed: (user) => processValue(user.value) // NOT EXTRACTABLE
+```
+
+## Categorical Features
+
+For string features, specify encoding strategy:
+
+```typescript
+features: {
+  region: (user) => user.country, // 'US', 'EU', 'APAC'
+}
+
+// In encoding (auto-discovered at training time):
+encoding: {
+  region: {
+    type: 'label',
+    mapping: { 'US': 0, 'EU': 1, 'APAC': 2 }
+  }
+}
+```
+
+**Label encoding:**
+- Categories sorted alphabetically
+- Assigned integer codes 0, 1, 2, ...
+- Mapping serialized in metadata
+- Unseen categories at runtime → hard error
+
+**Hash encoding:**
+- Categories hashed (not stored)
+- Deterministic mapping
+- Slightly lossy (collisions possible)
+- No mapping needed in metadata
+
+## Null Handling
+
+Nulls must be declared and imputed:
+
+```typescript
+features: {
+  // OK: value can be null, will use imputation
+  bio: {
+    resolver: (user) => user.profile?.bio,
+    imputation: {
+      strategy: 'constant',
+      value: 'unknown',
+    },
+  },
+
+  // ERROR: resolver can return null but no imputation
+  revenue: (user) => user.revenue, // Could be null!
+}
+```
+
+**Imputation strategies:**
+- `constant` — use fixed value
+- `mean` — use training set mean
+- `median` — use training set median
+- `mode` — use training set mode
+
+## Quality Gates
+
+Define minimum acceptable model quality:
+
+```typescript
+qualityGates: [
+  {
+    metric: 'rmse',
+    threshold: 500,
+    comparison: 'lte',
+    description: 'Regression error must be < $500',
+  },
+  {
+    metric: 'precision',
+    threshold: 0.8,
+    comparison: 'gte',
+    description: 'Precision must be >= 80%',
+  },
+]
+```
+
+**Metrics:**
+- Regression: `mse`, `rmse`, `mae`, `r2`
+- Classification: `accuracy`, `precision`, `recall`, `f1`
+
+If any gate fails during training:
+- Artifact generation **aborts**
+- `prisml train` exits with **non-zero code**
+- No model is exported
+- You must fix the model and retrain
+
+## Batch Predictions
+
+Process multiple entities efficiently with atomic validation:
+
+```typescript
+const users = await db.user.findMany({ take: 1000 });
+
+try {
+  const result = await session.predictBatch('userLTV', users, {
+    accountAge: (u) => ...,
+    source: (u) => ...,
+  });
+
+  console.log(`All ${result.successCount} predictions succeeded`);
+
+  result.results.forEach((r, i) => {
+    console.log(`User ${i}:`, r.prediction);
+  });
+} catch (error) {
+  // Entire batch failed - no partial results
+  console.error('Batch validation failed:', error);
+}
+});
+```
+
+**Behavior:**
+- Validates all entities before prediction
+- Any error aborts the entire batch
+- No partial results are returned
+- Large batches block (you must chunk)
+
+## Error Handling
+
+All errors are typed with structured context:
+
+```typescript
+import {
+  SchemaDriftError,
+  FeatureExtractionError,
+  UnseenCategoryError,
+  QualityGateError,
+} from '@vncsleal/prisml';
+
+try {
+  const result = await session.predict('userLTV', user, resolvers);
+} catch (error) {
+  if (error instanceof SchemaDriftError) {
+    // Schema changed since model was compiled
+    console.error(`Schema mismatch since compilation`);
+    process.exit(1); // FATAL
+  } else if (error instanceof UnseenCategoryError) {
+    // New category value encountered
+    console.error(`New category for feature ${error.context.featureName}:`, error.context.value);
+    // Handle gracefully or re-train
+  } else if (error instanceof FeatureExtractionError) {
+    // Resolver failed
+    console.error(`Feature extraction failed: ${error.context.reason}`);
+  }
+}
+```
+
+## Artifact Management
+
+Artifacts are immutable and versioned:
+
+```
+prisml-artifacts/
+  userLTV.metadata.json  ← Semantic contract
+  userLTV.onnx           ← Binary model (binary diff may be large)
+  userChurn.metadata.json
+  userChurn.onnx
+```
+
+**Best practices:**
+1. Commit artifacts to git
+2. Review metadata.json in PRs (shows what changed)
+3. Tag releases with model versions
+4. Never manually edit artifacts
+5. To update a model, retrain and commit new artifacts
+
+## Updating Models
+
+To change a model:
+
+1. Edit `prisml.config.ts`
+2. Run `npm run train`
+3. Commit new artifacts
+4. Deploy
+
+To change Prisma schema:
+
+1. Run `prisma migrate`
+2. Re-train all models (schema hash will change)
+3. Commit new artifacts and schema
+4. Deploy
+
+If you skip retraining:
+- Inference will fail with `SchemaDriftError`
+- Application will refuse to make predictions
+- This is intentional and safe
+
+## CI/CD Integration
+
+Add to your CI pipeline:
+
+```yaml
+# .github/workflows/train.yml
+name: Train Models
+
+on: [push]
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm install
+      - run: npm run train
+      - run: git add prisml-artifacts/
+      - run: git commit -m "Update ML artifacts" || true
+      - run: git push
+```
+
+This ensures models are always trained on latest code and data.
+
+## Troubleshooting
+
+### `SchemaDriftError`
+
+```
+Error: Prisma schema hash mismatch: expected abc123, got def456
+```
+
+**Solution:** Retrain your models.
+```bash
+npm run train
+```
+
+### `UnseenCategoryError`
+
+```
+Model "userLTV", feature "region": unseen category "JP"
+```
+
+**Solution:** Model was trained on limited set of categories. Retrain with new data.
+
+### `FeatureExtractionError`
+
+```
+Model "userLTV", feature "accountAge": Resolver threw: Cannot read property 'createdAt' of null
+```
+
+**Solution:** Add null check in resolver.
+```typescript
+accountAge: (user) => {
+  if (!user.createdAt) return 0; // Impute with default
+  return Date.now() - user.createdAt.getTime();
+}
+```
+
+### `QualityGateError`
+
+```
+Model "userLTV" quality gate failed: rmse gte 500, got 625
+```
+
+**Solution:** Model doesn't meet quality bar. Options:
+1. Improve features
+2. Get more training data
+3. Adjust algorithm hyperparameters
+4. Loosen quality gate (if acceptable)
+
+Then retrain.

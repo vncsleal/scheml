@@ -1,0 +1,325 @@
+# PrisML Security & Safety
+
+## Core Safety Guarantees
+
+### Schema Validation
+
+Every model is bound to a specific Prisma schema via SHA256 hash:
+
+- Normalizes schema (removes whitespace, comments)
+- Computes deterministic hash
+- Records hash in metadata
+- At runtime, **rejects predictions** if hash doesn't match
+
+**Effect:** Prevents silent bugs from schema drift after model compilation.
+
+This is **non-negotiable** and causes hard failures (not warnings).
+
+### Deterministic Execution
+
+Predictions are deterministic within platform guarantees:
+
+- Same entity + same artifacts → same output (always)
+- No random number generation in predictions
+- No external service calls
+- No time-dependent behavior
+
+**Effect:** Models are reproducible and auditable.
+
+### Type Safety
+
+Full TypeScript strict mode:
+
+- No implicit `any`
+- All types explicitly annotated
+- Type checking at compile time
+- Runtime validation for user inputs
+
+**Effect:** Catches errors before runtime.
+
+### Error Handling
+
+No silent failures. All errors are typed:
+
+```typescript
+try {
+  await session.predict(model, entity, resolvers);
+} catch (error) {
+  if (error instanceof SchemaDriftError) {
+    // Schema changed - FATAL
+  } else if (error instanceof UnseenCategoryError) {
+    // New category - handle gracefully or retrain
+  }
+}
+```
+
+**Effect:** Developers can't ignore errors.
+
+### Immutable Artifacts
+
+Models compile to immutable artifacts:
+
+- Never modified after generation
+- Committed to git (auditable)
+- No runtime mutations
+- Deterministic within numeric bounds
+
+**Effect:** Models don't change unexpectedly.
+
+---
+
+## Privacy & Data
+
+### No Data Storage
+
+PrisML does **not**:
+- Store user data
+- Log sensitive information
+- Transmit data to external services
+- Cache predictions
+
+Data flows:
+- Training: Prisma → Python backend (local) → ONNX artifacts
+- Prediction: Application → session.predict() → output
+
+### Training Data
+
+During `prisml train`:
+- Data is extracted via your Prisma instance
+- Processed locally via Python backend
+- Not sent to external services
+- Deleted after training completes
+
+### In Production
+
+At runtime:
+- Models execute in-process
+- No data leaves your application
+- No telemetry or logging
+- Feature data is transient (not stored)
+
+---
+
+## Operational Safety
+
+### Quality Gates
+
+Models must pass quality gates before export:
+
+```typescript
+qualityGates: [
+  {
+    metric: 'rmse',
+    threshold: 500,
+    comparison: 'lte',
+  }
+]
+```
+
+If any gate fails:
+- Artifact generation **aborts**
+- Exit code is non-zero
+- No model is exported
+- You must fix and retrain
+
+**Effect:** Prevents deploying low-quality models.
+
+### Batch Validation
+
+Batch predictions validate **all** entities before predictions:
+
+```typescript
+const results = await session.predictBatch(model, entities, resolvers);
+```
+
+If any entity fails validation:
+- **Entire batch is aborted**
+- No partial results
+- Application must handle error
+- Caller can retry or skip
+
+**Effect:** Prevents partial failures and inconsistent state.
+
+### Schema Drift Detection
+
+If Prisma schema changes after model compilation:
+
+```typescript
+// Schema changed - hash mismatch
+await session.predict(model, entity, resolvers);
+// → throws SchemaDriftError
+// → prediction STOPS
+```
+
+No predictions happen if schema drifts.
+
+**Effect:** Prevents using stale models with new schema.
+
+---
+
+## Security Considerations
+
+### Code Injection
+
+Feature resolvers are analyzed via TypeScript AST:
+
+```typescript
+// SAFE: static property access
+revenue: (user) => user.revenue
+
+// UNSAFE: dynamic code
+value: (user) => eval(user.expression) // Type error! ✓
+```
+
+TypeScript's type system prevents this.
+
+### Model Artifacts
+
+ONNX models are:
+- Binary format (not executable code)
+- Serialized numerical weights
+- No dynamic code generation
+- Safe to load from untrusted sources (within reason)
+
+### Training Backend
+
+Python backend should be:
+- Run in isolated environment
+- No external network access
+- No dynamic code loading
+- Pinned dependency versions
+
+### Dependency Management
+
+Dependencies should be:
+- Pinned to specific versions
+- Regularly audited for vulnerabilities
+- Updated carefully with testing
+- Scanned by npm audit
+
+---
+
+## Compliance
+
+### Data Protection
+
+If using PrisML in GDPR/CCPA jurisdiction:
+- Models don't store personal data
+- Feature extraction is transient
+- Artifacts are not PII
+- Training data is your responsibility
+
+### Model Governance
+
+PrisML enforces:
+- Reproducible training (git artifacts)
+- Version tracking (metadata)
+- Quality gates (automatic checks)
+- Error reporting (typed errors)
+
+This supports audit trails and compliance requirements.
+
+### Fairness & Bias
+
+PrisML does **not** provide:
+- Bias detection
+- Fairness metrics
+- Protected group testing
+- Explainability
+
+These are **your responsibility** as a developer.
+
+---
+
+## Best Practices
+
+### Training Safety
+
+1. Use clean, representative data
+2. Set meaningful quality gates
+3. Review metrics before deploying
+4. Test on hold-out set
+5. Log training date and version
+
+### Deployment Safety
+
+1. Commit artifacts to git
+2. Use feature branches for model updates
+3. Require code review for artifact changes
+4. Monitor prediction errors in production
+5. Retrain when schema changes
+
+### Monitoring
+
+Track in production:
+- Prediction latency
+- Error rates
+- Unseen categories
+- Schema drift failures
+- Model version distribution
+
+### Retraining
+
+When to retrain:
+- Schema changes (required)
+- Distribution shift (data drift)
+- New categories observed
+- Quality gates lower threshold
+- Algorithm update available
+
+---
+
+## Reporting Security Issues
+
+If you find a security issue:
+
+1. **Do not** create public GitHub issue
+2. Email security@prisml.dev (or project lead)
+3. Include:
+   - Description of issue
+   - Reproduction steps
+   - Potential impact
+   - Suggested fix
+
+We will:
+- Acknowledge within 48 hours
+- Investigate and confirm
+- Develop fix in private branch
+- Release security patch
+- Credit discoverer (if desired)
+
+---
+
+## Security Audit
+
+PrisML has **not** undergone formal security audit.
+
+Before using in production:
+- Review this document
+- Review error handling code
+- Test error cases
+- Consider hiring security firm
+- Monitor for CVEs in dependencies
+
+---
+
+## Third-Party Security
+
+PrisML depends on:
+- `@prisma/client` — database ORM
+- `onnxruntime-node` — model predictions
+- `yargs` — CLI parsing
+- TypeScript & Node.js — runtime
+
+Monitor these for security issues.
+
+---
+
+## Future
+
+V1.0+ roadmap includes:
+- Formal security audit
+- SBOM (Software Bill of Materials)
+- Security policy
+- CVE monitoring
+- Incident response plan

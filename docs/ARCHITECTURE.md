@@ -1,349 +1,303 @@
 # PrisML Architecture
 
-This document describes the high-level architecture of PrisML v2.0, emphasizing the separation between the **Core** (Synchronous/Local) and **Gen** (Asynchronous/Remote) layers.
+## Overview
 
----
+PrisML is a compiler-first ML library that treats machine learning as a build-time process, not a runtime service.
 
-## System Overview
-
-```mermaid
-graph TD
-    UserApp[User Application (Next.js/Express)]
-    
-    subgraph "PrisML Runtime (In-Process)"
-        PrismaClient[Prisma Client]
-        Extension[PrisML Extension]
-        
-        subgraph "Core Layer (Sync)"
-            FeatureEngine[Feature Engine]
-            OnnxRuntime[ONNX Runtime (Node.js)]
-            ModelCache[Model Cache (Singleton)]
-        end
-        
-        subgraph "Gen Layer (Async)"
-            VectorEngine[Vector Engine]
-            GenFieldEngine[Generative Field Engine]
-        end
-    end
-    
-    subgraph "External Resources"
-        DB[(PostgreSQL)]
-        ModelArtifact[Model.onnx File]
-        LLM[OpenAI / External API]
-    end
-
-    UserApp --> PrismaClient
-    PrismaClient --> Extension
-    
-    %% Core Flow
-    Extension -- "resolve(User)" --> FeatureEngine
-    FeatureEngine -- "Feature Vector" --> OnnxRuntime
-    OnnxRuntime -- "Load" --> ModelArtifact
-    OnnxRuntime -- "Probability" --> Extension
-    
-    %% Gen Flow
-    Extension -- "vectorSearch()" --> VectorEngine
-    VectorEngine -- "pgvector Query" --> DB
-    Extension -- "_gen.field" --> GenFieldEngine
-    GenFieldEngine -- "HTTP" --> LLM
+```
+TypeScript Model Definitions
+            ↓
+        prisml train (CLI)
+            ↓
+    ONNX + Metadata
+            ↓
+    Runtime Predictions
 ```
 
----
+## Core Concepts
 
-## 1. The Build Pipeline (CLI)
+### Model Definitions (`@prisml/core`)
 
-The `prisml train` command acts as a **compiler + orchestrator**, bridging TypeScript and Python ecosystems.
-
-### 1.1 Phase 1: TypeScript Data Extraction
+Models are pure declarative specifications using `defineModel()`:
 
 ```typescript
-// Runs in Node.js
-const extractor = new PrismaDataExtractor(prisma, model);
-const { features, labels } = await extractor.extractTrainingData();
+import { defineModel } from '@vncsleal/prisml';
+
+const model = defineModel<User>({
+  name: 'userValue',
+  modelName: 'User',
+  output: {
+    field: 'estimatedValue',
+    taskType: 'regression',
+  },
+  features: {
+    accountAge: (user) => Date.now() - user.createdAt.getTime(),
+    isPremium: (user) => user.plan === 'premium',
+  },
+  algorithm: {
+    name: 'forest',
+    version: '1.0.0',
+  },
+});
 ```
 
-**Steps:**
-1.  **Introspection:** Reads `ml.ts` definitions and validates against `schema.prisma`
-2.  **Query Generation:** Creates optimized Prisma query with batching (prevents OOM)
-3.  **Feature Extraction:** Executes user's `resolve` functions on each entity
-4.  **Validation:** Ensures types match, handles nulls, maintains deterministic order
-5.  **CSV Export:** Writes features to temporary CSV for Python handoff
+**Constraints:**
+- No data access in definitions
+- No training logic
+- No side effects
+- Pure functions for feature resolvers
 
-**Why TypeScript here?**
-- Type safety: Can't access fields that don't exist
-- DRY: Same code runs during inference
-- Integration: Direct Prisma Client access
+### Prisma Schema Binding
 
-### 1.2 Phase 2: Python Training
+Every model is bound to a specific Prisma schema via SHA256 hash:
 
-```python
-# Runs in subprocess (assets/python/trainer.py)
-from sklearn.ensemble import RandomForestClassifier
-from skl2onnx import convert_sklearn
+1. Schema is normalized (whitespace, comments removed)
+2. SHA256 hash is computed during compilation
+3. Hash is recorded in `model.metadata.json`
+4. At runtime, predictions are rejected if schema hash differs
 
-clf = RandomForestClassifier(n_estimators=100, max_depth=10)
-clf.fit(X_train, y_train)
+This prevents silent bugs from schema drift.
 
-onnx_model = convert_sklearn(clf, initial_types=...)
-```
+### Compilation Pipeline (`@prisml/cli`)
 
-**Steps:**
-1.  **Data Loading:** Reads CSV from temporary directory
-2.  **Train/Test Split:** Deterministic split with stratification
-3.  **Training:** Uses scikit-learn, XGBoost, or custom algorithms
-4.  **Evaluation:** Calculates accuracy, precision, recall, F1
-5.  **Quality Gate:** Fails build if `accuracy < minAccuracy` (CI/CD integration)
-6.  **ONNX Export:** Converts trained model to portable format
-7.  **Cleanup:** Returns metadata, removes temporary files
+`prisml train` executes:
 
-**Why Python here?**
-- Ecosystem: Access to all scikit-learn algorithms
-- Performance: Multi-threaded training (n_jobs=-1)
-- Expertise: Your data scientists use Python
-- ONNX: First-class export support
+1. **Load & Validate**
+   - Load Prisma schema
+   - Load model definitions via AST discovery
+   - Validate TypeScript types
 
-### 1.3 Phase 3: Artifact Storage
+2. **Resolve Defaults**
+   - Normalize feature resolver names
+   - Resolve algorithm versions
+   - Resolve quality gates
 
-```typescript
-// Back in Node.js
-await fs.writeFile(
-  'prisml/generated/ChurnModel.onnx',
-  onnxBuffer
-);
-```
+3. **Extract Training Data**
+   - Initialize PrismaClient
+   - Execute ordered query (via Prisma primary keys)
+   - Hydrate entities using lazy-loading/selection
 
-**Artifact Contents:**
-- `model.onnx`: Binary ONNX model (commit to git)
-- `metadata.json`: Training stats, feature names, accuracy
-- `checksums.json`: Feature definition hash (prevents drift)
+4. **Feature Engineering**
+   - Run feature resolvers on each entity
+   - Build deterministic feature vectors
+   - Apply categorical encoding (label or hash)
+   - Apply imputation rules
 
-**Git Integration:**
-Models are **versioned with code**. When you:
-- Change feature logic → Retrain → New ONNX committed
-- Deploy new version → Model matches code exactly
-- Rollback code → Model rolls back too
+5. **Train Model**
+  - Invoke pinned Python backend (local)
+   - Train algorithm on feature matrix
+   - Evaluate on hold-out test split
 
-### 1.4 Process Isolation Benefits
+6. **Evaluate Quality Gates**
+   - Compute metrics: RMSE, accuracy, precision, F1
+   - Compare against thresholds
+   - Abort if any gate fails (exit non-zero)
 
-| Concern | Solution |
-|---------|----------|
-| Python version conflicts | Subprocess uses system Python or Docker |
-| Node.js event loop blocking | Training runs in separate OS process |
-| Memory leaks | Process exits after training, memory freed |
-| Dependency hell | Python deps don't pollute node_modules |
-| CI/CD | Easy to cache Python env separately |
+7. **Export Artifacts**
+   - Write `model.onnx` (binary ONNX model)
+   - Write `model.metadata.json` (semantic contract)
+   - Intended to be committed to git
 
-### 1.5 Environment Auto-Detection
+### Feature Extraction Analysis
 
-PrisML automatically selects the optimal training environment:
+Feature resolvers are analyzed via TypeScript AST inspection:
 
-```typescript
-// Detection algorithm
-function detectEnvironment() {
-  if (dockerAvailable()) {
-    return 'docker';  // Best: Consistent, isolated
-  }
-  if (pythonAvailable() && hasRequiredPackages()) {
-    return 'python';  // Good: Works if configured
-  }
-  if (datasetSize < 1000) {
-    return 'js-fallback';  // Experimental: Tiny datasets only
-  }
-  throw new Error('Install Docker or Python');
-}
-```
+**Extractable patterns:**
+- Direct property access: `user.name`
+- Optional chaining: `user.profile?.bio`
+- Nested access: `user.account.tier.level`
+- Array length: `user.tags.length`
 
-**Detection Flow:**
-1. Check for Docker daemon (`docker info`)
-2. If Docker: Pull `prisml/trainer:latest` (cached after first run)
-3. No Docker? Check for Python 3.8+ (`python3 --version`)
-4. Verify packages: `import sklearn, onnx, skl2onnx`
-5. No Python? Offer JS fallback for <1000 rows or exit with instructions
+**Non-extractable patterns:**
+- Dynamic keys: `user[variable]`
+- Array indexing: `user.array[0]`
+- Iteration: `user.items.map(x => x.value)`
+- Opaque function calls
 
-**User Experience:**
-- With Docker: Zero configuration, works immediately
-- Without Docker: One-time Python setup, clear instructions
-- Override: `--use-docker` or `--use-local-python` flags
+Non-extractable patterns are:
+- Marked as warnings
+- Allowed to compile
+- Validated strictly at runtime only
 
----
+### Feature Encoding & Normalization
 
-## 2. The Runtime (Client Extension)
+All resolver outputs are normalized to numeric vectors:
 
-PrisML hooks into the `prisma.$extends` API.
+**Scalar types supported:**
+- `number` → used as-is (validated as finite)
+- `boolean` → encoded as 0/1
+- `string` → categorical encoding (label or hash)
+- `Date` → converted to Unix timestamp
 
-### 2.1 Core (Predictive Fields)
-*   **Goal:** Zero-latency, deterministic prediction.
-*   **Mechanism:**
-    *   Intercepts `findUnique` / `findFirst`.
-    *   If `_predictions` is requested:
-        1.  Fetches the raw data required by the features (automatically adding `select` fields).
-        2.  Passes raw data to `FeatureEngine` -> transforms to `Float32Array`.
-        3.  Passes array to `OnnxRuntime.run()`.
-        4.  Merges result back into the response object.
+**Categorical encoding:**
+- Label encoding: category → integer code (mapping serialized)
+- Hash encoding: category → hash(value) % 1000
+- Unseen categories at runtime → hard error
 
-### 2.2 Gen (Generative Fields)
-*   **Goal:** Managed async capabilities.
-*   **Mechanism:**
-    *   Intercepts `find*` queries.
-    *   If `_gen` is requested:
-        1.  Fetches base data.
-        2.  Checks Cache (Redis/DB).
-        3.  If miss, executes the `provider` (HTTP call).
-        4.  Returns promise (or resolved value if awaited).
+**Imputation rules:**
+- Declared per feature
+- Validated at compile time
+- Serialized into metadata
+- Applied identically in training and predictions
+- Strategies: `mean`, `median`, `mode`, `constant`
 
----
+**No implicit encoding:** All encoding is explicit and deterministic.
 
-## 3. Data Flow & Type Safety
+### Runtime Predictions (`@prisml/runtime`)
 
-PrisML relies on TypeScript for end-to-end safety.
+At runtime:
 
-1.  **Definition Time:** `defineModel<User>` ensures you can only access valid `User` fields.
-2.  **Train Time:** The extractor validates that the database actually contains the fields you asked for.
-3.  **Inference Time:** The runtime checks that the `model.onnx` input shape matches the current code definition (checksum validation).
+1. Load metadata from `model.metadata.json`
+2. Validate Prisma schema hash
+3. Initialize ONNX Runtime session (one per model, cached)
+4. Extract features from entity
+5. Normalize to feature vector
+6. Invoke ONNX prediction
+7. Return prediction
 
-## 4. Operational Boundaries
+**Determinism guarantees:**
+- Same input + same artifacts → same output
+- Within numeric guarantees of underlying platforms (ONNX, Python)
+- No random number generation in predictions
 
-| Property | PrisML Core | PrisML Gen |
-| :--- | :--- | :--- |
-| **Execution** | Synchronous (CPU) | Asynchronous (Network IO) |
-| **Reliability** | Deterministic | Non-deterministic |
-| **Cost** | Free (Compute) | $/Token |
-| **Failure Mode** | Exception (Safe) | Timeout / Rate Limit |
-| **Recommended Use** | Logic, Scoring, Routing | Content, Search, RAG |
+**Batch predictions:**
+- Explicit batch support
+- Atomic preflight validation
+- Blocking execution (caller must chunk)
+- Any failure aborts with no partial results
 
----
+### Error Handling
 
-## 5. Production Deployment
+Typed error hierarchy:
 
-### 5.1 Zero Python Runtime
+- `PrisMLError` — base class
+  - `SchemaValidationError` — invalid Prisma schema
+  - `SchemaDriftError` — schema hash mismatch
+  - `ModelDefinitionError` — invalid model definition
+  - `FeatureExtractionError` — resolver failed
+  - `HydrationError` — missing required fields
+  - `UnseenCategoryError` — unseen category value
+  - `ArtifactError` — artifact missing/corrupt
+  - `QualityGateError` — quality gate failed
+  - `ONNXRuntimeError` — ONNX execution failed
+  - `EncodingError` — feature encoding failed
+  - `ConfigurationError` — environment misconfigured
 
-Production applications have **no Python dependencies**:
+All errors include structured context:
+- Model name
+- Feature path (if applicable)
+- Batch index (if applicable)
+- Root cause
+
+## Artifact Format
+
+### model.metadata.json
 
 ```json
-// package.json (production)
 {
-  "dependencies": {
-    "@prisma/client": "^5.8.0",
-    "prisml": "^1.0.0",
-    "onnxruntime-node": "^1.23.0"
-  }
+  "version": "0.1.0",
+  "metadataSchemaVersion": "1.0.0",
+  "modelName": "userLTV",
+  "taskType": "regression",
+  "algorithm": {
+    "name": "forest",
+    "version": "1.0.0",
+    "hyperparameters": { }
+  },
+  "features": {
+    "features": [
+      {
+        "name": "accountAge",
+        "index": 0,
+        "originalType": "number"
+      }
+    ],
+    "count": 3,
+    "order": ["accountAge", "signupSource", "isPremium"]
+  },
+  "output": {
+    "field": "estimatedLTV",
+    "shape": [1]
+  },
+  "encoding": {
+    "signupSource": {
+      "type": "label",
+      "mapping": {"organic": 0, "paid": 1, "referral": 2}
+    }
+  },
+  "imputation": { },
+  "prismaSchemaHash": "abc123...",
+  "trainingMetrics": [
+    {
+      "metric": "rmse",
+      "value": 425.5,
+      "split": "test"
+    }
+  ],
+  "dataset": {
+    "size": 10000,
+    "trainSize": 8000,
+    "testSize": 2000,
+    "splitSeed": 42,
+    "materializedAt": "2024-02-03T12:34:56Z"
+  },
+  "compiledAt": "2024-02-03T12:34:56Z"
 }
 ```
 
-Python is **only used during `npm run build`** or CI/CD.
+### model.onnx
 
-### 5.2 Performance Characteristics
+Binary ONNX model file. Deterministic within platform guarantees.
 
-| Metric | Expected Value |
-|--------|----------------|
-| Model load time | 50-200ms (one-time on startup) |
-| Inference latency | 2-15ms per prediction |
-| Memory overhead | 10-50MB per model |
-| CPU usage | <1% for typical workloads |
+## Design Tradeoffs
 
-### 5.3 Serverless Compatibility
+### Gains
 
-**AWS Lambda / Vercel Functions:**
-```typescript
-// api/predict.ts
-import { PrismaClient } from '@prisma/client';
-import { prisml } from 'prisml';
-import { ChurnModel } from '../prisma/ml/churn';
+- **Determinism:** No runtime state mutation
+- **Correctness:** Enforced by construction
+- **Reviewability:** All model code in git, all training logged
+- **CI Trust:** Models compiled like code
+- **Zero Infrastructure:** In-process, no service overhead
 
-// Initialize outside handler (cached across invocations)
-const prisma = new PrismaClient().$extends(
-  prisml([ChurnModel])
-);
+### Intentional Losses
 
-export default async function handler(req, res) {
-  // First call: ~200ms (model load)
-  // Subsequent calls: <10ms (cached)
-  const prediction = await prisma.user.findUnique({
-    where: { id: req.query.userId },
-    include: { _predictions: { isChurned: true } }
-  });
-  
-  res.json(prediction);
-}
+- **Adaptive Learning:** No incremental retraining
+- **Experimentation:** No runtime model selection or A/B tests
+- **Runtime Flexibility:** Model behavior fixed at build time
+- **Feature Stores:** No external feature serving
+
+These are non-negotiable MVP tradeoffs. V2 may relax some constraints.
+
+## Directory Structure
+
+```
+prisml/
+  packages/
+    core/           # defineModel, types, schema hashing
+    cli/            # prisml train command
+    runtime/        # ONNX predictions, error handling
+    python/         # Python training backend
+  examples/
+    basic/          # Full working example
+  docs/
+    ARCHITECTURE.md # This file
+    API.md          # API reference
+    GUIDE.md        # User guide
 ```
 
-**Optimizations:**
-- Model files < 50MB (Lambda limit: 250MB unzipped)
-- Use container deployment for larger models
-- Preload in global scope (singleton pattern)
+## Getting Started
 
-### 5.4 Model Versioning
-
-Models are versioned with code in git:
+See [examples/basic](../examples/basic) for a complete example.
 
 ```bash
-# Feature change triggers retraining
-git diff prisma/ml/churn.ts
+# Install
+npm install
 
-# New model committed
-git add prisml/generated/ChurnModel.onnx
-git commit -m "feat: add user tier feature to churn model"
+# Build all packages
+npm run build
 
-# Deploy with matching code + model
-git push
+# Run example
+cd examples/basic
+npm run train
+npm run predict
 ```
-
-**Benefits:**
-- Atomic deploys (code + model always match)
-- Easy rollbacks (git revert)
-- PR reviews include model changes
-- Reproducible builds
-
----
-
-## 6. Distribution & Versioning
-
-### 6.1 Package Distribution
-
-**Core Package (`npm`):**
-```bash
-npm install @vncsleal/prisml
-```
-
-**Contents:**
-- `defineModel()` - Type-safe model definition API
-- Prisma Client Extension for `_predictions`
-- ONNX Runtime integration
-- CLI tools (`npx prisml train`)
-
-**Optional Packages:**
-- `@prisml/trainer` - Docker image for training (Docker Hub)
-- `@prisml/action` - GitHub Action for CI/CD
-- `@prisml/vscode` - VS Code extension (syntax highlighting, validation)
-
-### 6.2 Semantic Versioning
-
-Following [SemVer 2.0.0](https://semver.org/):
-
-- **Major (1.0.0 → 2.0.0):** Breaking changes to `defineModel` API or runtime behavior
-- **Minor (1.0.0 → 1.1.0):** New algorithms, features (backwards compatible)
-- **Patch (1.0.0 → 1.0.1):** Bug fixes, security updates
-
-### 6.3 Compatibility Matrix
-
-| PrisML Version | Prisma Version | Node.js Version | Python (Training) |
-|----------------|----------------|-----------------|-------------------|
-| 1.0.x | 5.8.x - 6.x.x | >=18.0.0 | 3.8 - 3.12 |
-
-### 6.4 License
-
-**MIT License** for core package:
-- No vendor lock-in
-- Commercial use allowed
-- Full transparency for security audits
-
-**Future:** PrisML Cloud (paid tier) for remote training, monitoring, drift detection
-
----
-
-## 7. Community & Support
-
-- **GitHub:** [github.com/vinico/prisml](https://github.com/vinico/prisml)
-- **Documentation:** [prisml.dev](https://prisml.dev)
-- **Discord:** Community support and discussions
-- **Examples:** Starter templates via `npx prisml init --template [name]`

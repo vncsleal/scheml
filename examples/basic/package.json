@@ -1,0 +1,19 @@
+{
+  "name": "example-basic",
+  "version": "0.1.0",
+  "description": "Basic PrisML example: user lifetime value prediction",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "generate": "prisma generate",
+    "train": "prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma",
+    "infer": "tsx src/infer.ts"
+  },
+  "dependencies": {
+    "@prisml/core": "workspace:*",
+    "@prisml/cli": "workspace:*",
+    "@prisml/runtime": "workspace:*",
+    "@prisma/client": "^5.7.0",
+    "tsx": "^4.7.0"
+  }
+}

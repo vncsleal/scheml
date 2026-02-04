@@ -1,43 +1,13 @@
-# Environment variables
+node_modules/
+dist/
+.turbo/
+.next/
+*.tsbuildinfo
 .env
 .env.local
-.env.*.local
-
-# Dependencies
-node_modules/
-.pnpm-debug.log*
-
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-
-# Documentation (generated)
-docs/api/
-
-# Generated artifacts
-prisml/generated/
-*.onnx
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
 .DS_Store
-Thumbs.db
-
-# Logs
 *.log
-logs/
-
-# Testing
-coverage/
-.nyc_output/
-
-# Cache
-.cache/
-.turbo/
-*.tgz
+*.sqlite
+*.db
+prisml-artifacts/
+dev.db

@@ -1,79 +1,214 @@
-If you are fixing a bug, implementing a feature, or making a non-trivial change, start by finding or creating a roadmap-backed Issue.
+# PrisML Contributing Guide
 
-## Governance & Workflow (short)
+## Development Setup
 
-This section defines governance rules only. For local setup, testing, and implementation details, see `docs/DEVELOPMENT.md`.
+```bash
+# Clone and install
+git clone https://github.com/prisml/prisml
+cd prisml
+npm install
 
-This project uses a roadmap-driven workflow. Keep the following rules in mind — this file is the contract describing how work is governed.
+# Build all packages
+npm run build
 
-1) Canonical spec
-- `prisml-internal/ALL_FIXES_AND_ROADMAP.md` is the authoritative spec. It contains acceptance criteria and high-level invariants.
+# Run tests
+npm run test
 
-2) Issues
-- Create one Issue per roadmap item (maintainers may mirror the roadmap). Issues are the execution units and may be assigned and discussed.
-- Issue body should include a link to the corresponding `ALL_FIXES_AND_ROADMAP.md` section.
+# Watch mode
+npm run dev
+```
 
-3) PR requirements (enforced)
- - Every PR must reference one primary roadmap ID and one Issue (default). Use the PR template to ensure this. Example lines in the PR body:
+## Project Structure
 
-  Roadmap: P05a
-  Issue: #42
+```
+packages/
+  core/      # Type system, errors, defineModel
+  cli/       # prisml train command
+  runtime/   # ONNX inference engine
+  python/    # Python training backend
+examples/
+  basic/     # Working example
+docs/
+  ARCHITECTURE.md
+  API.md
+  GUIDE.md
+  GETTING_STARTED.md
+  FEATURES.md
+  ROADMAP.md
+```
 
-- Default rule: one PR → one roadmap ID. If your work legitimately touches multiple roadmap items, use the Composite exception (see PR template) and provide a brief justification. Maintainers must approve such exceptions.
+## Coding Standards
 
-4) Roadmap edits
-- Edits to `ALL_FIXES_AND_ROADMAP.md` must be done via PR. A roadmap-edit PR must:
-  - explain motivation
-  - reference the Issue(s) that triggered the change
-  - update or add a `Last-Updated: YYYY-MM-DD` header near the affected entry
+### TypeScript
 
-5) Onboarding and exceptions
-- If your PR is rejected for missing Roadmap/Issue references, the reviewer should guide the contributor to amend the PR rather than close immediately.
+- Strict mode enabled
+- Full type annotations (no `any`)
+- JSDoc for public APIs
+- Clear error messages
 
-6) Tooling
-- A lightweight GitHub Action validates PR bodies for `Roadmap:` and `Issue:` lines. Exceptions are allowed when the PR template `Composite` checkbox is checked.
+### Errors
 
-These rules are intentionally short: governance only. For development setup and mechanics, see `docs/DEVELOPMENT.md`.
+- Use typed PrisMLError subclasses
+- Include structured context
+- Never silently fail
 
-## What We're Looking For
+### Features
 
-**High Priority:**
-- Bug fixes (especially platform-specific issues)
-- Documentation improvements
-- Real-world examples
-- Performance optimizations
-- Test coverage improvements
+- Conservative by default
+- Explicit over implicit
+- Fail fast with clear errors
+- Document tradeoffs
 
-**Medium Priority:**
-- New algorithm support
-- Developer experience enhancements
-- Platform compatibility (Windows, Alpine, serverless)
+### Testing
 
-**Not Accepting (Yet):**
-- Deep learning models (V2.0+)
-- Breaking API changes (wait for V2.0)
-- Cloud integrations (planned for V3.0)
+- Unit tests in `*.test.ts`
+- Integration tests in `integration/`
+- All public APIs covered
+- 80%+ coverage target
 
-## Community
+## Adding Features
 
-- **Discussions**: Ask questions, share ideas
-- **Issues**: Bug reports, feature requests
-- **Discord**: Coming soon (if community grows)
+### Process
 
-## Recognition
+1. **Discuss** — Open RFC issue describing feature
+2. **Design** — Comment on issue with approach
+3. **Implement** — Create branch and PR
+4. **Test** — Add unit + integration tests
+5. **Document** — Update relevant docs
+6. **Merge** — Squash commit to main
 
-Contributors will be:
-- Listed in CHANGELOG.md
-- Credited in release notes
-- Added to README contributors section (if significant contribution)
+### Checklist
+
+- [ ] Feature described in FEATURES.md or ROADMAP.md
+- [ ] Types updated
+- [ ] Error cases handled with PrisMLError
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Documentation updated (API.md, GUIDE.md, etc.)
+- [ ] Examples work
+- [ ] No breaking changes (unless major version)
+
+## Code Review
+
+Reviewers look for:
+- Correctness (no silent failures)
+- Type safety (strict TypeScript)
+- Error handling (clear PrisMLErrors)
+- Testing coverage (edge cases)
+- Documentation clarity
+- Performance impact
+- Security implications
+
+## Reporting Issues
+
+### Bug
+
+```markdown
+## Description
+[What happened]
+
+## Reproduction
+[Steps to reproduce]
+
+## Expected
+[What should happen]
+
+## Actual
+[What does happen]
+
+## Environment
+- Node: [version]
+- TypeScript: [version]
+- PrisML: [version]
+```
+
+### Feature Request
+
+```markdown
+## Problem
+[What problem does this solve]
+
+## Proposed Solution
+[How should this work]
+
+## Tradeoffs
+[What are we giving up]
+
+## Alternatives
+[Other approaches]
+```
+
+## Commits
+
+Use clear, descriptive commit messages:
+
+```
+feat: add batch inference support
+
+- Implement InferenceSession.inferBatch()
+- Add atomic validation
+- Update error handling
+
+Fixes #123
+```
+
+## Pull Requests
+
+```markdown
+## Description
+[What does this change]
+
+## Type
+- [ ] Bug fix
+- [ ] Feature
+- [ ] Documentation
+- [ ] Refactor
+
+## Testing
+- [ ] Unit tests added
+- [ ] Integration tests added
+- [ ] Manual testing done
+
+## Breaking Changes?
+- [ ] No
+- [ ] Yes: [description]
+
+## Documentation
+- [ ] API.md updated
+- [ ] GUIDE.md updated
+- [ ] Examples updated
+- [ ] JSDoc updated
+```
+
+## Releases
+
+### Version Bumping
+
+- Major (1.0.0) — breaking API changes
+- Minor (0.1.0) — new features, backward compatible
+- Patch (0.0.1) — bug fixes
+
+### Publishing
+
+```bash
+# Bump version
+npm version minor
+
+# Build
+npm run build
+
+# Test
+npm run test
+
+# Publish
+npm publish
+
+# Tag release
+git push origin v0.1.0
+```
 
 ## Questions?
 
-- Open a [GitHub Discussion](https://github.com/vncsleal/prisml/discussions)
-- Create a [Question issue](https://github.com/vncsleal/prisml/issues/new/choose)
-- Tag maintainers in your PR for review
-
-## Code of Conduct
-
-Be respectful, constructive, and professional. We're all here to build something useful.
-
+- Open GitHub Discussions
+- Email team
+- Check docs
