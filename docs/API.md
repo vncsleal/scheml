@@ -1,5 +1,9 @@
 # PrisML API Reference
 
+## @vncsleal/prisml
+
+Umbrella package that re-exports core + runtime and ships the CLI binary.
+
 ## @vncsleal/prisml-core
 
 ### Types
@@ -132,7 +136,7 @@ interface ModelMetadata {
 Declare a predictive model. Pure specification with no side effects.
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml-core';
+import { defineModel } from '@vncsleal/prisml';
 
 const userValue = defineModel<User>({
   name: 'userValue',
@@ -157,7 +161,7 @@ const userValue = defineModel<User>({
 Compute SHA256 hash of normalized Prisma schema.
 
 ```typescript
-import { hashPrismaSchema } from '@vncsleal/prisml-core';
+import { hashPrismaSchema } from '@vncsleal/prisml';
 
 const hash = hashPrismaSchema(schemaContent);
 // "abc123def456..."
@@ -179,7 +183,7 @@ if (!result.valid) {
 Analyze feature resolver for static extractability.
 
 ```typescript
-import { analyzeFeatureResolver } from '@vncsleal/prisml-core';
+import { analyzeFeatureResolver } from '@vncsleal/prisml';
 
 const analysis = analyzeFeatureResolver(
   'const resolver = (user) => user.profile?.name;',
@@ -196,7 +200,7 @@ if (!analysis.isExtractable) {
 Normalize feature dictionary to numeric vector.
 
 ```typescript
-import { normalizeFeatureVector } from '@vncsleal/prisml-core';
+import { normalizeFeatureVector } from '@vncsleal/prisml';
 
 const vector = normalizeFeatureVector(
   { age: 30, isPremium: true },
@@ -218,7 +222,7 @@ import {
   FeatureExtractionError,
   UnseenCategoryError,
   QualityGateError,
-} from '@vncsleal/prisml-core';
+} from '@vncsleal/prisml';
 
 try {
   // ...

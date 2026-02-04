@@ -10,7 +10,7 @@ import { ModelDefinition, AlgorithmConfig, TaskType, FeatureResolver, OutputReso
  *
  * @example
  * ```typescript
- * import { defineModel } from '@vncsleal/prisml-core';
+ * import { defineModel } from '@vncsleal/prisml';
  *
  * export const userLifetimeValueModel = defineModel<User>({
  *   name: 'userLifetimeValue',

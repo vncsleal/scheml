@@ -66,6 +66,7 @@
 
 ```
 packages/
+  prisml/            @vncsleal/prisml - Umbrella package
   core/              @vncsleal/prisml-core - Types, errors, schema hashing
   cli/               @vncsleal/prisml-cli - prisml train command
   runtime/           @vncsleal/prisml-runtime - ONNX inference

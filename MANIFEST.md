@@ -116,6 +116,7 @@
 - [x] Root package.json with workspaces
 - [x] Root tsconfig.json
 - [x] Root turbo.json
+- [x] @vncsleal/prisml package.json + tsconfig.json
 - [x] @vncsleal/prisml-core package.json + tsconfig.json
 - [x] @vncsleal/prisml-cli package.json + tsconfig.json
 - [x] @vncsleal/prisml-runtime package.json + tsconfig.json
@@ -179,6 +180,7 @@
 
 ```
 ┌─────────────────────────────────────────┐
+│  @vncsleal/prisml                       │
 │  @vncsleal/prisml-core                  │
 │  ├── Types & interfaces                 │
 │  ├── Error hierarchy                    │

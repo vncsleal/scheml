@@ -38,15 +38,9 @@ importers:
       '@prisma/client':
         specifier: ^5.7.0
         version: 5.22.0
-      '@vncsleal/prisml-cli':
+      '@vncsleal/prisml':
         specifier: workspace:*
-        version: link:../../packages/cli
-      '@vncsleal/prisml-core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@vncsleal/prisml-runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
+        version: link:../../packages/prisml
       tsx:
         specifier: ^4.7.0
         version: 4.21.0
@@ -90,6 +84,25 @@ importers:
       '@prisma/client':
         specifier: ^5.7.0
         version: 5.22.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.6
+        version: 20.19.31
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/prisml:
+    dependencies:
+      '@vncsleal/prisml-cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@vncsleal/prisml-core':
+        specifier: workspace:*
+        version: link:../core
+      '@vncsleal/prisml-runtime':
+        specifier: workspace:*
+        version: link:../runtime
     devDependencies:
       '@types/node':
         specifier: ^20.10.6

@@ -2,7 +2,7 @@
  * Example: Model Definition & Training
  */
 
-import { defineModel } from '@vncsleal/prisml-core';
+import { defineModel } from '@vncsleal/prisml';
 
 // See prisml.config.ts for full model definitions
 console.log('PrisML Example: User Lifetime Value Prediction');

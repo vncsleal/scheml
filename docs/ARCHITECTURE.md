@@ -16,12 +16,12 @@ TypeScript Model Definitions
 
 ## Core Concepts
 
-### Model Definitions (`@vncsleal/prisml-core`)
+### Model Definitions (`@vncsleal/prisml` or `@vncsleal/prisml-core`)
 
 Models are pure declarative specifications using `defineModel()`:
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml-core';
+import { defineModel } from '@vncsleal/prisml';
 
 const model = defineModel<User>({
   name: 'userValue',
@@ -143,7 +143,7 @@ All resolver outputs are normalized to numeric vectors:
 
 **No implicit encoding:** All encoding is explicit and deterministic.
 
-### Runtime Predictions (`@vncsleal/prisml-runtime`)
+### Runtime Predictions (`@vncsleal/prisml` or `@vncsleal/prisml-runtime`)
 
 At runtime:
 

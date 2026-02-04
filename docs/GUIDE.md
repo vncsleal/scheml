@@ -7,7 +7,7 @@
 Create `prisml.config.ts` with your model definitions:
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml-core';
+import { defineModel } from '@vncsleal/prisml';
 
 export const userLTVModel = defineModel<User>({
   name: 'userLTV',
@@ -72,8 +72,7 @@ Artifacts are **immutable** and intended to be **committed to git**.
 Use trained models in your application:
 
 ```typescript
-import { PredictionSession } from '@vncsleal/prisml-runtime';
-import { hashPrismaSchema } from '@vncsleal/prisml-core';
+import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
 
 const session = new PredictionSession();
 const schemaHash = hashPrismaSchema(schemaContent);
@@ -300,7 +299,7 @@ import {
   FeatureExtractionError,
   UnseenCategoryError,
   QualityGateError,
-} from '@vncsleal/prisml-core';
+} from '@vncsleal/prisml';
 
 try {
   const result = await session.predict('userLTV', user, resolvers);

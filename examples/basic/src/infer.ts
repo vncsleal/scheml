@@ -3,8 +3,7 @@
  * Demonstrates how to use trained models in an application
  */
 
-import { PredictionSession } from '@vncsleal/prisml-runtime';
-import { hashPrismaSchema } from '@vncsleal/prisml-core';
+import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
 import * as fs from 'fs';
 
 type SampleUser = {
