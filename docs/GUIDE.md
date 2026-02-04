@@ -151,22 +151,22 @@ accountAge: (user) => {
 
 ### Unsupported Patterns
 
-❌ Dynamic keys:
+[UNSUPPORTED] Dynamic keys:
 ```typescript
 value: (user) => user[fieldName] // NOT EXTRACTABLE
 ```
 
-❌ Array indexing:
+[UNSUPPORTED] Array indexing:
 ```typescript
 firstTag: (user) => user.tags[0] // NOT EXTRACTABLE
 ```
 
-❌ Iteration:
+[UNSUPPORTED] Iteration:
 ```typescript
 totalTags: (user) => user.tags.map(t => t.length).sum() // NOT EXTRACTABLE
 ```
 
-❌ Opaque function calls:
+[UNSUPPORTED] Opaque function calls:
 ```typescript
 processed: (user) => processValue(user.value) // NOT EXTRACTABLE
 ```

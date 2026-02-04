@@ -272,8 +272,8 @@
 - ✅ Integration planning
 
 ### Not ready for:
-- ❌ npm publish (needs test suite first)
-- ❌ CI/CD (configuration not included)
+- [NOT INCLUDED] npm publish (needs test suite first)
+- [NOT INCLUDED] CI/CD (configuration not included)
 
 ---
 

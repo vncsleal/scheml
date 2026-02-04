@@ -444,7 +444,7 @@ export const trainCommand = {
       spinner.start('Writing artifacts...');
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
-      console.log(chalk.green('\n✓ Training complete\n'));
+      console.log(chalk.green('\n[OK] Training complete\n'));
       console.log('Artifacts:');
       for (const artifact of modelArtifacts) {
         console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}`);

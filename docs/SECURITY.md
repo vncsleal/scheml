@@ -168,7 +168,7 @@ Feature resolvers are analyzed via TypeScript AST:
 revenue: (user) => user.revenue
 
 // UNSAFE: dynamic code
-value: (user) => eval(user.expression) // Type error! ✓
+value: (user) => eval(user.expression) // Type error! [CAUGHT]
 ```
 
 TypeScript's type system prevents this.

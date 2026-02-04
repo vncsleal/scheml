@@ -224,25 +224,25 @@ Rules:
 
 ## Non-Features (Explicitly Out of Scope for MVP)
 
-### ❌ Adaptive Learning
+### [FUTURE] Adaptive Learning
 No incremental retraining. All learning is at compile time.
 
-### ❌ Runtime Model Selection
+### [FUTURE] Runtime Model Selection
 No swapping models at runtime or A/B testing.
 
-### ❌ Online Learning
+### [FUTURE] Online Learning
 No observation of outcomes in production.
 
-### ❌ Feature Stores
+### [FUTURE] Feature Stores
 Not a feature serving system. Features are computed in-process.
 
-### ❌ AutoML
+### [FUTURE] AutoML
 No automatic hyperparameter tuning.
 
-### ❌ Experiment Tracking
+### [FUTURE] Experiment Tracking
 No experiment versioning or lineage management.
 
-### ❌ Multi-Tenant Support
+### [FUTURE] Multi-Tenant Support
 No built-in schema federation or tenant isolation.
 
 ## Algorithm Support (MVP)

@@ -53,7 +53,7 @@ async function main() {
     console.log('Initializing model...');
     if (fs.existsSync(metadataPath) && fs.existsSync(onnxPath)) {
       await session.initializeModel(metadataPath, onnxPath, schemaHash);
-      console.log('✓ Model initialized');
+      console.log('[OK] Model initialized');
     } else {
       console.log(
         '⚠ Artifacts not found. Run: prisml train --config ./prisml.config.ts'
@@ -74,7 +74,7 @@ async function main() {
       isPremium: (user: SampleUser) => user.plan === 'pro' || user.plan === 'enterprise',
     });
 
-    console.log('✓ Predictions complete');
+    console.log('[OK] Predictions complete');
     console.log(JSON.stringify(result, null, 2));
 
     // Batch predictions
@@ -92,7 +92,7 @@ async function main() {
     });
 
     console.log(
-      `✓ Batch predictions complete: ${batchResult.successCount}/${batch.length}`
+      `[OK] Batch predictions complete: ${batchResult.successCount}/${batch.length}`
     );
 
     await session.disposeAll();
