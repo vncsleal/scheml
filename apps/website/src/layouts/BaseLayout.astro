@@ -1,4 +1,5 @@
 ---
+import Analytics from '@vercel/analytics/astro';
 // Derive the canonical site origin from Astro.site, which is set from
 // VERCEL_URL at build time (see astro.config.mjs). Falls back gracefully.
 const siteOrigin = Astro.site?.origin ?? 'https://prisml.dev';
@@ -97,5 +98,6 @@ const image = `${siteOrigin}/og.png`;
   </head>
   <body>
     <slot />
+    <Analytics />
   </body>
 </html>
