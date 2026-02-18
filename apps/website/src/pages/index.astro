@@ -1,0 +1,1556 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { Code } from 'astro:components';
+
+const title = 'PrisML — Compiler-First ML for TypeScript';
+const description = 'Define predictive models in TypeScript. Compile to ONNX at build time. Run inference in-process — no Python sidecars, no HTTP latency.';
+
+const defineCode = `import { defineModel } from '@vncsleal/prisml';
+
+export const churnModel = defineModel<User>({
+  name: 'churnRisk',
+  modelName: 'User',
+  output: {
+    field: 'willChurn',
+    taskType: 'binary_classification',
+    resolver: (user) => user.cancelledAt !== null,
+  },
+  features: {
+    daysActive: (u) =>
+      (Date.now() - u.createdAt.getTime()) / 86_400_000,
+    loginFrequency: (u) => u.logins.length,
+    planTier: (u) => u.subscription.tier,
+    monthlySpend: (u) => u.totalSpend / u.monthsActive,
+  },
+  algorithm: { name: 'forest', version: '1.0.0' },
+  qualityGates: [
+    { metric: 'f1', threshold: 0.85, comparison: 'gte' },
+  ],
+});`;
+
+const trainCode = `$ prisml train \\
+    --config ./prisml.config.ts \\
+    --schema ./prisma/schema.prisma
+
+▸ Analyzing feature resolvers...
+▸ Extracting: daysActive, loginFrequency,
+  planTier, monthlySpend
+▸ Schema hash: a3f8c1...bound
+▸ Training churnRisk (forest v1.0.0)
+▸ Quality gate: f1 ≥ 0.85 → 0.91 ✓
+▸ Artifact: ./artifacts/churnRisk.onnx (48KB)
+▸ Metadata: ./artifacts/churnRisk.meta.json`;
+
+const predictCode = `import { PredictionSession } from '@vncsleal/prisml';
+import { churnModel } from './models/churn';
+
+const session = new PredictionSession();
+await session.initializeModel(
+  'churnRisk',
+  './artifacts/churnRisk.metadata.json',
+  './artifacts/churnRisk.onnx',
+);
+
+const result = await session.predict(
+  'churnRisk',
+  user,
+  churnModel.features,
+);
+
+console.log(result.prediction);
+// → "1" (will churn)
+console.log(result.confidence);
+// → 0.87`;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="page">
+    <!-- ════════ HEADER ════════ -->
+    <header class="header" id="top">
+      <div class="header__inner">
+        <a href="/" class="header__logo" aria-label="PrisML home">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="6" fill="#161616"/>
+            <!-- M: dash dash -->
+            <rect x="8" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="17" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <!-- L: dot dash dot dot -->
+            <rect x="5" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="10" y="18" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="19" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="24" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+          </svg>
+          <span>PrisML</span>
+        </a>
+        <nav class="header__nav" aria-label="Main navigation">
+          <a href="#features" class="header__nav-link">Features</a>
+          <a href="#workflow" class="header__nav-link">How it works</a>
+          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
+            GitHub
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="margin-left: 4px; opacity: 0.5;">
+              <path d="M10 1h5v5l-1.7-1.7-4.6 4.6-1.4-1.4 4.6-4.6L10 1zM3 3h4v2H3v8h8V9h2v4a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z"/>
+            </svg>
+          </a>
+          <a href="https://www.npmjs.com/package/@vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__npm-badge header__nav-link">
+            <span class="npm-version">v0.1.0</span>
+          </a>
+        </nav>
+        <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path class="menu-top" d="M3 5h14"/>
+            <path class="menu-mid" d="M3 10h14"/>
+            <path class="menu-bot" d="M3 15h14"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ════════ HERO ════════ -->
+    <section class="hero">
+      <div class="hero__container">
+        <div class="hero__breadcrumb">
+          <span>@vncsleal</span>
+          <span class="breadcrumb-sep">/</span>
+          <span>prisml</span>
+        </div>
+
+        <h1 class="hero__title anim-fade-up">
+          Machine learning<br/>
+          that compiles.
+        </h1>
+
+        <p class="hero__lead anim-fade-up anim-delay-1">
+          Define predictive models in TypeScript. Compile to immutable ONNX artifacts at build time.
+          Run inference in-process — no Python sidecars, no HTTP overhead, no training-serving skew.
+        </p>
+
+        <div class="hero__actions anim-fade-up anim-delay-2">
+          <div class="install-cmd" id="installCmd">
+            <span class="install-cmd__prompt">$</span>
+            <code class="install-cmd__text">npm install @vncsleal/prisml</code>
+            <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="check-icon" aria-hidden="true">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </button>
+          </div>
+          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
+            View source
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ PIPELINE ════════ -->
+    <section class="pipeline anim-fade-up anim-delay-3">
+      <div class="pipeline__container">
+        <div class="pipeline__step">
+          <div class="pipeline__icon">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="4" y="4" width="24" height="24" rx="2"/>
+              <path d="M10 12h12M10 16h8M10 20h10"/>
+            </svg>
+          </div>
+          <div class="pipeline__label">Define</div>
+          <div class="pipeline__desc">TypeScript</div>
+        </div>
+        <div class="pipeline__connector" aria-hidden="true">
+          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+        </div>
+        <div class="pipeline__step">
+          <div class="pipeline__icon">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M16 4v24M4 16l12-12 12 12"/>
+              <rect x="6" y="20" width="20" height="8" rx="1"/>
+            </svg>
+          </div>
+          <div class="pipeline__label">Compile</div>
+          <div class="pipeline__desc">Build time</div>
+        </div>
+        <div class="pipeline__connector" aria-hidden="true">
+          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+        </div>
+        <div class="pipeline__step">
+          <div class="pipeline__icon">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="16" cy="16" r="12"/>
+              <path d="M16 10v6l4 4"/>
+            </svg>
+          </div>
+          <div class="pipeline__label">Validate</div>
+          <div class="pipeline__desc">Quality gates</div>
+        </div>
+        <div class="pipeline__connector" aria-hidden="true">
+          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+        </div>
+        <div class="pipeline__step">
+          <div class="pipeline__icon pipeline__icon--accent">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 4l8 12H4l8-12z"/>
+              <path d="M20 16l8 12H12l8-12z"/>
+            </svg>
+          </div>
+          <div class="pipeline__label">Predict</div>
+          <div class="pipeline__desc">In-process</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ CODE TABS ════════ -->
+    <section class="code-section" id="workflow">
+      <div class="code-section__container">
+        <div class="section-header">
+          <p class="section-tag">Workflow</p>
+          <h2 class="section-title">Three files. Zero infrastructure.</h2>
+          <p class="section-desc">
+            Models are defined as code, compiled at build time, and executed in-process.
+            The same feature resolvers used for training are reused at inference — eliminating skew by construction.
+          </p>
+        </div>
+
+        <div class="code-tabs" id="codeTabs">
+          <div class="code-tabs__bar" role="tablist">
+            <button class="code-tab active" role="tab" aria-selected="true" data-tab="define">
+              <span class="code-tab__num">01</span>
+              <span class="code-tab__label">Define</span>
+              <span class="code-tab__file">models/churn.ts</span>
+            </button>
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="train">
+              <span class="code-tab__num">02</span>
+              <span class="code-tab__label">Compile</span>
+              <span class="code-tab__file">terminal</span>
+            </button>
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="predict">
+              <span class="code-tab__num">03</span>
+              <span class="code-tab__label">Predict</span>
+              <span class="code-tab__file">api/predict.ts</span>
+            </button>
+          </div>
+          <div class="code-tabs__panels">
+            <div class="code-panel active" id="panel-define" role="tabpanel">
+              <Code code={defineCode} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-train" role="tabpanel">
+              <Code code={trainCode} lang="bash" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-predict" role="tabpanel">
+              <Code code={predictCode} lang="ts" theme="github-dark" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ FEATURES ════════ -->
+    <section class="features" id="features">
+      <div class="features__container">
+        <div class="section-header">
+          <p class="section-tag">Capabilities</p>
+          <h2 class="section-title">Built for production correctness.</h2>
+        </div>
+
+        <div class="features__grid">
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="6" width="28" height="20" rx="2"/>
+                <path d="M9 14l3 3 5-6"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Compiler-first</h3>
+            <p class="feature-card__desc">Models are declared in TypeScript and compiled to ONNX at build time. If your Prisma schema changes, your build fails — catching drift before deployment.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="16" cy="16" r="13"/>
+                <path d="M16 8v8l6 3"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">In-process inference</h3>
+            <p class="feature-card__desc">Predictions run inside your V8 runtime via ONNX Runtime. No Python microservices, no HTTP latency, no serialization overhead.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 4l12 7v10l-12 7L4 21V11l12-7z"/>
+                <path d="M16 18V4M16 18l12-7M16 18L4 11"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Schema-bound</h3>
+            <p class="feature-card__desc">Every model artifact is bound to a Prisma schema via SHA-256 hash. If the schema drifts after compilation, inference is rejected at runtime.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M10 4h12v24H10z"/>
+                <path d="M6 8h4M6 16h4M6 24h4M22 8h4M22 16h4M22 24h4"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Deterministic encoding</h3>
+            <p class="feature-card__desc">Feature resolvers are pure functions. The same encoding logic runs during training and inference, eliminating training-serving skew by construction.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 28V12l12-8 12 8v16"/>
+                <path d="M12 28v-8h8v8"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Quality gates</h3>
+            <p class="feature-card__desc">Define metric thresholds (RMSE, F1, accuracy) in your model config. If training doesn't meet the gate, the build fails — no silent regressions.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M20 4H8a2 2 0 00-2 2v20a2 2 0 002 2h16a2 2 0 002-2V10l-6-6z"/>
+                <path d="M20 4v6h6M12 18h8M12 22h5"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Typed errors</h3>
+            <p class="feature-card__desc">Every failure mode has a named error class — <code>SchemaDriftError</code>, <code>HydrationError</code>, <code>ArtifactError</code>. No opaque runtime exceptions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ HOW IT WORKS ════════ -->
+    <section class="how-it-works">
+      <div class="how-it-works__container">
+        <div class="section-header">
+          <p class="section-tag">Architecture</p>
+          <h2 class="section-title">Models as build artifacts.</h2>
+          <p class="section-desc">
+            PrisML treats machine learning models the same way a compiler treats source code —
+            as deterministic transformations from input to artifact.
+          </p>
+        </div>
+
+        <div class="arch-grid">
+          <div class="arch-card">
+            <div class="arch-card__header">
+              <span class="arch-card__num">01</span>
+              <h3 class="arch-card__title">Declaration</h3>
+            </div>
+            <p class="arch-card__body">
+              Use <code>defineModel()</code> to specify your model: target Prisma model, feature resolvers as pure functions,
+              algorithm choice, and quality constraints. No data access — purely declarative.
+            </p>
+            <div class="arch-card__tags">
+              <span class="tag">defineModel()</span>
+              <span class="tag">TypeScript</span>
+              <span class="tag">Type-safe</span>
+            </div>
+          </div>
+
+          <div class="arch-card">
+            <div class="arch-card__header">
+              <span class="arch-card__num">02</span>
+              <h3 class="arch-card__title">Compilation</h3>
+            </div>
+            <p class="arch-card__body">
+              The CLI analyzes feature resolvers via AST, extracts access patterns, and materializes a training dataset.
+              A Python backend trains the model and exports a versioned ONNX artifact + metadata pair.
+            </p>
+            <div class="arch-card__tags">
+              <span class="tag">AST analysis</span>
+              <span class="tag">ONNX export</span>
+              <span class="tag">Schema hash</span>
+            </div>
+          </div>
+
+          <div class="arch-card">
+            <div class="arch-card__header">
+              <span class="arch-card__num">03</span>
+              <h3 class="arch-card__title">Inference</h3>
+            </div>
+            <p class="arch-card__body">
+              At runtime, <code>PredictionSession</code> loads the ONNX model, validates the schema hash,
+              and runs predictions synchronously in-process. The same feature resolvers ensure encoding parity.
+            </p>
+            <div class="arch-card__tags">
+              <span class="tag">ONNX Runtime</span>
+              <span class="tag">In-process</span>
+              <span class="tag">Deterministic</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ SUPPORTED ════════ -->
+    <section class="supported">
+      <div class="supported__container">
+        <div class="supported__grid">
+          <div class="supported__col">
+            <h3 class="supported__heading">Task types</h3>
+            <ul class="supported__list">
+              <li><span class="supported__check">&#10003;</span> Regression</li>
+              <li><span class="supported__check">&#10003;</span> Binary classification</li>
+              <li><span class="supported__check">&#10003;</span> Multiclass classification</li>
+            </ul>
+          </div>
+          <div class="supported__col">
+            <h3 class="supported__heading">Algorithms</h3>
+            <ul class="supported__list">
+              <li><span class="supported__check">&#10003;</span> Linear / Logistic</li>
+              <li><span class="supported__check">&#10003;</span> Decision tree</li>
+              <li><span class="supported__check">&#10003;</span> Random forest</li>
+              <li><span class="supported__check">&#10003;</span> Gradient boosting</li>
+            </ul>
+          </div>
+          <div class="supported__col">
+            <h3 class="supported__heading">Feature types</h3>
+            <ul class="supported__list">
+              <li><span class="supported__check">&#10003;</span> Numeric (as-is)</li>
+              <li><span class="supported__check">&#10003;</span> Boolean (0/1)</li>
+              <li><span class="supported__check">&#10003;</span> String (categorical)</li>
+              <li><span class="supported__check">&#10003;</span> Date (timestamp)</li>
+              <li><span class="supported__check">&#10003;</span> Null (imputation)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ CTA ════════ -->
+    <section class="cta">
+      <div class="cta__container">
+        <div class="cta__inner">
+          <h2 class="cta__title">Start building.</h2>
+          <p class="cta__desc">Add PrisML to your TypeScript project and define your first model in minutes.</p>
+          <div class="cta__actions">
+            <a href="https://github.com/vncsleal/prisml#getting-started" target="_blank" rel="noopener noreferrer" class="btn btn--primary">
+              Get started
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M3 8h10M9 4l4 4-4 4"/>
+              </svg>
+            </a>
+            <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">
+              GitHub repository
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ FOOTER ════════ -->
+    <footer class="footer">
+      <div class="footer__container">
+        <div class="footer__left">
+          <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="6" fill="#161616"/>
+            <rect x="8" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="17" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="5" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="10" y="18" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="19" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="24" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+          </svg>
+          <span class="footer__name">PrisML</span>
+        </div>
+        <div class="footer__right">
+          <span class="footer__license">MIT License</span>
+          <span class="footer__sep">&middot;</span>
+          <span class="footer__copy">&copy; 2026 Vinicius Leal</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ════════ TAB SCRIPT ════════ -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tab switching
+      const tabs = document.querySelectorAll('.code-tab');
+      const panels = document.querySelectorAll('.code-panel');
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const target = tab.getAttribute('data-tab');
+          tabs.forEach((t) => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+          panels.forEach((p) => p.classList.remove('active'));
+          tab.classList.add('active');
+          tab.setAttribute('aria-selected', 'true');
+          document.getElementById(`panel-${target}`)?.classList.add('active');
+        });
+      });
+
+      // Copy button
+      const copyBtn = document.getElementById('copyBtn');
+      const installCmd = document.getElementById('installCmd');
+      if (copyBtn && installCmd) {
+        copyBtn.addEventListener('click', async () => {
+          await navigator.clipboard.writeText('npm install @vncsleal/prisml');
+          installCmd.classList.add('copied');
+          setTimeout(() => installCmd.classList.remove('copied'), 2000);
+        });
+      }
+
+      // Mobile menu toggle
+      const menuBtn = document.getElementById('menuBtn');
+      const header = document.querySelector('.header');
+      if (menuBtn && header) {
+        menuBtn.addEventListener('click', () => {
+          header.classList.toggle('header--open');
+        });
+        // Close menu when a nav link is clicked
+        document.querySelectorAll('.header__nav-link').forEach((link) => {
+          link.addEventListener('click', () => {
+            header.classList.remove('header--open');
+          });
+        });
+      }
+
+      // Scroll reveal
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+      document.querySelectorAll('.feature-card, .arch-card, .supported__col').forEach((el) => {
+        observer.observe(el);
+      });
+    });
+  </script>
+
+  <!-- ════════ STYLES ════════ -->
+  <style is:global>
+    /* ── Tokens ── */
+    :root {
+      /* Gray scale (Carbon g100 dark theme) */
+      --gray-100: #161616;
+      --gray-90: #262626;
+      --gray-80: #393939;
+      --gray-70: #525252;
+      --gray-60: #6f6f6f;
+      --gray-50: #8d8d8d;
+      --gray-30: #c6c6c6;
+      --gray-20: #d4d4d4;
+      --gray-10: #f4f4f4;
+
+      /* Amber */
+      --amber-60: #d2a106;
+      --amber-50: #f1c21b;
+      --amber-40: #fddc69;
+      --amber-20: #fcf4d6;
+      --amber-90: #3d2e00;
+
+      /* Green */
+      --green-50: #42be65;
+      --green-40: #6fdc8c;
+
+      /* Red */
+      --red-50: #fa4d56;
+
+      /* Semantic */
+      --bg: var(--gray-100);
+      --bg-elevated: var(--gray-90);
+      --bg-hover: var(--gray-80);
+      --border-subtle: #2a2a2a;
+      --border-strong: var(--gray-80);
+      --text-primary: var(--gray-10);
+      --text-secondary: var(--gray-30);
+      --text-placeholder: var(--gray-60);
+      --text-interactive: var(--amber-50);
+      --focus: var(--amber-60);
+      --accent: var(--amber-50);
+
+      /* Typography */
+      --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+      /* Spacing (8px grid) */
+      --sp-1: 4px;
+      --sp-2: 8px;
+      --sp-3: 12px;
+      --sp-4: 16px;
+      --sp-5: 24px;
+      --sp-6: 32px;
+      --sp-7: 40px;
+      --sp-8: 48px;
+      --sp-9: 64px;
+      --sp-10: 80px;
+      --sp-11: 96px;
+      --sp-12: 128px;
+
+      /* Layout */
+      --max-width: 1120px;
+      --header-height: 48px;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Page structure ── */
+    .page { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: var(--header-height);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .header__inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+      height: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header__logo {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .header__logo:hover { opacity: 1; }
+
+    .header__nav {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .header__nav a {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 var(--sp-4);
+      height: var(--header-height);
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .header__nav a:hover {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+
+    .header__npm-badge {
+      font-family: var(--font-mono);
+      font-size: 12px !important;
+    }
+    .npm-version {
+      background: var(--bg-elevated);
+      padding: 2px 10px;
+      border-radius: 0;
+      border: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Mobile menu button (hidden on desktop) */
+    .header__menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 120ms ease;
+    }
+    .header__menu-btn:hover { color: var(--text-primary); }
+    .header__menu-btn svg path {
+      transition: transform 200ms ease, opacity 150ms ease;
+      transform-origin: center;
+    }
+    .header--open .header__menu-btn .menu-top {
+      transform: translateY(5px) rotate(45deg);
+    }
+    .header--open .header__menu-btn .menu-mid {
+      opacity: 0;
+    }
+    .header--open .header__menu-btn .menu-bot {
+      transform: translateY(-5px) rotate(-45deg);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: var(--sp-12) 0 var(--sp-10);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .hero__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .hero__breadcrumb {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-placeholder);
+      margin-bottom: var(--sp-6);
+      letter-spacing: 0.01em;
+    }
+    .breadcrumb-sep {
+      margin: 0 var(--sp-1);
+      color: var(--gray-70);
+    }
+
+    .hero__title {
+      font-size: clamp(2.5rem, 5vw, 3.75rem);
+      font-weight: 300;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-6);
+      max-width: 720px;
+    }
+
+    .hero__lead {
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin-bottom: var(--sp-8);
+      font-weight: 400;
+    }
+
+    .hero__actions {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-4);
+      flex-wrap: wrap;
+    }
+
+    /* Install command */
+    .install-cmd {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      height: 48px;
+      padding: 0 var(--sp-4);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-primary);
+      position: relative;
+      transition: background 120ms ease;
+      cursor: default;
+    }
+
+    .install-cmd__prompt {
+      color: var(--green-50);
+      user-select: none;
+    }
+
+    .install-cmd__text {
+      user-select: all;
+    }
+
+    .install-cmd__copy {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      margin-left: var(--sp-2);
+      background: none;
+      border: none;
+      color: var(--text-placeholder);
+      cursor: pointer;
+      transition: color 120ms ease;
+      position: relative;
+    }
+    .install-cmd__copy:hover { color: var(--text-primary); }
+    .install-cmd__copy .check-icon {
+      position: absolute;
+      opacity: 0;
+      color: var(--green-50);
+    }
+    .install-cmd.copied .install-cmd__copy svg:first-child { opacity: 0; }
+    .install-cmd.copied .install-cmd__copy .check-icon { opacity: 1; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      height: 48px;
+      padding: 0 var(--sp-5);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 120ms ease, color 120ms ease;
+      cursor: pointer;
+      border: none;
+      white-space: nowrap;
+    }
+
+    .btn--primary {
+      background: var(--amber-60);
+      color: var(--gray-100);
+    }
+    .btn--primary:hover { background: #b28600; }
+
+    .btn--secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn--secondary:hover { background: var(--bg-hover); }
+
+    .btn--ghost {
+      background: transparent;
+      color: var(--text-interactive);
+      padding: 0 var(--sp-4);
+    }
+    .btn--ghost:hover { background: rgba(241, 194, 27, 0.08); }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: var(--sp-8) 0;
+      background: var(--bg-elevated);
+    }
+
+    .pipeline__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sp-5);
+      flex-wrap: wrap;
+    }
+
+    .pipeline__step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--sp-2);
+      min-width: 80px;
+    }
+
+    .pipeline__icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg);
+    }
+    .pipeline__icon--accent {
+      color: var(--amber-50);
+      border-color: var(--amber-50);
+      background: rgba(241, 194, 27, 0.08);
+    }
+
+    .pipeline__label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .pipeline__desc {
+      font-size: 12px;
+      color: var(--text-placeholder);
+      font-family: var(--font-mono);
+    }
+
+    .pipeline__connector {
+      color: var(--gray-70);
+      display: flex;
+      align-items: center;
+      margin-top: -24px;
+    }
+
+    /* ── Section headers ── */
+    .section-header {
+      margin-bottom: var(--sp-9);
+    }
+
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--amber-50);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--sp-3);
+    }
+
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 300;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-4);
+    }
+
+    .section-desc {
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      max-width: 520px;
+    }
+
+    /* ── Code section ── */
+    .code-section {
+      padding: var(--sp-11) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .code-section__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .code-tabs {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg);
+    }
+
+    .code-tabs__bar {
+      display: flex;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      overflow-x: auto;
+    }
+
+    .code-tab {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: 0 var(--sp-5);
+      height: 48px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      cursor: pointer;
+      transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+      white-space: nowrap;
+    }
+    .code-tab:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    .code-tab.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--amber-60);
+    }
+
+    .code-tab__num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-placeholder);
+    }
+    .code-tab.active .code-tab__num {
+      color: var(--amber-50);
+    }
+
+    .code-tab__label {
+      font-weight: 500;
+    }
+
+    .code-tab__file {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-placeholder);
+    }
+
+    .code-panel {
+      display: none;
+      min-height: 320px;
+    }
+    .code-panel.active {
+      display: block;
+    }
+    .code-panel pre {
+      margin: 0 !important;
+      padding: var(--sp-5) var(--sp-6) !important;
+      background: transparent !important;
+      border-radius: 0 !important;
+      font-size: 13px !important;
+      line-height: 1.7 !important;
+      font-family: var(--font-mono) !important;
+      overflow-x: auto;
+    }
+
+    /* ── Features grid ── */
+    .features {
+      padding: var(--sp-11) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .features__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .features__grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--border-subtle);
+      border-left: 1px solid var(--border-subtle);
+    }
+
+    .feature-card {
+      padding: var(--sp-6);
+      border-right: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background 200ms ease;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 400ms ease, transform 400ms ease, background 200ms ease;
+    }
+    .feature-card.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .feature-card:nth-child(2).revealed { transition-delay: 80ms; }
+    .feature-card:nth-child(3).revealed { transition-delay: 160ms; }
+    .feature-card:nth-child(4).revealed { transition-delay: 240ms; }
+    .feature-card:nth-child(5).revealed { transition-delay: 320ms; }
+    .feature-card:nth-child(6).revealed { transition-delay: 400ms; }
+
+    .feature-card:hover {
+      background: var(--bg-elevated);
+    }
+
+    .feature-card__icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      margin-bottom: var(--sp-5);
+    }
+
+    .feature-card__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-2);
+      letter-spacing: -0.005em;
+    }
+
+    .feature-card__desc {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .feature-card__desc code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-hover);
+      padding: 1px 6px;
+      color: var(--text-primary);
+    }
+
+    /* ── How it works ── */
+    .how-it-works {
+      padding: var(--sp-11) 0;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .how-it-works__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border-subtle);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .arch-card {
+      background: var(--bg);
+      padding: var(--sp-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 400ms ease, transform 400ms ease;
+    }
+    .arch-card.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .arch-card:nth-child(2).revealed { transition-delay: 120ms; }
+    .arch-card:nth-child(3).revealed { transition-delay: 240ms; }
+
+    .arch-card__header {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+    }
+
+    .arch-card__num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--amber-50);
+      font-weight: 500;
+    }
+
+    .arch-card__title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .arch-card__body {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+    .arch-card__body code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-elevated);
+      padding: 1px 6px;
+      color: var(--text-primary);
+    }
+
+    .arch-card__tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+    }
+
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 10px;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* ── Supported ── */
+    .supported {
+      padding: var(--sp-10) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .supported__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .supported__grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--sp-9);
+    }
+
+    .supported__col {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 400ms ease, transform 400ms ease;
+    }
+    .supported__col.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .supported__col:nth-child(2).revealed { transition-delay: 120ms; }
+    .supported__col:nth-child(3).revealed { transition-delay: 240ms; }
+
+    .supported__heading {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-placeholder);
+      margin-bottom: var(--sp-5);
+      font-family: var(--font-mono);
+    }
+
+    .supported__list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+    }
+
+    .supported__list li {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+    }
+
+    .supported__check {
+      color: var(--green-50);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* ── CTA ── */
+    .cta {
+      padding: var(--sp-12) 0;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .cta__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+    }
+
+    .cta__inner {
+      max-width: 480px;
+    }
+
+    .cta__title {
+      font-size: clamp(1.75rem, 3vw, 2.25rem);
+      font-weight: 300;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-3);
+    }
+
+    .cta__desc {
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: var(--sp-7);
+      line-height: 1.6;
+    }
+
+    .cta__actions {
+      display: flex;
+      gap: var(--sp-4);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: var(--sp-5) 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .footer__container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--sp-6);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer__left {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+    }
+
+    .footer__name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .footer__right {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-placeholder);
+    }
+
+    .footer__sep { opacity: 0.4; }
+
+    /* ── Animations ── */
+    .anim-fade-up {
+      opacity: 0;
+      transform: translateY(16px);
+      animation: fadeUp 600ms ease forwards;
+    }
+    .anim-delay-1 { animation-delay: 120ms; }
+    .anim-delay-2 { animation-delay: 240ms; }
+    .anim-delay-3 { animation-delay: 360ms; }
+
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Responsive: tablet ── */
+    @media (max-width: 900px) {
+      .features__grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .arch-grid {
+        grid-template-columns: 1fr;
+      }
+      .supported__grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--sp-7);
+      }
+      .pipeline__connector { display: none; }
+      .pipeline__container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--sp-5);
+        justify-items: center;
+      }
+      .code-section { padding: var(--sp-9) 0; }
+      .features { padding: var(--sp-9) 0; }
+      .how-it-works { padding: var(--sp-9) 0; }
+      .cta { padding: var(--sp-9) 0; }
+    }
+
+    /* ── Responsive: mobile ── */
+    @media (max-width: 640px) {
+      /* Header: slide-down mobile nav */
+      .header {
+        height: auto;
+        min-height: var(--header-height);
+      }
+      .header__inner {
+        padding: 0 var(--sp-4);
+        flex-wrap: wrap;
+        height: var(--header-height);
+      }
+      .header__menu-btn { display: flex; }
+      .header__nav {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--bg);
+        order: 3;
+      }
+      .header--open .header__inner { height: auto; }
+      .header--open .header__nav { display: flex; }
+      .header__nav a,
+      .header__nav .header__nav-link {
+        width: 100%;
+        height: 48px;
+        padding: 0 var(--sp-4);
+        font-size: 14px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .header__nav .header__npm-badge {
+        justify-content: flex-start;
+        border-bottom: none;
+      }
+
+      /* Hero: breathable mobile layout */
+      .hero { padding: var(--sp-8) 0 var(--sp-7); }
+      .hero__container { padding: 0 var(--sp-4); }
+      .hero__breadcrumb { margin-bottom: var(--sp-4); }
+      .hero__title {
+        font-size: 2rem;
+        margin-bottom: var(--sp-4);
+        line-height: 1.2;
+      }
+      .hero__lead {
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: var(--sp-6);
+      }
+      .hero__actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--sp-3);
+      }
+      .install-cmd {
+        width: 100%;
+        font-size: 13px;
+        height: 44px;
+        padding: 0 var(--sp-3);
+      }
+      .btn {
+        width: 100%;
+        justify-content: center;
+        height: 44px;
+      }
+
+      /* Pipeline: 2x2 grid on mobile */
+      .pipeline { padding: var(--sp-6) 0; }
+      .pipeline__container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--sp-5);
+        justify-items: center;
+        padding: 0 var(--sp-4);
+      }
+      .pipeline__connector { display: none; }
+      .pipeline__icon { width: 40px; height: 40px; }
+      .pipeline__icon svg { width: 20px; height: 20px; }
+      .pipeline__label { font-size: 13px; }
+      .pipeline__desc { font-size: 11px; }
+
+      /* Code section */
+      .code-section { padding: var(--sp-7) 0; }
+      .code-section__container { padding: 0 var(--sp-4); }
+      .section-header { margin-bottom: var(--sp-6); }
+      .section-title { font-size: 1.35rem; }
+      .section-desc { font-size: 14px; }
+      .code-tab__file { display: none; }
+      .code-tab {
+        padding: 0 var(--sp-3);
+        height: 44px;
+        gap: var(--sp-2);
+        flex: 1;
+        justify-content: center;
+      }
+      .code-tab__num { font-size: 10px; }
+      .code-tab__label { font-size: 13px; }
+      .code-panel { min-height: 240px; }
+      .code-panel pre {
+        padding: var(--sp-4) !important;
+        font-size: 12px !important;
+        line-height: 1.6 !important;
+      }
+
+      /* Features: single column, looser padding */
+      .features { padding: var(--sp-7) 0; }
+      .features__container { padding: 0 var(--sp-4); }
+      .features__grid {
+        grid-template-columns: 1fr;
+        border-left: none;
+        border-top: none;
+      }
+      .feature-card {
+        padding: var(--sp-5) 0;
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+        border-left: 2px solid transparent;
+        transition: border-left-color 200ms ease, opacity 400ms ease, transform 400ms ease;
+      }
+      .feature-card:hover {
+        background: transparent;
+        border-left-color: var(--amber-60);
+        padding-left: var(--sp-4);
+      }
+      .feature-card:last-child { border-bottom: none; }
+      .feature-card__icon { margin-bottom: var(--sp-3); }
+      .feature-card__title { font-size: 15px; }
+      .feature-card__desc { font-size: 13px; line-height: 1.65; }
+
+      /* Architecture cards */
+      .how-it-works { padding: var(--sp-7) 0; }
+      .how-it-works__container { padding: 0 var(--sp-4); }
+      .arch-grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .arch-card { padding: var(--sp-5); }
+      .arch-card__title { font-size: 15px; }
+      .arch-card__body { font-size: 13px; }
+      .arch-card__tags { gap: var(--sp-1); }
+      .tag { font-size: 10px; padding: 2px 8px; }
+
+      /* Supported: stacked columns with dividers */
+      .supported { padding: var(--sp-7) 0; }
+      .supported__container { padding: 0 var(--sp-4); }
+      .supported__grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .supported__col {
+        padding: var(--sp-5) 0;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .supported__col:last-child { border-bottom: none; }
+      .supported__heading { margin-bottom: var(--sp-3); }
+      .supported__list { gap: var(--sp-2); }
+      .supported__list li { font-size: 13px; }
+
+      /* CTA */
+      .cta { padding: var(--sp-8) 0; }
+      .cta__container { padding: 0 var(--sp-4); }
+      .cta__title { font-size: 1.5rem; }
+      .cta__desc { font-size: 14px; margin-bottom: var(--sp-6); }
+      .cta__actions { flex-direction: column; }
+      .cta__actions .btn { width: 100%; justify-content: center; }
+
+      /* Footer */
+      .footer { padding: var(--sp-4) 0; }
+      .footer__container {
+        padding: 0 var(--sp-4);
+        flex-direction: column;
+        gap: var(--sp-3);
+        text-align: center;
+      }
+      .footer__right { font-size: 11px; }
+    }
+
+    /* ── Responsive: very small screens ── */
+    @media (max-width: 380px) {
+      .hero__title { font-size: 1.65rem; }
+      .install-cmd { font-size: 11.5px; }
+      .install-cmd__copy { width: 28px; height: 28px; margin-left: 0; }
+      .code-panel pre { font-size: 11px !important; }
+      .pipeline__container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--sp-4);
+      }
+    }
+  </style>
+</BaseLayout>

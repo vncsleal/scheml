@@ -11,3 +11,5 @@ dist/
 *.db
 prisml-artifacts/
 dev.db
+.vercel/
+.agents/
