@@ -11,6 +11,7 @@ import * as path from 'path';
 
 // Import commands
 import { trainCommand } from './commands/train';
+import { checkCommand } from './commands/check';
 
 const VERSION = '0.1.0';
 
@@ -19,6 +20,7 @@ async function main() {
     .version('version', 'Show version', VERSION)
     .help()
     .command('train', 'Train PrisML models from definitions', trainCommand)
+    .command('check', 'Validate schema-only contract compatibility', checkCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()
     .parse();

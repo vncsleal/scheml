@@ -81,8 +81,8 @@ npm run train
 ```
 
 This generates:
-- `prisml-artifacts/userValue.metadata.json`
-- `prisml-artifacts/userValue.onnx`
+- `.prisml/userValue.metadata.json`
+- `.prisml/userValue.onnx`
 
 ### 4. Run Predictions
 
@@ -93,8 +93,8 @@ const session = new PredictionSession();
 const schemaHash = '...'; // See docs for how to get this
 
 await session.initializeModel(
-  './prisml-artifacts/userValue.metadata.json',
-  './prisml-artifacts/userValue.onnx',
+  './.prisml/userValue.metadata.json',
+  './.prisml/userValue.onnx',
   schemaHash
 );
 

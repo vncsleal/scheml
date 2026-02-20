@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-20
+
+### Added
+
+- **Extended Metadata Contract (v1.1.0)**: Enhanced model metadata for contract validation
+  - `featureDependencies`: Explicit schema field dependencies per feature
+  - `tensorSpec`: ONNX tensor metadata (name, shape, type)
+  - Backward compatible with v1.0.0 metadata
+
+- **Schema-Only Contract Validation**: New `prisml check` command
+  - Validates feature dependencies against Prisma schema without training
+  - Detects type mismatches (String vs Float, etc.)
+  - Detects nullability mismatches (required field used as nullable)
+  - Warns on dynamic features (runtime-only resolution)
+  - Fast CI-friendly validation (no Python/training required)
+
+- **Prisma Generator Package**: `prisml-generator` for schema annotations
+  - Parses `@prisml` annotations from Prisma schema docstrings
+  - Generates type-safe TypeScript constants (`PrisMLAnnotations`)
+  - Supports `model`, `threshold`, `fallback` configuration
+  - Full `as const` type inference for autocomplete
+  - Application-level ML configuration co-located with schema
+
+### Changed
+
+- **Training Command**: Now emits v1.1.0 metadata with feature dependencies
+- **ESM Configuration Loading**: Fixed dynamic import handling for "type": "module" packages
+- **Default Output Directory**: Changed from `./prisml-artifacts` to `./.prisml` (follows industry standard dotfile pattern like `.next/`, `.nuxt/`)
+
 ## [0.1.0] - 2026-02-04
 
 ### Added

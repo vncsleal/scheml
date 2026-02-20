@@ -67,6 +67,77 @@ This:
 
 Artifacts are **immutable** and intended to be **committed to git**.
 
+### 2.5. Validate Schema Contract
+
+Run a schema-only validation in CI or locally:
+
+```bash
+prisml check --schema ./prisma/schema.prisma --output ./.prisml
+```
+
+This fails on field type or nullability mismatches and warns on dynamic feature paths.
+
+### 2.6. Schema Annotations (Optional)
+
+Add ML configuration metadata to your Prisma schema using the generator:
+
+#### Install Generator
+
+```bash
+npm install prisml-generator --save-dev
+```
+
+#### Configure in Schema
+
+```prisma
+generator prisml {
+  provider = "prisml-generator"
+  output   = "./generated"
+}
+
+model Product {
+  id    Int    @id
+  price Float
+  
+  /// @prisml: model="ProductSalesV2" threshold=0.9 fallback=0
+  predictedSales Float?
+}
+```
+
+#### Generate Type-Safe Constants
+
+```bash
+npx prisma generate
+```
+
+This creates `./prisma/generated/prisml.schema.ts`:
+
+```typescript
+export const PrisMLAnnotations = {
+  'Product.predictedSales': {
+    model: "ProductSalesV2",
+    threshold: 0.9,
+    fallback: 0,
+  },
+} as const;
+```
+
+#### Use in Application
+
+```typescript
+import { PrisMLAnnotations } from './prisma/generated/prisml.schema.js';
+
+const config = PrisMLAnnotations['Product.predictedSales'];
+const prediction = await session.predict(config.model, product);
+
+// Apply threshold logic
+const value = prediction.confidence >= config.threshold 
+  ? prediction.value 
+  : config.fallback;
+```
+
+**Note:** Annotations are application-level hints only. They don't affect training configuration.
+
 ### 3. Run Predictions
 
 Use trained models in your application:
@@ -79,8 +150,8 @@ const schemaHash = hashPrismaSchema(schemaContent);
 
 // Initialize model
 await session.initializeModel(
-  './artifacts/userLTV.metadata.json',
-  './artifacts/userLTV.onnx',
+  './.prisml/userLTV.metadata.json',
+  './.prisml/userLTV.onnx',
   schemaHash
 );
 
@@ -324,7 +395,7 @@ try {
 Artifacts are immutable and versioned:
 
 ```
-prisml-artifacts/
+.prisml/
   userLTV.metadata.json  ← Semantic contract
   userLTV.onnx           ← Binary model (binary diff may be large)
   userChurn.metadata.json
@@ -377,7 +448,7 @@ jobs:
       - uses: actions/setup-node@v3
       - run: npm install
       - run: npm run train
-      - run: git add prisml-artifacts/
+      - run: git add .prisml/
       - run: git commit -m "Update ML artifacts" || true
       - run: git push
 ```

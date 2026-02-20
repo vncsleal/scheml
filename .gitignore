@@ -9,7 +9,8 @@ dist/
 *.log
 *.sqlite
 *.db
-prisml-artifacts/
 dev.db
 .vercel/
 .agents/
+
+# Note: .prisml/ models should be committed to git (immutable artifacts)

@@ -1,7 +1,7 @@
 {
   "name": "@vncsleal/prisml-cli",
-  "version": "0.1.0",
-  "description": "PrisML CLI: prisml train compiler driver",
+  "version": "0.2.0",
+  "description": "PrisML CLI: prisml train and prisml check commands",
   "license": "MIT",
   "author": "Vinicius Leal <hello@vncsleal.com> (https://github.com/vncsleal)",
   "repository": {
@@ -22,6 +22,11 @@
   "publishConfig": {
     "access": "public"
   },
+  "files": [
+    "dist",
+    "python",
+    "README.md"
+  ],
   "bin": {
     "prisml": "./dist/bin.js"
   },

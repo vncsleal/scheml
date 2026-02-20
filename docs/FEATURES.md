@@ -112,7 +112,62 @@ Pipeline:
 
 ---
 
-### 6. Model Artifacts
+### 6. CLI: prisml check Command
+
+**Feature:** Schema-only contract validation without training
+
+```bash
+prisml check --schema ./prisma/schema.prisma --output ./.prisml
+```
+
+Checks:
+1. Feature dependencies match Prisma fields
+2. Scalar type compatibility (e.g., Float -> number)
+3. Nullability compatibility
+4. Reports dynamic feature paths as warnings
+
+**Status:** ✅ Complete (schema-only validation)
+
+---
+
+### 7. Prisma Schema Annotations Generator
+
+**Feature:** Type-safe ML configuration from Prisma schema comments
+
+```prisma
+generator prisml {
+  provider = "prisml-generator"
+  output   = "./generated"
+}
+
+model Product {
+  /// @prisml: model="ProductSalesV2" threshold=0.9 fallback=0
+  predictedSales Float?
+}
+```
+
+Generates:
+```typescript
+export const PrisMLAnnotations = {
+  'Product.predictedSales': {
+    model: "ProductSalesV2",
+    threshold: 0.9,
+    fallback: 0,
+  },
+} as const;
+```
+
+**Purpose:**
+- Co-locate ML metadata with schema fields
+- Type-safe application-level configuration
+- Separate training concerns from runtime usage logic
+- Explicit imports (no CLI auto-load)
+
+**Status:** ✅ Complete (prisml-generator package)
+
+---
+
+### 8. Model Artifacts
 
 **Feature:** Immutable, deterministic artifact pair
 
@@ -136,7 +191,7 @@ Each model compiles to exactly two artifacts:
 
 ---
 
-### 7. Runtime Prediction Engine
+### 9. Runtime Prediction Engine
 
 **Feature:** ONNX Runtime integration for in-process predictions
 
@@ -157,7 +212,7 @@ Each model compiles to exactly two artifacts:
 
 ---
 
-### 8. Typed Error Handling
+### 10. Typed Error Handling
 
 **Feature:** Structured error taxonomy with contextual information
 
@@ -184,7 +239,7 @@ All errors include:
 
 ---
 
-### 9. Batch Predictions
+### 11. Batch Predictions
 
 **Feature:** Process multiple entities atomically
 

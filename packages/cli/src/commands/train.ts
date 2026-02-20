@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { createRequire } from 'module';
+import { pathToFileURL } from 'url';
 import * as dotenv from 'dotenv';
 import { Argv } from 'yargs';
 import ora from 'ora';
@@ -30,8 +31,11 @@ import {
   CategoryEncoding,
   ImputationRule,
   TrainingMetrics,
+  FeatureDependency,
+  TensorSpec,
   buildCategoryMapping,
   normalizeFeatureVector,
+  parseModelSchema,
 } from '@vncsleal/prisml-core';
 import { QualityGateError, ModelDefinitionError, ConfigurationError } from '@vncsleal/prisml-core';
 
@@ -47,6 +51,7 @@ type FeatureStats = {
   name: string;
   type: 'number' | 'boolean' | 'string' | 'date' | 'unknown';
   values: unknown[];
+  hasNulls?: boolean;
   stringMode?: string;
   numericMean?: number;
   booleanMode?: boolean;
@@ -134,6 +139,22 @@ function computeBooleanMode(values: unknown[]): boolean | undefined {
   return trueCount >= falseCount;
 }
 
+async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
+  try {
+    const requireConfig = createRequire(path.resolve(process.cwd(), 'package.json'));
+    return requireConfig(configPath);
+  } catch (error: any) {
+    if (error && error.code === 'ERR_REQUIRE_ESM') {
+      const moduleUrl = pathToFileURL(configPath).href;
+      const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+        specifier: string
+      ) => Promise<Record<string, unknown>>;
+      return await dynamicImport(moduleUrl);
+    }
+    throw error;
+  }
+}
+
 function buildFeatureSchema(stats: FeatureStats[]): FeatureSchema {
   return {
     features: stats.map((stat, index) => ({
@@ -167,9 +188,9 @@ export const trainCommand = {
       })
       .option('output', {
         alias: 'o',
-        description: 'Output directory for artifacts',
+        description: 'Output directory for models',
         type: 'string',
-        default: './prisml-artifacts',
+        default: './.prisml',
       })
       .option('python',
         {
@@ -211,9 +232,12 @@ export const trainCommand = {
 
       // @ts-ignore - ts-node register is used for runtime transpilation
       await import('ts-node/register/transpile-only');
-      const requireConfig = createRequire(path.resolve(process.cwd(), 'package.json'));
-      const configModule = requireConfig(configPath);
-      const modelDefinitions = Object.values(configModule).filter(isModelDefinition) as ResolvedModel[];
+      const configModule = await loadConfigModule(configPath);
+      const configExports =
+        configModule.default && typeof configModule.default === 'object'
+          ? { ...configModule, ...configModule.default }
+          : configModule;
+      const modelDefinitions = Object.values(configExports).filter(isModelDefinition) as ResolvedModel[];
 
       if (modelDefinitions.length === 0) {
         throw new ModelDefinitionError('unknown', 'No models exported from config');
@@ -281,6 +305,7 @@ export const trainCommand = {
         }));
 
         for (const stat of featureStats) {
+          stat.hasNulls = stat.values.some((value) => value === null || value === undefined);
           stat.type = inferFeatureType(stat.values);
           if (stat.type === 'string') {
             stat.stringMode = computeStringMode(stat.values);
@@ -306,6 +331,23 @@ export const trainCommand = {
         }
 
         const schema: FeatureSchema = buildFeatureSchema(featureStats);
+        const prismaFields = parseModelSchema(schemaContent, model.modelName);
+        const featureDependencies: FeatureDependency[] = featureStats.map((stat) => {
+          const field = prismaFields[stat.name];
+          const extractable = !!field;
+          const issues = extractable
+            ? []
+            : [`Feature "${stat.name}" is not a direct field on model "${model.modelName}"`];
+          return {
+            modelName: model.modelName,
+            path: `${model.modelName}.${stat.name}`,
+            scalarType: stat.type,
+            nullable: !!stat.hasNulls,
+            encoding: stat.encoding,
+            extractable,
+            issues: issues.length ? issues : undefined,
+          };
+        });
         const encodings: Record<string, CategoryEncoding | undefined> = {};
         const imputations: Record<string, ImputationRule | undefined> = {};
         const stringModes: Record<string, string | undefined> = {};
@@ -413,7 +455,7 @@ export const trainCommand = {
 
         const metadata: ModelMetadata = {
           version: VERSION,
-          metadataSchemaVersion: '1.0.0',
+          metadataSchemaVersion: '1.1.0',
           modelName: model.name,
           taskType: model.output.taskType,
           algorithm: model.algorithm,
@@ -422,6 +464,11 @@ export const trainCommand = {
             field: model.output.field,
             shape: [1],
           },
+          tensorSpec: {
+            inputShape: [1, schema.count],
+            outputShape: [1],
+          },
+          featureDependencies,
           encoding: encodings,
           imputation: imputations,
           prismaSchemaHash: schemaHash,

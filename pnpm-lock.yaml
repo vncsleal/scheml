@@ -101,6 +101,19 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/generator:
+    dependencies:
+      '@prisma/generator-helper':
+        specifier: ^5.7.0
+        version: 5.22.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.6
+        version: 20.19.31
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   packages/prisml:
     dependencies:
       '@vncsleal/prisml-cli':
@@ -725,6 +738,12 @@ packages:
     peerDependenciesMeta:
       prisma:
         optional: true
+
+  '@prisma/debug@5.22.0':
+    resolution: {integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==}
+
+  '@prisma/generator-helper@5.22.0':
+    resolution: {integrity: sha512-LwqcBQ5/QsuAaLNQZAIVIAJDJBMjHwMwn16e06IYx/3Okj/xEEfw9IvrqB2cJCl3b2mCBlh3eVH0w9WGmi4aHg==}
 
   '@rollup/pluginutils@5.3.0':
     resolution: {integrity: sha512-5EdhGZtnu3V88ces7s53hhfK5KSASnJZv8Lulpc04cWO3REESroJXg73DFsOmgbU2BhwV0E20bu2IDZb3VKW4Q==}
@@ -3194,6 +3213,12 @@ snapshots:
   '@oslojs/encoding@1.1.0': {}
 
   '@prisma/client@5.22.0': {}
+
+  '@prisma/debug@5.22.0': {}
+
+  '@prisma/generator-helper@5.22.0':
+    dependencies:
+      '@prisma/debug': 5.22.0
 
   '@rollup/pluginutils@5.3.0(rollup@4.57.1)':
     dependencies:

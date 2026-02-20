@@ -1,4 +1,4 @@
-# PrisML
+# @vncsleal/prisml
 
 Compiler-first machine learning library for TypeScript + Prisma applications.
 
@@ -11,17 +11,20 @@ PrisML treats ML model training as a **compile-time step**, generating immutable
 - Artifacts = immutable binaries (committed to git)
 - Predictions = synchronous function calls (in-process)
 
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 npm install @vncsleal/prisml
 ```
 
-### 1. Define Models
+This umbrella package includes:
+- `@vncsleal/prisml-core` - Model definitions and types
+- `@vncsleal/prisml-cli` - Training and validation commands
+- `@vncsleal/prisml-runtime` - ONNX inference engine
 
-Create `prisml.config.ts`:
+## Quick Start
+
+### 1. Define Model
 
 ```typescript
 import { defineModel } from '@vncsleal/prisml';
@@ -38,17 +41,17 @@ export const salesModel = defineModel<Product>({
 });
 ```
 
-### 2. Train Models
+### 2. Train (Build-Time)
 
 ```bash
 npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
 ```
 
-Generates immutable artifacts:
+Generates:
 - `ProductSales.onnx` - Model binary
 - `ProductSales.metadata.json` - Schema contract
 
-### 3. Run Predictions
+### 3. Predict (Runtime)
 
 ```typescript
 import { PredictionSession } from '@vncsleal/prisml';
@@ -76,33 +79,23 @@ const result = await session.predict('ProductSales', product, {
 ✓ Quality gates for build-time validation  
 ✓ Typed error handling  
 
-## Packages
+## Additional Tools
 
-- **[@vncsleal/prisml](packages/prisml)** - Umbrella package (core + runtime + CLI)
-- **[@vncsleal/prisml-core](packages/core)** - Model definitions and types
-- **[@vncsleal/prisml-cli](packages/cli)** - Training and validation commands
-- **[@vncsleal/prisml-runtime](packages/runtime)** - ONNX inference engine
-- **[prisml-generator](packages/generator)** - Prisma schema annotations generator
+### Schema Annotations
+
+Install `prisml-generator` to add type-safe ML annotations to your Prisma schema:
+
+```bash
+npm install prisml-generator --save-dev
+```
+
+See [generator documentation](../generator/README.md) for details.
 
 ## Documentation
 
-- [User Guide](docs/GUIDE.md) - Complete usage guide and examples
-- [Feature Specification](docs/FEATURES.md) - Detailed feature documentation
-- [Architecture](docs/ARCHITECTURE.md) - System design and implementation
-- [Changelog](CHANGELOG.md) - Release history
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm -r build
-
-# Run tests
-pnpm test
-```
+- [User Guide](../../docs/GUIDE.md)
+- [Feature Specification](../../docs/FEATURES.md)
+- [Architecture](../../docs/ARCHITECTURE.md)
 
 ## License
 

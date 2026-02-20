@@ -123,6 +123,27 @@ export interface FeatureSchema {
 }
 
 /**
+ * Feature dependency contract for schema-only validation
+ */
+export interface FeatureDependency {
+  modelName: string;
+  path: string;
+  scalarType: 'number' | 'boolean' | 'string' | 'date' | 'unknown';
+  nullable: boolean;
+  encoding?: CategoryEncoding;
+  extractable: boolean;
+  issues?: string[];
+}
+
+/**
+ * Input/output tensor shapes for the trained model
+ */
+export interface TensorSpec {
+  inputShape: number[];
+  outputShape: number[];
+}
+
+/**
  * Training dataset specification
  */
 export interface TrainingDataset {
@@ -169,6 +190,9 @@ export interface ModelMetadata {
   imputation: {
     [featureName: string]: ImputationRule | undefined;
   };
+
+  featureDependencies?: FeatureDependency[];
+  tensorSpec?: TensorSpec;
   
   /** Normalized Prisma schema SHA256 hash */
   prismaSchemaHash: string;

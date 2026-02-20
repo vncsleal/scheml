@@ -46,8 +46,8 @@ async function main() {
 
     // Initialize model (in real app, paths point to compiled artifacts)
     const schemaHash = hashPrismaSchema(sampleSchema);
-    const metadataPath = './prisml-artifacts/userLTV.metadata.json';
-    const onnxPath = './prisml-artifacts/userLTV.onnx';
+    const metadataPath = './.prisml/userLTV.metadata.json';
+    const onnxPath = './.prisml/userLTV.onnx';
 
     console.log('Initializing model...');
     if (fs.existsSync(metadataPath) && fs.existsSync(onnxPath)) {
