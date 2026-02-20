@@ -1,5 +1,5 @@
 {
-  "name": "prisml-generator",
+  "name": "@vncsleal/prisml-generator",
   "version": "0.2.0",
   "description": "PrisML Prisma generator for schema annotations",
   "license": "MIT",

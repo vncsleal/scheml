@@ -1,4 +1,4 @@
-# prisml-generator
+# @vncsleal/prisml-generator
 
 Prisma generator for PrisML schema annotations - compiler-first machine learning for TypeScript + Prisma.
 
@@ -9,7 +9,7 @@ Parses `@prisml` annotations from Prisma schema comments and generates type-safe
 ## Installation
 
 ```bash
-npm install prisml-generator --save-dev
+npm install @vncsleal/prisml-generator --save-dev
 ```
 
 ## Usage

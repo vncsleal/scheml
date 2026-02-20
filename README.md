@@ -82,7 +82,7 @@ const result = await session.predict('ProductSales', product, {
 - **[@vncsleal/prisml-core](packages/core)** - Model definitions and types
 - **[@vncsleal/prisml-cli](packages/cli)** - Training and validation commands
 - **[@vncsleal/prisml-runtime](packages/runtime)** - ONNX inference engine
-- **[prisml-generator](packages/generator)** - Prisma schema annotations generator
+- **[@vncsleal/prisml-generator](packages/generator)** - Prisma schema annotations generator
 
 ## Documentation
 

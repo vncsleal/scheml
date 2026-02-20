@@ -83,10 +83,10 @@ const result = await session.predict('ProductSales', product, {
 
 ### Schema Annotations
 
-Install `prisml-generator` to add type-safe ML annotations to your Prisma schema:
+Install `@vncsleal/prisml-generator` to add type-safe ML annotations to your Prisma schema:
 
 ```bash
-npm install prisml-generator --save-dev
+npm install @vncsleal/prisml-generator --save-dev
 ```
 
 See [generator documentation](../generator/README.md) for details.
