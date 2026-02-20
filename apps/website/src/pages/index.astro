@@ -32,23 +32,31 @@ const trainCode = `$ prisml train \\
     --config ./prisml.config.ts \\
     --schema ./prisma/schema.prisma
 
-▸ Analyzing feature resolvers...
-▸ Extracting: daysActive, loginFrequency,
-  planTier, monthlySpend
-▸ Schema hash: a3f8c1...bound
-▸ Training churnRisk (forest v1.0.0)
-▸ Quality gate: f1 ≥ 0.85 → 0.91 ✓
-▸ Artifact: ./artifacts/churnRisk.onnx (48KB)
-▸ Metadata: ./artifacts/churnRisk.meta.json`;
+◉ Loading Prisma schema...
+✔ Schema loaded (hash: a3f8c1b2)
+◉ Loading model definitions...
+✔ Loaded 1 model definition(s)
+◉ Validating models...
+✔ Models validated
+◉ Extracting training data via Prisma...
+✔ Training complete
+✔ Artifacts written to ./.prisml
 
-const predictCode = `import { PredictionSession } from '@vncsleal/prisml';
+[OK] Training complete
+Artifacts:
+  churnRisk.metadata.json
+  churnRisk.onnx`;
+
+const predictCode = `import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
 import { churnModel } from './models/churn';
 
 const session = new PredictionSession();
+const schemaHash = hashPrismaSchema(schemaContent);
+
 await session.initializeModel(
-  'churnRisk',
-  './artifacts/churnRisk.metadata.json',
-  './artifacts/churnRisk.onnx',
+  './.prisml/churnRisk.metadata.json',
+  './.prisml/churnRisk.onnx',
+  schemaHash,
 );
 
 const result = await session.predict(
@@ -59,8 +67,8 @@ const result = await session.predict(
 
 console.log(result.prediction);
 // → "1" (will churn)
-console.log(result.confidence);
-// → 0.87`;
+console.log(result.timestamp);
+// → "2026-02-20T16:00:00.000Z"`;
 ---
 
 <BaseLayout title={title} description={description}>
@@ -92,7 +100,7 @@ console.log(result.confidence);
             </svg>
           </a>
           <a href="https://www.npmjs.com/package/@vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__npm-badge header__nav-link">
-            <span class="npm-version">v0.1.0</span>
+            <span class="npm-version">v0.2.0</span>
           </a>
         </nav>
         <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
@@ -121,7 +129,7 @@ console.log(result.confidence);
 
         <p class="hero__lead anim-fade-up anim-delay-1">
           Define predictive models in TypeScript. Compile to immutable ONNX artifacts at build time.
-          Run inference in-process — no Python sidecars, no HTTP overhead, no training-serving skew.
+          Run inference in-process — no Python sidecars and no HTTP overhead.
         </p>
 
         <div class="hero__actions anim-fade-up anim-delay-2">
@@ -211,7 +219,7 @@ console.log(result.confidence);
           <h2 class="section-title">Three files. Zero infrastructure.</h2>
           <p class="section-desc">
             Models are defined as code, compiled at build time, and executed in-process.
-            The same feature resolvers used for training are reused at inference — eliminating skew by construction.
+            Reuse the same feature resolver definitions for training and inference to keep behavior aligned.
           </p>
         </div>
 
@@ -265,7 +273,7 @@ console.log(result.confidence);
               </svg>
             </div>
             <h3 class="feature-card__title">Compiler-first</h3>
-            <p class="feature-card__desc">Models are declared in TypeScript and compiled to ONNX at build time. If your Prisma schema changes, your build fails — catching drift before deployment.</p>
+            <p class="feature-card__desc">Models are declared in TypeScript and compiled to ONNX at build time. Artifacts carry a Prisma schema hash so drift is caught before serving predictions.</p>
           </div>
 
           <div class="feature-card">
@@ -298,7 +306,7 @@ console.log(result.confidence);
               </svg>
             </div>
             <h3 class="feature-card__title">Deterministic encoding</h3>
-            <p class="feature-card__desc">Feature resolvers are pure functions. The same encoding logic runs during training and inference, eliminating training-serving skew by construction.</p>
+            <p class="feature-card__desc">Feature resolvers are pure functions. Training and inference use the same encoding rules from model metadata for consistent predictions.</p>
           </div>
 
           <div class="feature-card">
@@ -309,7 +317,7 @@ console.log(result.confidence);
               </svg>
             </div>
             <h3 class="feature-card__title">Quality gates</h3>
-            <p class="feature-card__desc">Define metric thresholds (RMSE, F1, accuracy) in your model config. If training doesn't meet the gate, the build fails — no silent regressions.</p>
+            <p class="feature-card__desc">Define metric thresholds (RMSE, F1, accuracy) in your model config. If training doesn't meet the gate, the training command fails — no silent regressions.</p>
           </div>
 
           <div class="feature-card">
@@ -320,7 +328,28 @@ console.log(result.confidence);
               </svg>
             </div>
             <h3 class="feature-card__title">Typed errors</h3>
-            <p class="feature-card__desc">Every failure mode has a named error class — <code>SchemaDriftError</code>, <code>HydrationError</code>, <code>ArtifactError</code>. No opaque runtime exceptions.</p>
+            <p class="feature-card__desc">Core failure modes expose named error classes such as <code>SchemaDriftError</code>, <code>HydrationError</code>, and <code>ArtifactError</code>.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 10h24M4 16h24M4 22h24"/>
+                <rect x="2" y="4" width="28" height="24" rx="2" fill="none"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Schema validation</h3>
+            <p class="feature-card__desc">Run <code>prisml check</code> to validate trained model contracts against your current Prisma schema and detect incompatibilities quickly.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 2v28M8 10l8-8 8 8M8 22l8 8 8-8"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Prisma generator</h3>
+            <p class="feature-card__desc">Auto-generate type-safe constants from Prisma schema <code>@prisml</code> annotations. Zero boilerplate, fully typed feature maps.</p>
           </div>
         </div>
       </div>
@@ -361,11 +390,11 @@ console.log(result.confidence);
               <h3 class="arch-card__title">Compilation</h3>
             </div>
             <p class="arch-card__body">
-              The CLI analyzes feature resolvers via AST, extracts access patterns, and materializes a training dataset.
+              The CLI loads model definitions, extracts training data via Prisma, and materializes a training dataset.
               A Python backend trains the model and exports a versioned ONNX artifact + metadata pair.
             </p>
             <div class="arch-card__tags">
-              <span class="tag">AST analysis</span>
+              <span class="tag">Prisma extraction</span>
               <span class="tag">ONNX export</span>
               <span class="tag">Schema hash</span>
             </div>
