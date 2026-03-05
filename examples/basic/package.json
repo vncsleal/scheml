@@ -13,5 +13,8 @@
     "@vncsleal/prisml": "workspace:*",
     "@prisma/client": "^5.7.0",
     "tsx": "^4.7.0"
+  },
+  "devDependencies": {
+    "@vncsleal/prisml-cli": "workspace:*"
   }
 }

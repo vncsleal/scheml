@@ -1,5 +1,7 @@
 # PrisML
 
+[![CI](https://github.com/vncsleal/prisml/actions/workflows/ci.yml/badge.svg)](https://github.com/vncsleal/prisml/actions/workflows/ci.yml)
+
 Compiler-first machine learning library for TypeScript + Prisma applications.
 
 ## Overview
@@ -11,13 +13,40 @@ PrisML treats ML model training as a **compile-time step**, generating immutable
 - Artifacts = immutable binaries (committed to git)
 - Predictions = synchronous function calls (in-process)
 
+## Requirements
+
+**Node.js**: 18 or higher
+
+**Python 3.9+** is required for the `prisml train` command. The training backend uses the following packages (pinned in [`packages/cli/python/requirements.txt`](packages/cli/python/requirements.txt)):
+
+```
+numpy==1.26.4
+scikit-learn==1.5.2
+skl2onnx==1.16.0
+onnx==1.16.0
+```
+
+Install them in your environment before running `prisml train`:
+
+```bash
+pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+```
+
+> **Note:** Python is a **build-time dependency only** — it is not required at runtime. Prediction via `PredictionSession` runs entirely in Node.js against the compiled ONNX artifact.
+
 ## Quick Start
 
 ### Installation
 
 ```bash
+# Runtime (application dependency)
 npm install @vncsleal/prisml
+
+# CLI (dev/build-time only)
+npm install --save-dev @vncsleal/prisml-cli
 ```
+
+`@vncsleal/prisml` contains only the runtime prediction engine (core types + `PredictionSession`). The CLI — which shells out to Python to produce ONNX artifacts — is a build-time tool and should not be a runtime dependency of your application.
 
 ### 1. Define Models
 
@@ -78,11 +107,13 @@ const result = await session.predict('ProductSales', product, {
 
 ## Packages
 
-- **[@vncsleal/prisml](packages/prisml)** - Umbrella package (core + runtime + CLI)
-- **[@vncsleal/prisml-core](packages/core)** - Model definitions and types
-- **[@vncsleal/prisml-cli](packages/cli)** - Training and validation commands
-- **[@vncsleal/prisml-runtime](packages/runtime)** - ONNX inference engine
-- **[@vncsleal/prisml-generator](packages/generator)** - Prisma schema annotations generator
+| Package | Install as | Purpose |
+|---|---|---|
+| [`@vncsleal/prisml`](packages/prisml) | `dependency` | Runtime entry point — re-exports core types and `PredictionSession` |
+| [`@vncsleal/prisml-core`](packages/core) | `dependency` | Model definitions, types, encoding, schema hashing |
+| [`@vncsleal/prisml-runtime`](packages/runtime) | `dependency` | ONNX inference engine (`PredictionSession`) |
+| [`@vncsleal/prisml-cli`](packages/cli) | **`devDependency`** | `prisml train` and `prisml check` commands |
+| [`@vncsleal/prisml-generator`](packages/generator) | `devDependency` | Prisma generator for schema annotations |
 
 ## Documentation
 
@@ -102,6 +133,9 @@ pnpm -r build
 
 # Run tests
 pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
 ```
 
 ## License

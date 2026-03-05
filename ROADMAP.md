@@ -1,12 +1,12 @@
 # PrisML Roadmap
 
-## MVP (Current) — v0.1.0
+## Current — v0.2.1
 
-**Release:** February 2026
+**Release:** March 2026
 
-**Focus:** Prove core concept—compile-first, schema-safe, deterministic ML
+**Focus:** Prove core concept — compile-first, schema-safe, deterministic ML
 
-**Status:** Implementation complete
+**Status:** Published. 95 integration tests, CI on GitHub Actions, correct runtime/devDependency split.
 
 **Key features:**
 - defineModel() type-safe API
@@ -133,7 +133,7 @@ By V2.0:
 
 ## Release Cadence
 
-- **MVP (v0.1.0):** Feb 2026 (internal)
+- **v0.2.1:** Mar 2026 (public)
 - **V1.0 (Beta):** May 2026 (public)
 - **V1.x (Maintenance):** Jun-Aug 2026
 - **V2.0 (Flexibility):** Sep 2026

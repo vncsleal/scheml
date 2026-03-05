@@ -3,20 +3,23 @@
 ## Installation
 
 ```bash
+# Runtime (ships in your application)
 npm install @vncsleal/prisml
+
+# CLI (build-time only — runs `prisml train` and `prisml check`)
+npm install --save-dev @vncsleal/prisml-cli
 ```
 
-For monorepo development, clone and install:
+`@vncsleal/prisml` contains only the prediction runtime (core types + `PredictionSession`). The CLI — Python backend included — is a dev dependency: it produces ONNX artifacts at build time and is never required in production.
+
+Install Python training dependencies (Python 3.9+ required):
 
 ```bash
-npm install
+pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
 ```
 
-Install Python training dependencies:
+> **Note:** Python is only needed at build time for `prisml train`. The runtime prediction engine (`PredictionSession`) is pure Node.js.
 
-```bash
-pip install -r packages/python/requirements.txt
-```
 
 ## Prerequisites
 
@@ -137,5 +140,5 @@ python --version
 
 Ensure Python dependencies are installed:
 ```bash
-pip install -r packages/python/requirements.txt
+pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
 ```

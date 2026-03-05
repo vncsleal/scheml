@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-03-05
+
+### Added
+
+- **Test Coverage**: 95 integration tests across `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`
+  - `schema.test.ts`: schema normalization, SHA256 hashing, hash validation, model parsing (19 tests)
+  - `encoding.test.ts`: scalar normalization for all types, category mapping, feature vector ordering (29 tests)
+  - `errors.test.ts`: all 10 error classes, correct codes, context fields, `instanceof` chain (32 tests)
+  - `prediction.test.ts`: `ModelMetadataLoader` caching, `FeatureExtractor` resolver guards, schema drift detection, uninitialized model guards (15 tests)
+
+- **CI (GitHub Actions)**: `.github/workflows/ci.yml`
+  - Matrix tests across Node.js 18, 20, 22 on every push and pull request
+  - Dedicated `typecheck` and `lint` jobs
+  - **Python ML dependency validation**: explicitly installs and validates `numpy`, `scikit-learn`, `skl2onnx`, `onnx` from pinned `requirements.txt` before running any test — catches broken Python environments in CI before they reach users
+  - `pnpm` and `pip` caching for fast re-runs
+
+### Fixed
+
+- `vitest` added to `devDependencies` in `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime` (was only hoisted from root workspace, causing resolution issues when packages are used standalone)
+
+### Changed
+
+- **Publishing model**: `@vncsleal/prisml` now depends only on `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`. The CLI (`@vncsleal/prisml-cli`) is removed from the umbrella's runtime `dependencies` — it must be installed explicitly as a `devDependency`. This prevents build-time tools (yargs, chalk, ora, ts-node, onnxruntime-node) from being pulled into application bundles. Sub-packages remain individually published for granular control.
+
 ## [0.2.0] - 2026-02-20
 
 ### Added
@@ -153,4 +177,6 @@ None (initial release)
 
 ---
 
-[0.1.0]: https://github.com/prisml/prisml/releases/tag/v0.1.0
+[0.2.1]: https://github.com/vncsleal/prisml/releases/tag/v0.2.1
+[0.2.0]: https://github.com/vncsleal/prisml/releases/tag/v0.2.0
+[0.1.0]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0

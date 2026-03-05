@@ -1,5 +1,59 @@
 # PrisML User Guide
 
+## Prerequisites
+
+### Node.js
+
+Node.js **18 or higher** is required.
+
+### Python (build-time only)
+
+`prisml train` shells out to a Python backend to produce ONNX artifacts. Python is **not** required at runtime \u2014 only during the training/compilation step.
+
+| Requirement | Version |
+|---|---|
+| Python | ≥ 3.9 |
+| numpy | 1.26.4 |
+| scikit-learn | 1.5.2 |
+| skl2onnx | 1.16.0 |
+| onnx | 1.16.0 |
+
+Install the Python dependencies once, before your first `prisml train`:
+
+```bash
+pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+```
+
+You can confirm everything is available by running:
+
+```bash
+python - <<'EOF'
+import numpy, sklearn, skl2onnx, onnx
+print(f"numpy        {numpy.__version__}")
+print(f"scikit-learn {sklearn.__version__}")
+print(f"skl2onnx     {skl2onnx.__version__}")
+print(f"onnx         {onnx.__version__}")
+EOF
+```
+
+This same check runs automatically in CI on every push via the [`ci.yml`](../.github/workflows/ci.yml) workflow.
+
+---
+
+## Installation
+
+```bash
+# Application runtime dependency
+npm install @vncsleal/prisml
+
+# Build-time CLI — only needed to run `prisml train` and `prisml check`
+npm install --save-dev @vncsleal/prisml-cli
+```
+
+`@vncsleal/prisml` ships only the runtime kernel (core types + `PredictionSession`). The CLI depends on Python, yargs, ora, and chalk — none of which belong in your production bundle.
+
+---
+
 ## Quick Start
 
 ### 1. Define Models
@@ -84,7 +138,7 @@ Add ML configuration metadata to your Prisma schema using the generator:
 #### Install Generator
 
 ```bash
-npm install prisml-generator --save-dev
+npm install --save-dev @vncsleal/prisml-generator
 ```
 
 #### Configure in Schema
@@ -444,10 +498,12 @@ jobs:
   train:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install
-      - run: npm run train
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run train
       - run: git add .prisml/
       - run: git commit -m "Update ML artifacts" || true
       - run: git push

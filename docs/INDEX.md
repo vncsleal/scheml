@@ -16,7 +16,7 @@
 - **[API.md](docs/API.md)** — Complete API reference for all public functions
 
 ### Project Information
-- **[ROADMAP.md](ROADMAP.md)** — Feature roadmap: MVP (v0.1.0), V1 (beta), V2+
+- **[ROADMAP.md](ROADMAP.md)** — Feature roadmap: v0.2.1 (current), V1 (beta), V2+
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Developer guide and contribution process
 - **[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)** — What's implemented and current status
 - **[IMPLEMENTATION_COMPLETE.md](IMPLEMENTATION_COMPLETE.md)** — Summary of MVP completion
@@ -66,11 +66,11 @@
 
 ```
 packages/
-  prisml/            @vncsleal/prisml - Umbrella package
-  core/              @vncsleal/prisml-core - Types, errors, schema hashing
-  cli/               @vncsleal/prisml-cli - prisml train command
-  runtime/           @vncsleal/prisml-runtime - ONNX inference
-  python/            Python training backend
+  prisml/            @vncsleal/prisml         - Runtime entry point (dep)
+  core/              @vncsleal/prisml-core    - Types, errors, schema hashing (dep)
+  runtime/           @vncsleal/prisml-runtime - ONNX inference (dep)
+  cli/               @vncsleal/prisml-cli     - prisml train / check (devDep)
+  generator/         @vncsleal/prisml-generator - Prisma annotations (devDep)
 
 examples/
   basic/             Working example project
@@ -129,9 +129,9 @@ Immutable model files committed to git:
 
 ## Version Information
 
-- **MVP**: v0.1.0 (current)
-- **Planned Beta**: v1.0 (Q1 2026)
-- **Planned Flexibility**: v2.0 (Q2 2026)
+- **Current**: v0.2.1
+- **Beta**: v1.0 (May 2026)
+- **Flexibility**: v2.0 (Sep 2026)
 
 See [ROADMAP.md](ROADMAP.md) for detailed timeline.
 
@@ -162,4 +162,4 @@ PrisML is open source (license TBD).
 
 ---
 
-*Last updated: February 3, 2026*
+*Last updated: March 5, 2026*

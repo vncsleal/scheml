@@ -2,7 +2,9 @@
 
 ## @vncsleal/prisml
 
-Umbrella package that re-exports core + runtime and ships the CLI binary.
+Runtime entry point. Re-exports all public APIs from `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`.
+
+Install as a production `dependency`. The CLI (`@vncsleal/prisml-cli`) is a separate package intended as a `devDependency`.
 
 ## @vncsleal/prisml-core
 
