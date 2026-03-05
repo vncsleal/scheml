@@ -1,4 +1,0 @@
-numpy==1.26.4
-scikit-learn==1.5.2
-skl2onnx==1.16.0
-onnx==1.16.0
