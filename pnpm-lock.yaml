@@ -53,6 +53,10 @@ importers:
       tsx:
         specifier: ^4.7.0
         version: 4.21.0
+    devDependencies:
+      '@vncsleal/prisml-cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
 
   packages/cli:
     dependencies:
@@ -119,9 +123,6 @@ importers:
 
   packages/prisml:
     dependencies:
-      '@vncsleal/prisml-cli':
-        specifier: workspace:*
-        version: link:../cli
       '@vncsleal/prisml-core':
         specifier: workspace:*
         version: link:../core
