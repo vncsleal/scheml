@@ -13,7 +13,17 @@ import * as path from 'path';
 import { trainCommand } from './commands/train';
 import { checkCommand } from './commands/check';
 
-const VERSION = '0.1.0';
+function resolveCliVersion(): string {
+  try {
+    const packageJsonPath = path.resolve(__dirname, '../package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
+    return packageJson.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const VERSION = resolveCliVersion();
 
 async function main() {
   await yargs(hideBin(process.argv))
