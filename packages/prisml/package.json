@@ -1,6 +1,6 @@
 {
   "name": "@vncsleal/prisml",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "PrisML: compiler-first ML for TypeScript + Prisma",
   "license": "MIT",
   "author": "Vinicius Leal <hello@vncsleal.com> (https://github.com/vncsleal)",
@@ -28,6 +28,9 @@
     "dist",
     "README.md"
   ],
+  "bin": {
+    "prisml": "./dist/bin.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -37,6 +40,7 @@
     "format": "prettier --write src"
   },
   "dependencies": {
+    "@vncsleal/prisml-cli": "workspace:*",
     "@vncsleal/prisml-core": "workspace:*",
     "@vncsleal/prisml-runtime": "workspace:*"
   },

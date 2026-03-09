@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-03-08
+
+### Fixed
+
+- **CLI version**: `prisml --version` now reads the version dynamically from `package.json` at runtime instead of returning a hardcoded `0.1.0`
+- **ESLint**: Lint scripts updated with `--ext .ts` flag explicitly, ensuring TypeScript files are linted in all packages
+- **Build isolation**: `tsconfig.json` in `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime` now excludes test files from compilation (`src/**/*.test.ts`); `files` arrays in both `package.json`s exclude `dist/**/*.test.*` from npm tarballs
+- **CI**: Added `workflow_dispatch` trigger for on-demand manual CI runs; removed stale `packages/python/` (Python backend is bundled inside `@vncsleal/prisml-cli`)
+
 ## [0.2.1] - 2026-03-05
 
 ### Added
@@ -177,6 +186,7 @@ None (initial release)
 
 ---
 
+[0.2.2]: https://github.com/vncsleal/prisml/releases/tag/v0.2.2
 [0.2.1]: https://github.com/vncsleal/prisml/releases/tag/v0.2.1
 [0.2.0]: https://github.com/vncsleal/prisml/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0

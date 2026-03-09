@@ -1,6 +1,6 @@
 {
   "name": "@vncsleal/prisml-runtime",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "PrisML runtime: ONNX inference engine",
   "license": "MIT",
   "author": "Vinicius Leal <hello@vncsleal.com> (https://github.com/vncsleal)",

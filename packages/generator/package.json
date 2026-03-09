@@ -1,6 +1,6 @@
 {
   "name": "@vncsleal/prisml-generator",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "PrisML Prisma generator for schema annotations",
   "license": "MIT",
   "author": "Vinicius Leal <hello@vncsleal.com> (https://github.com/vncsleal)",
