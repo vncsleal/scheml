@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2026-03-08
 
+### Added
+
+- **Live demo page** (`/demo`): interactive prediction UI with real ONNX inference running in-process via `@vncsleal/prisml-runtime`; includes latency display, schema drift trigger, and Carbon-inspired dark UI
+- **Example Prisma setup**: `examples/basic/prisma/schema.prisma` and `prisma/seed.ts` with `setup-demo` and `train:demo` scripts for reproducible demo artifact generation
+
 ### Fixed
 
+- **Classification ONNX export**: `train.py` in `@vncsleal/prisml-cli` now passes `zipmap: False` when exporting classification models. Previously the default `zipmap=True` caused skl2onnx to return a list-of-dicts output tensor instead of a float array, breaking runtime inference for all classification tasks.
 - **CLI version**: `prisml --version` now reads the version dynamically from `package.json` at runtime instead of returning a hardcoded `0.1.0`
 - **ESLint**: Lint scripts updated with `--ext .ts` flag explicitly, ensuring TypeScript files are linted in all packages
 - **Build isolation**: `tsconfig.json` in `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime` now excludes test files from compilation (`src/**/*.test.ts`); `files` arrays in both `package.json`s exclude `dist/**/*.test.*` from npm tarballs
