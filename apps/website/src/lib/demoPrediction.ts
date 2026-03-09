@@ -30,7 +30,7 @@ const DEMO_NOW = new Date('2026-03-08T12:00:00.000Z');
 const DAY_MS = 86_400_000;
 
 const schemaPath = fileURLToPath(
-  new URL('../../../../examples/basic/prisma/schema.prisma', import.meta.url)
+  new URL('../../demo-artifacts/schema.prisma', import.meta.url)
 );
 const metadataPath = fileURLToPath(
   new URL('../../demo-artifacts/userChurn.metadata.json', import.meta.url)
