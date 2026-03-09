@@ -1,0 +1,1158 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { Code } from 'astro:components';
+import { getDemoModelInfo, predictDemoChurn } from '../lib/demoPrediction';
+
+export const prerender = false;
+
+const title = 'PrisML — Live Demo';
+const description = 'Run a real ONNX model in-process. Adjust features, see the prediction and latency, then simulate a schema drift error — the thing that makes PrisML different.';
+
+const demoInfo = await getDemoModelInfo();
+const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
+const initialPrediction = await predictDemoChurn(initialInputs, 'demo-default');
+
+const defineCode = `import { defineModel, TaskType } from '@vncsleal/prisml';
+
+export const churnModel = defineModel<User>({
+  name: 'userChurn',
+  modelName: 'User',
+  output: {
+    field: 'willChurn',
+    taskType: TaskType.BinaryClassification,
+    resolver: (u) => u.cancelledAt !== null,
+  },
+  features: {
+    daysSinceActive: (u) =>
+      (Date.now() - u.lastActiveAt.getTime()) / 86_400_000,
+    monthlySpend: (u) => u.monthlySpend,
+    supportTickets: (u) => u.supportTickets,
+  },
+  algorithm: { name: 'forest', version: '1.0.0' },
+  qualityGates: [
+    { metric: 'f1', threshold: 0.80, comparison: 'gte' },
+    { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
+  ],
+});`;
+
+const trainCode = `$ prisml train \\
+    --config ./prisml.config.ts \\
+    --schema ./prisma/schema.prisma
+
+◉ Loading Prisma schema...
+✔ Schema loaded (hash: a3f8c1b2)
+◉ Discovering model definitions...
+✔ Loaded 1 model: userChurn
+◉ Extracting training data via Prisma...
+✔ 800 rows extracted
+◉ Training RandomForestClassifier...
+✔ Quality gate passed: f1=0.872 ≥ 0.80
+✔ Quality gate passed: accuracy=0.904 ≥ 0.85
+✔ Artifacts written to ./.prisml/
+
+  userChurn.onnx          52KB
+  userChurn.metadata.json  4KB`;
+
+const predictCode = `import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
+import { churnModel } from './models/churn';
+import { readFileSync } from 'fs';
+
+const session = new PredictionSession();
+const schema = readFileSync('./prisma/schema.prisma', 'utf-8');
+
+await session.initializeModel(
+  './.prisml/userChurn.metadata.json',
+  './.prisml/userChurn.onnx',
+  hashPrismaSchema(schema),   // bound to schema hash a3f8c1b2
+);
+
+const result = await session.predict(
+  'userChurn',
+  user,
+  churnModel.features,
+);
+
+console.log(result.prediction);  // "1" or "0"
+console.log(result.timestamp);   // "2026-03-08T12:00:00.000Z"
+// Inference ran in ~0.4ms — in the same V8 process.`;
+
+const driftCode = `// After adding a new field to schema.prisma:
+// model User {
+//   ...
+//   subscriptionTier String   // ← new field
+// }
+
+await session.initializeModel(
+  './.prisml/userChurn.metadata.json',
+  './.prisml/userChurn.onnx',
+  hashPrismaSchema(newSchemaContent),  // hash: 7d2e9f1a
+);
+
+// ✖ Throws:
+// SchemaDriftError: Model 'userChurn' was trained on schema
+// hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
+// Run \`prisml train\` to rebuild the artifact.`;
+
+const initialIsChurn = String(initialPrediction.prediction) === '1';
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="page">
+
+    <!-- HEADER -->
+    <header class="header" id="top">
+      <div class="header__inner">
+        <a href="/" class="header__logo" aria-label="PrisML home">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="6" fill="#161616"/>
+            <rect x="8" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="17" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="5" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="10" y="18" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="19" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="24" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+          </svg>
+          <span>PrisML</span>
+        </a>
+        <nav class="header__nav" aria-label="Main navigation">
+          <a href="/" class="header__nav-link">Home</a>
+          <a href="#inference" class="header__nav-link">Inference</a>
+          <a href="#drift" class="header__nav-link">Drift guard</a>
+          <a href="#integrate" class="header__nav-link">Integration</a>
+          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
+            GitHub
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="margin-left: 4px; opacity: 0.5;">
+              <path d="M10 1h5v5l-1.7-1.7-4.6 4.6-1.4-1.4 4.6-4.6L10 1zM3 3h4v2H3v8h8V9h2v4a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z"/>
+            </svg>
+          </a>
+        </nav>
+        <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path class="menu-top" d="M3 5h14"/>
+            <path class="menu-mid" d="M3 10h14"/>
+            <path class="menu-bot" d="M3 15h14"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero__container">
+        <div class="hero__breadcrumb">
+          <span>prisml</span>
+          <span class="breadcrumb-sep">/</span>
+          <span>demo</span>
+        </div>
+        <h1 class="hero__title anim-fade-up">
+          Predictions that<br/>ship with your code.
+        </h1>
+        <p class="hero__lead anim-fade-up anim-delay-1">
+          A real ONNX model running in-process. Adjust the inputs, see the latency, then break the schema.
+        </p>
+        <div class="hero-meta anim-fade-up anim-delay-2">
+          <div class="meta-pill">
+            <span class="meta-pill__label">artifact</span>
+            <code class="meta-pill__value">userChurn.onnx</code>
+          </div>
+          <div class="meta-pill">
+            <span class="meta-pill__label">algorithm</span>
+            <code class="meta-pill__value">{demoInfo.algorithm}</code>
+          </div>
+          <div class="meta-pill">
+            <span class="meta-pill__label">task</span>
+            <code class="meta-pill__value">{demoInfo.taskType}</code>
+          </div>
+          <div class="meta-pill">
+            <span class="meta-pill__label">compiled</span>
+            <code class="meta-pill__value">{new Date(demoInfo.compiledAt).toLocaleDateString()}</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE INFERENCE -->
+    <section class="section inference-section" id="inference">
+      <div class="section__container">
+
+        <div class="section-header">
+          <p class="section-tag">Live inference</p>
+          <h2 class="section-title">Adjust inputs. Get a real prediction.</h2>
+          <p class="section-desc">
+            Each submit hits <code>/api/demo/predict</code>, which calls <code>session.predict()</code>
+            synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.
+          </p>
+        </div>
+
+        <div class="inference-grid">
+
+          <!-- Inputs -->
+          <div class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Feature inputs</p>
+                <h3>Churn risk model</h3>
+              </div>
+            </div>
+
+            <div class="preset-bar">
+              <button type="button" class="preset-btn" data-preset="healthy">Healthy user</button>
+              <button type="button" class="preset-btn is-active" data-preset="at-risk">At-risk user</button>
+              <button type="button" class="preset-btn" data-preset="churning">Likely churning</button>
+            </div>
+
+            <form id="inferenceForm" class="inference-form">
+              <div class="field">
+                <div class="field__header">
+                  <label for="daysSinceActive">Days since last active</label>
+                  <span class="field__val" id="daysVal">{initialInputs.daysSinceActive}</span>
+                </div>
+                <input id="daysSinceActive" name="daysSinceActive" type="range"
+                  min="0" max="90" step="1" value={initialInputs.daysSinceActive} />
+                <div class="field__range-labels"><span>0d</span><span>90d</span></div>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label for="monthlySpend">Monthly spend ($)</label>
+                  <span class="field__val" id="spendVal">{initialInputs.monthlySpend}</span>
+                </div>
+                <input id="monthlySpend" name="monthlySpend" type="range"
+                  min="0" max="1000" step="10" value={initialInputs.monthlySpend} />
+                <div class="field__range-labels"><span>$0</span><span>$1,000</span></div>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label for="supportTickets">Open support tickets</label>
+                  <span class="field__val" id="ticketsVal">{initialInputs.supportTickets}</span>
+                </div>
+                <input id="supportTickets" name="supportTickets" type="range"
+                  min="0" max="15" step="1" value={initialInputs.supportTickets} />
+                <div class="field__range-labels"><span>0</span><span>15</span></div>
+              </div>
+
+              <button class="btn btn--primary" type="submit">Run prediction</button>
+            </form>
+          </div>
+
+          <!-- Result -->
+          <div class="result-stack">
+            <div class="panel result-panel" id="resultPanel"
+              data-tone={initialIsChurn ? 'danger' : 'healthy'}>
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Prediction output</p>
+                  <h3 id="resultLabel">{initialIsChurn ? 'Will churn' : 'Will retain'}</h3>
+                </div>
+                <span class:list={["status-pill", initialIsChurn ? "status-pill--danger" : "status-pill--healthy"]}
+                  id="resultPill">
+                  {initialIsChurn ? '1 — positive' : '0 — negative'}
+                </span>
+              </div>
+
+              <dl class="output-stats">
+                <div>
+                  <dt>Raw output</dt>
+                  <dd id="resultRaw">{initialPrediction.prediction}</dd>
+                </div>
+                <div>
+                  <dt>Inference latency</dt>
+                  <dd id="resultLatency">{initialPrediction.latencyMs} ms</dd>
+                </div>
+                <div>
+                  <dt>Schema hash</dt>
+                  <dd id="resultHash" class="mono">a3f8c1b2</dd>
+                </div>
+                <div>
+                  <dt>Artifact</dt>
+                  <dd class="mono">userChurn.onnx</dd>
+                </div>
+              </dl>
+
+              <p id="resultStatus" class="result-status" aria-live="polite"></p>
+            </div>
+
+            <div class="panel latency-panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Latency comparison</p>
+                  <h3>Why in-process matters</h3>
+                </div>
+              </div>
+              <div class="latency-bars">
+                <div class="latency-bar">
+                  <div class="latency-bar__label">
+                    <span>PrisML in-process</span>
+                    <strong id="latencyPrisml" class="latency-bar__ms">{initialPrediction.latencyMs} ms</strong>
+                  </div>
+                  <div class="latency-bar__track">
+                    <div class="latency-bar__fill latency-bar__fill--accent" id="latencyFill"
+                      style={`width: ${Math.min(100, Math.max(1, (initialPrediction.latencyMs / 800) * 100))}%`}></div>
+                  </div>
+                </div>
+                <div class="latency-bar">
+                  <div class="latency-bar__label">
+                    <span>HTTP microservice</span>
+                    <strong class="latency-bar__ms">~120 ms</strong>
+                  </div>
+                  <div class="latency-bar__track">
+                    <div class="latency-bar__fill" style="width: 15%"></div>
+                  </div>
+                </div>
+                <div class="latency-bar">
+                  <div class="latency-bar__label">
+                    <span>External inference API</span>
+                    <strong class="latency-bar__ms">~400 ms</strong>
+                  </div>
+                  <div class="latency-bar__track">
+                    <div class="latency-bar__fill" style="width: 50%"></div>
+                  </div>
+                </div>
+                <div class="latency-bar">
+                  <div class="latency-bar__label">
+                    <span>Python subprocess</span>
+                    <strong class="latency-bar__ms">~800 ms</strong>
+                  </div>
+                  <div class="latency-bar__track">
+                    <div class="latency-bar__fill" style="width: 100%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="latency-note">Scale: 0 – 800 ms (Python subprocess = 100%). PrisML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- SCHEMA DRIFT -->
+    <section class="section drift-section" id="drift">
+      <div class="section__container">
+
+        <div class="section-header">
+          <p class="section-tag">Schema drift guard</p>
+          <h2 class="section-title">The model knows what schema it was trained on.</h2>
+          <p class="section-desc">
+            Every artifact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
+            and you try to initialise predictions, <code>PredictionSession</code> throws a typed
+            <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
+          </p>
+          <div class="artifact-ls drift-ls">
+            <p class="artifact-ls__prompt"><span class="prompt">$</span> ls -lh .prisml/</p>
+            <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size">52K</span><span class="ls-name">userChurn.onnx</span></p>
+            <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size"> 4K</span><span class="ls-name">userChurn.metadata.json</span></p>
+            <p class="artifact-ls__hint"># both files are bound to schema hash a3f8c1b2</p>
+          </div>
+        </div>
+
+        <div class="drift-grid">
+          <div class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Simulate schema change</p>
+                <h3>Toggle a schema migration</h3>
+              </div>
+            </div>
+            <p class="drift-desc">
+              This artifact was compiled against schema hash <code>a3f8c1b2</code>.
+              Simulate adding a field to the <code>User</code> model and watch the session refuse to proceed.
+            </p>
+            <div class="drift-toggle-row">
+              <button class="drift-toggle" type="button" id="driftToggle" aria-pressed="false">
+                <span class="drift-toggle__track">
+                  <span class="drift-toggle__thumb"></span>
+                </span>
+                <span class="drift-toggle__label" id="driftToggleLabel">Schema matches artifact</span>
+              </button>
+            </div>
+            <div class="schema-diff" id="schemaDiff" aria-hidden="true">
+              <div class="schema-diff__header">
+                <span>prisma/schema.prisma</span>
+                <span class="schema-diff__badge">modified</span>
+              </div>
+              <pre class="schema-diff__code"><code> model User &#123;
+   id            String   @id @default(cuid())
+   email         String   @unique
+   createdAt     DateTime @default(now())
+   lastActiveAt  DateTime
+   monthlySpend  Float
+   supportTickets Int
+   willChurn     Boolean?
+<span class="diff-add">+  subscriptionTier String  // new field</span>
+ &#125;</code></pre>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Session response</p>
+                <h3 id="driftResultTitle">Prediction runs normally</h3>
+              </div>
+              <span class="status-pill status-pill--healthy" id="driftResultPill">OK</span>
+            </div>
+            <pre class="drift-output" id="driftOutput"><code id="driftOutputCode">// Schema hash matches — inference proceeds normally.
+
+const result = await session.predict(
+  'userChurn',
+  user,
+  churnModel.features,
+);
+// result.prediction → "0"
+// result.timestamp  → "2026-03-08T12:00:00.000Z"</code></pre>
+            <div class="drift-explanation" id="driftExplanation">
+              <p>
+                The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
+                When calling <code>initializeModel()</code>, PrisML re-hashes the current schema and compares.
+                A match means the feature resolvers are still valid against the live data shape.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel drift-code-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">What the error looks like</p>
+              <h3>SchemaDriftError in practice</h3>
+            </div>
+          </div>
+          <Code code={driftCode} lang="ts" theme="github-dark" />
+        </div>
+
+      </div>
+    </section>
+
+    <!-- INTEGRATION -->
+    <section class="section code-section" id="integrate">
+      <div class="code-section__container">
+
+        <div class="section-header">
+          <p class="section-tag">Integration</p>
+          <h2 class="section-title">Three files. Zero infrastructure.</h2>
+          <p class="section-desc">
+            Define a model in TypeScript, compile once at build time, predict in-process at runtime.
+            The same feature resolvers run during training and inference — the behaviour cannot drift.
+          </p>
+        </div>
+
+        <div class="code-tabs" id="codeTabs">
+          <div class="code-tabs__bar" role="tablist">
+            <button class="code-tab active" role="tab" aria-selected="true" data-tab="define">
+              <span class="code-tab__num">01</span>
+              <span class="code-tab__label">Define</span>
+              <span class="code-tab__file">models/churn.ts</span>
+            </button>
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="train">
+              <span class="code-tab__num">02</span>
+              <span class="code-tab__label">Compile</span>
+              <span class="code-tab__file">terminal</span>
+            </button>
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="predict">
+              <span class="code-tab__num">03</span>
+              <span class="code-tab__label">Predict</span>
+              <span class="code-tab__file">api/predict.ts</span>
+            </button>
+          </div>
+          <div class="code-tabs__panels">
+            <div class="code-panel active" id="panel-define" role="tabpanel">
+              <Code code={defineCode} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-train" role="tabpanel">
+              <Code code={trainCode} lang="bash" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-predict" role="tabpanel">
+              <Code code={predictCode} lang="ts" theme="github-dark" />
+            </div>
+          </div>
+        </div>
+
+        <div class="cta-strip">
+          <div class="install-cmd" id="installCmd">
+            <span class="install-cmd__prompt">$</span>
+            <code class="install-cmd__text">npm install @vncsleal/prisml</code>
+            <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="check-icon" aria-hidden="true">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </button>
+          </div>
+          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
+            View source on GitHub
+          </a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="footer__container">
+        <div class="footer__left">
+          <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect width="32" height="32" rx="6" fill="#161616"/>
+            <rect x="8" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="17" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="5" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="10" y="18" width="7" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="19" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+            <rect x="24" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+          </svg>
+          <span class="footer__name">PrisML</span>
+          <span class="footer__sep">·</span>
+          <span>MIT License</span>
+        </div>
+        <div class="footer__right">
+          <span>v0.2.1</span>
+          <span class="footer__sep">·</span>
+          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer">github.com/vncsleal/prisml</a>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // Range sliders
+      const daysInput = document.getElementById('daysSinceActive') as HTMLInputElement | null;
+      const spendInput = document.getElementById('monthlySpend') as HTMLInputElement | null;
+      const ticketsInput = document.getElementById('supportTickets') as HTMLInputElement | null;
+      const daysVal = document.getElementById('daysVal');
+      const spendVal = document.getElementById('spendVal');
+      const ticketsVal = document.getElementById('ticketsVal');
+
+      daysInput?.addEventListener('input', () => { if (daysVal) daysVal.textContent = daysInput.value; });
+      spendInput?.addEventListener('input', () => { if (spendVal) spendVal.textContent = spendInput.value; });
+      ticketsInput?.addEventListener('input', () => { if (ticketsVal) ticketsVal.textContent = ticketsInput.value; });
+
+      // Presets
+      const presets: Record<string, { days: number; spend: number; tickets: number }> = {
+        healthy:  { days: 3,  spend: 750, tickets: 0  },
+        'at-risk':{ days: 34, spend: 192, tickets: 7  },
+        churning: { days: 70, spend: 45,  tickets: 12 },
+      };
+
+      document.querySelectorAll('.preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = (btn as HTMLElement).dataset.preset ?? '';
+          const p = presets[key];
+          if (!p) return;
+          if (daysInput)    { daysInput.value    = String(p.days);    if (daysVal)    daysVal.textContent    = String(p.days); }
+          if (spendInput)   { spendInput.value   = String(p.spend);   if (spendVal)   spendVal.textContent   = String(p.spend); }
+          if (ticketsInput) { ticketsInput.value = String(p.tickets); if (ticketsVal) ticketsVal.textContent = String(p.tickets); }
+          document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        });
+      });
+
+      // Inference form
+      const form = document.getElementById('inferenceForm');
+      const resultPanel = document.getElementById('resultPanel');
+      const resultLabel = document.getElementById('resultLabel');
+      const resultPill  = document.getElementById('resultPill');
+      const resultRaw   = document.getElementById('resultRaw');
+      const resultLatency = document.getElementById('resultLatency');
+      const resultStatus  = document.getElementById('resultStatus');
+      const latencyPrisml = document.getElementById('latencyPrisml');
+      const latencyFill   = document.getElementById('latencyFill');
+      const submitBtn = form?.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (submitBtn) { submitBtn.textContent = 'Running...'; submitBtn.disabled = true; }
+        if (resultStatus) resultStatus.textContent = '';
+
+        try {
+          const payload = {
+            daysSinceActive: Number(daysInput?.value ?? 0),
+            monthlySpend:    Number(spendInput?.value  ?? 0),
+            supportTickets:  Number(ticketsInput?.value ?? 0),
+          };
+
+          const res  = await fetch('/api/demo/predict', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error ?? 'Prediction failed');
+
+          const isChurn  = String(data.prediction.prediction) === '1';
+          const latencyMs = data.prediction.latencyMs ?? 0;
+
+          if (resultPanel)  resultPanel.dataset.tone = isChurn ? 'danger' : 'healthy';
+          if (resultLabel)  resultLabel.textContent  = isChurn ? 'Will churn' : 'Will retain';
+          if (resultPill) {
+            resultPill.textContent = isChurn ? '1 — positive' : '0 — negative';
+            resultPill.className   = `status-pill ${isChurn ? 'status-pill--danger' : 'status-pill--healthy'}`;
+          }
+          if (resultRaw)     resultRaw.textContent     = String(data.prediction.prediction);
+          if (resultLatency) resultLatency.textContent = `${latencyMs} ms`;
+          if (latencyPrisml) latencyPrisml.textContent = `${latencyMs} ms`;
+          if (latencyFill)   latencyFill.style.width   = `${Math.min(100, Math.max(1, (latencyMs / 800) * 100))}%`;
+
+        } catch (err) {
+          if (resultStatus) resultStatus.textContent = err instanceof Error ? err.message : 'Request failed';
+        } finally {
+          if (submitBtn) { submitBtn.textContent = 'Run prediction'; submitBtn.disabled = false; }
+        }
+      });
+
+      // Schema drift toggle
+      const driftToggle      = document.getElementById('driftToggle');
+      const driftToggleLabel = document.getElementById('driftToggleLabel');
+      const driftOutput      = document.getElementById('driftOutput');
+      const driftOutputCode  = document.getElementById('driftOutputCode');
+      const driftResultTitle = document.getElementById('driftResultTitle');
+      const driftResultPill  = document.getElementById('driftResultPill');
+      const driftExplanation = document.getElementById('driftExplanation');
+      const schemaDiff       = document.getElementById('schemaDiff');
+      let driftActive = false;
+
+      const normalCode = `// Schema hash matches — inference proceeds normally.
+
+const result = await session.predict(
+  'userChurn',
+  user,
+  churnModel.features,
+);
+// result.prediction → "0"
+// result.timestamp  → "2026-03-08T12:00:00.000Z"`;
+
+      const errorCode = `// initializeModel() re-hashes the schema on every call.
+
+await session.initializeModel(
+  './.prisml/userChurn.metadata.json',
+  './.prisml/userChurn.onnx',
+  hashPrismaSchema(updatedSchema), // hash: 7d2e9f1a
+);
+
+// ✖ Throws before any inference:
+// SchemaDriftError: Model 'userChurn' was trained on schema
+// hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
+// Run \`prisml train\` to rebuild the artifact.`;
+
+      driftToggle?.addEventListener('click', () => {
+        driftActive = !driftActive;
+        driftToggle.setAttribute('aria-pressed', String(driftActive));
+        driftToggle.classList.toggle('is-active', driftActive);
+
+        if (driftToggleLabel) driftToggleLabel.textContent = driftActive ? 'Schema has changed' : 'Schema matches artifact';
+        if (schemaDiff) schemaDiff.setAttribute('aria-hidden', String(!driftActive));
+        if (driftResultTitle) driftResultTitle.textContent = driftActive ? 'SchemaDriftError thrown' : 'Prediction runs normally';
+        if (driftResultPill) {
+          driftResultPill.textContent = driftActive ? 'Error' : 'OK';
+          driftResultPill.className   = `status-pill ${driftActive ? 'status-pill--danger' : 'status-pill--healthy'}`;
+        }
+        if (driftOutputCode) driftOutputCode.textContent = driftActive ? errorCode : normalCode;
+        if (driftOutput) {
+          if (driftActive) driftOutput.setAttribute('data-tone', 'danger');
+          else driftOutput.removeAttribute('data-tone');
+        }
+        if (driftExplanation) {
+          driftExplanation.innerHTML = driftActive
+            ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>.
+PrisML catches the mismatch in <code>initializeModel()</code> and throws <code>SchemaDriftError</code>
+before running a single inference. You are forced to retrain — no silent model incorrectness.</p>`
+            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
+When calling <code>initializeModel()</code>, PrisML re-hashes the current schema and compares.
+A match means the feature resolvers are still valid against the live data shape.</p>`;
+        }
+      });
+
+      // Code tabs
+      const tabs   = document.querySelectorAll('.code-tab');
+      const panels = document.querySelectorAll('.code-panel');
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const target = tab.getAttribute('data-tab');
+          tabs.forEach((t)  => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+          panels.forEach((p) => p.classList.remove('active'));
+          tab.classList.add('active');
+          tab.setAttribute('aria-selected', 'true');
+          document.getElementById(`panel-${target}`)?.classList.add('active');
+        });
+      });
+
+      // Copy install command
+      const copyBtn    = document.getElementById('copyBtn');
+      const installCmd = document.getElementById('installCmd');
+      copyBtn?.addEventListener('click', async () => {
+        await navigator.clipboard.writeText('npm install @vncsleal/prisml');
+        installCmd?.classList.add('copied');
+        setTimeout(() => installCmd?.classList.remove('copied'), 2000);
+      });
+
+      // Mobile menu
+      const menuBtn = document.getElementById('menuBtn');
+      const header  = document.querySelector('.header');
+      menuBtn?.addEventListener('click', () => header?.classList.toggle('header--open'));
+      document.querySelectorAll('.header__nav-link').forEach((link) => {
+        link.addEventListener('click', () => header?.classList.remove('header--open'));
+      });
+    });
+  </script>
+
+  <style is:global>
+    /* Tokens (same as homepage) */
+    :root {
+      --gray-100: #161616; --gray-90: #262626; --gray-80: #393939;
+      --gray-70: #525252;  --gray-60: #6f6f6f; --gray-50: #8d8d8d;
+      --gray-30: #c6c6c6;  --gray-20: #d4d4d4; --gray-10: #f4f4f4;
+      --amber-60: #d2a106; --amber-50: #f1c21b; --amber-40: #fddc69;
+      --green-50: #42be65; --red-50: #fa4d56;
+      --bg:               var(--gray-100);
+      --bg-elevated:      var(--gray-90);
+      --bg-hover:         var(--gray-80);
+      --border-subtle:    #2a2a2a;
+      --border-strong:    var(--gray-80);
+      --text-primary:     var(--gray-10);
+      --text-secondary:   var(--gray-30);
+      --text-placeholder: var(--gray-60);
+      --text-interactive: var(--amber-50);
+      --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+      --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+      --sp-6:32px; --sp-7:40px; --sp-8:48px; --sp-9:64px;
+      --sp-10:80px; --sp-11:96px; --sp-12:128px;
+      --max-width: 1120px;
+      --header-height: 48px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+      color: var(--text-primary); background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      height: var(--header-height); background: var(--bg);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .header__inner {
+      max-width: var(--max-width); margin: 0 auto;
+      padding: 0 var(--sp-6); height: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header__logo {
+      display: flex; align-items: center; gap: var(--sp-2);
+      font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
+      color: var(--text-primary); text-decoration: none;
+    }
+    .header__nav { display: flex; align-items: center; }
+    .header__nav a {
+      display: inline-flex; align-items: center;
+      padding: 0 var(--sp-4); height: var(--header-height);
+      font-size: 14px; color: var(--text-secondary);
+      text-decoration: none; transition: background 120ms ease, color 120ms ease;
+    }
+    .header__nav a:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .header__menu-btn {
+      display: none; align-items: center; justify-content: center;
+      width: 40px; height: 40px; background: none; border: none;
+      color: var(--text-secondary); cursor: pointer;
+    }
+    .header__menu-btn svg path {
+      transition: transform 200ms ease, opacity 150ms ease;
+      transform-origin: center;
+    }
+    .header--open .header__menu-btn .menu-top { transform: translateY(5px) rotate(45deg); }
+    .header--open .header__menu-btn .menu-mid { opacity: 0; }
+    .header--open .header__menu-btn .menu-bot { transform: translateY(-5px) rotate(-45deg); }
+
+    /* Hero */
+    .hero { padding: var(--sp-12) 0 var(--sp-10); border-bottom: 1px solid var(--border-subtle); }
+    .hero__container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6); }
+    .hero__breadcrumb {
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--text-placeholder); margin-bottom: var(--sp-6);
+    }
+    .breadcrumb-sep { margin: 0 var(--sp-1); color: var(--gray-70); }
+    .hero__title {
+      font-size: clamp(2.5rem, 5vw, 3.75rem); font-weight: 300;
+      line-height: 1.15; letter-spacing: -0.02em;
+      color: var(--text-primary); margin-bottom: var(--sp-6); max-width: 720px;
+    }
+    .hero__lead {
+      font-size: 16px; line-height: 1.65; color: var(--text-secondary);
+      max-width: 620px; margin-bottom: var(--sp-7); font-weight: 400;
+    }
+    .hero__lead code {
+      font-family: var(--font-mono); font-size: 14px;
+      background: var(--bg-elevated); padding: 1px 6px; color: var(--text-primary);
+    }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+    .meta-pill {
+      display: flex; align-items: center; gap: var(--sp-2);
+      height: 32px; padding: 0 var(--sp-3);
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    }
+    .meta-pill__label { font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder); }
+    .meta-pill__value { font-family: var(--font-mono); font-size: 12px; color: var(--amber-50); }
+
+    /* Sections */
+    .section { padding: var(--sp-11) 0; border-bottom: 1px solid var(--border-subtle); }
+    .section__container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6); }
+    .section-header { margin-bottom: var(--sp-9); }
+    .section-tag {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      color: var(--amber-50); text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: var(--sp-3);
+    }
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 300;
+      line-height: 1.25; letter-spacing: -0.01em;
+      color: var(--text-primary); margin-bottom: var(--sp-4);
+    }
+    .section-desc {
+      font-size: 16px; line-height: 1.6;
+      color: var(--text-secondary); max-width: 540px;
+    }
+    .section-desc code {
+      font-family: var(--font-mono); font-size: 13px;
+      background: var(--bg-elevated); padding: 1px 6px; color: var(--text-primary);
+    }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-placeholder); margin-bottom: var(--sp-1);
+    }
+
+    /* Panel */
+    .panel { border: 1px solid var(--border-subtle); background: var(--bg); }
+    .panel__header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: var(--sp-5) var(--sp-6);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .panel__header h3 { font-size: 16px; font-weight: 600; color: var(--text-primary); margin: 0; }
+
+    /* Pills */
+    .status-pill {
+      display: inline-flex; align-items: center;
+      height: 24px; padding: 0 var(--sp-3);
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500; white-space: nowrap;
+    }
+    .status-pill--healthy { background: rgba(66, 190, 101, 0.12); color: var(--green-50); }
+    .status-pill--danger  { background: rgba(250, 77, 86, 0.12);  color: var(--red-50); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: var(--sp-2);
+      height: 48px; padding: 0 var(--sp-5);
+      font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+      text-decoration: none; cursor: pointer; border: none; white-space: nowrap;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .btn--primary {
+      background: var(--amber-60); color: var(--gray-100);
+      width: 100%; justify-content: center; margin-top: var(--sp-5);
+    }
+    .btn--primary:hover { background: #b28600; }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn--secondary {
+      background: var(--bg-elevated); color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn--secondary:hover { background: var(--bg-hover); }
+
+    /* Inference */
+    .inference-section { background: var(--bg-elevated); }
+    .inference-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); }
+    .preset-bar {
+      display: flex; gap: var(--sp-2);
+      padding: var(--sp-4) var(--sp-6);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .preset-btn {
+      height: 28px; padding: 0 var(--sp-3);
+      background: none; border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+      cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+    }
+    .preset-btn:hover, .preset-btn.is-active {
+      background: var(--bg-elevated); color: var(--text-primary); border-color: var(--amber-60);
+    }
+    .inference-form { padding: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-6); }
+    .field { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .field__header { display: flex; justify-content: space-between; align-items: center; }
+    .field__header label { font-size: 14px; color: var(--text-secondary); }
+    .field__val {
+      font-family: var(--font-mono); font-size: 14px; font-weight: 600;
+      color: var(--amber-50); min-width: 36px; text-align: right;
+    }
+    input[type="range"] {
+      -webkit-appearance: none; width: 100%; height: 2px;
+      background: var(--border-strong); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px;
+      background: var(--amber-50); border-radius: 50%;
+      cursor: pointer; transition: background 120ms ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { background: var(--amber-60); }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; height: 16px; background: var(--amber-50);
+      border-radius: 50%; border: none; cursor: pointer;
+    }
+    .field__range-labels {
+      display: flex; justify-content: space-between;
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-placeholder);
+    }
+    .result-stack { display: flex; flex-direction: column; gap: var(--sp-5); }
+    .result-panel[data-tone="danger"]  { border-color: rgba(250, 77, 86, 0.3); }
+    .result-panel[data-tone="healthy"] { border-color: rgba(66, 190, 101, 0.25); }
+    .output-stats {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--border-subtle);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .output-stats > div {
+      background: var(--bg); padding: var(--sp-4) var(--sp-5);
+      display: flex; flex-direction: column; gap: var(--sp-1);
+    }
+    .output-stats dt { font-size: 12px; color: var(--text-placeholder); }
+    .output-stats dd { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); font-weight: 500; }
+    .output-stats dd.mono { font-size: 12px; }
+    .result-status {
+      padding: var(--sp-3) var(--sp-5);
+      font-family: var(--font-mono); font-size: 12px; color: var(--red-50); min-height: 32px;
+    }
+    .latency-panel { background: var(--bg) !important; border-top: none; }
+    .latency-bars { padding: var(--sp-5) var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-5); }
+    .latency-bar { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .latency-bar__label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+    .latency-bar__ms { font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); }
+    .latency-bar__track { height: 4px; background: var(--border-strong); }
+    .latency-bar__fill { height: 100%; background: var(--gray-70); transition: width 400ms ease; }
+    .latency-bar__fill--accent { background: var(--amber-50); }
+    .latency-note { padding: 0 var(--sp-6) var(--sp-5); font-size: 13px; color: var(--text-placeholder); }
+
+    .artifact-ls {
+      margin: 0 var(--sp-6) var(--sp-6);
+      background: var(--gray-100); border: 1px solid var(--border-subtle);
+      padding: var(--sp-4) var(--sp-5); font-family: var(--font-mono); font-size: 12px;
+    }
+    .artifact-ls__prompt { color: var(--text-placeholder); margin-bottom: var(--sp-2); }
+    .prompt { color: var(--green-50); }
+    .artifact-ls__line { color: var(--text-secondary); line-height: 2; }
+    .ls-perm { color: var(--text-placeholder); }
+    .ls-size { color: var(--amber-50); margin: 0 var(--sp-4); }
+    .ls-name { color: var(--text-primary); }
+    .artifact-ls__hint { margin-top: var(--sp-2); color: var(--gray-60); }
+    .drift-ls { margin: var(--sp-5) 0 0; }
+
+    /* Drift */
+    .drift-section { background: var(--bg-elevated); }
+    .drift-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); margin-bottom: var(--sp-5); }
+    .drift-desc {
+      padding: var(--sp-5) var(--sp-6); font-size: 14px; line-height: 1.6;
+      color: var(--text-secondary); border-bottom: 1px solid var(--border-subtle);
+    }
+    .drift-desc code {
+      font-family: var(--font-mono); font-size: 12px;
+      background: var(--bg-elevated); padding: 1px 6px; color: var(--text-primary);
+    }
+    .drift-toggle-row { padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--border-subtle); }
+    .drift-toggle {
+      display: inline-flex; align-items: center; gap: var(--sp-3);
+      background: none; border: none; cursor: pointer; padding: 0;
+    }
+    .drift-toggle__track {
+      position: relative; width: 44px; height: 24px;
+      background: var(--bg-hover); border: 1px solid var(--border-strong);
+      border-radius: 12px; transition: background 200ms ease, border-color 200ms ease;
+    }
+    .drift-toggle.is-active .drift-toggle__track {
+      background: rgba(250, 77, 86, 0.2); border-color: var(--red-50);
+    }
+    .drift-toggle__thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--gray-50); transition: transform 200ms ease, background 200ms ease;
+    }
+    .drift-toggle.is-active .drift-toggle__thumb {
+      transform: translateX(20px); background: var(--red-50);
+    }
+    .drift-toggle__label {
+      font-size: 14px; color: var(--text-secondary);
+      transition: color 200ms ease;
+    }
+    .drift-toggle.is-active .drift-toggle__label { color: var(--red-50); }
+    .schema-diff { margin: var(--sp-5) var(--sp-6); border: 1px solid var(--border-subtle); }
+    .schema-diff[aria-hidden="true"] { display: none; }
+    .schema-diff__header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: var(--sp-2) var(--sp-4);
+      background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder);
+    }
+    .schema-diff__badge {
+      background: rgba(241, 194, 27, 0.12); color: var(--amber-50);
+      padding: 1px 8px; font-size: 11px;
+    }
+    .schema-diff__code {
+      padding: var(--sp-4); font-family: var(--font-mono); font-size: 12px;
+      line-height: 1.7; color: var(--text-secondary); overflow-x: auto; margin: 0;
+    }
+    .diff-add { color: var(--green-50); }
+    .drift-output {
+      margin: 0; padding: var(--sp-5) var(--sp-6);
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.7;
+      color: var(--text-secondary); overflow-x: auto;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .drift-output[data-tone="danger"] { color: var(--red-50); }
+    .drift-explanation {
+      padding: var(--sp-4) var(--sp-6) var(--sp-5);
+      font-size: 13px; line-height: 1.65; color: var(--text-placeholder);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .drift-explanation code {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg-elevated); padding: 1px 5px; color: var(--text-secondary);
+    }
+    .drift-code-panel { margin-top: 0; }
+    .drift-code-panel pre {
+      margin: 0 !important; padding: var(--sp-5) var(--sp-6) !important;
+      background: transparent !important; border-radius: 0 !important;
+      font-size: 13px !important; line-height: 1.7 !important;
+      font-family: var(--font-mono) !important; overflow-x: auto;
+    }
+
+    /* Code section */
+    .code-section { padding: var(--sp-11) 0; border-bottom: 1px solid var(--border-subtle); }
+    .code-section__container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6); }
+    .code-tabs { border: 1px solid var(--border-subtle); background: var(--bg); }
+    .code-tabs__bar {
+      display: flex; border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-elevated); overflow-x: auto;
+    }
+    .code-tab {
+      display: flex; align-items: center; gap: var(--sp-3);
+      padding: 0 var(--sp-5); height: 48px;
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--text-secondary); font-family: var(--font-sans); font-size: 14px;
+      cursor: pointer; transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+      white-space: nowrap;
+    }
+    .code-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .code-tab.active { color: var(--text-primary); border-bottom-color: var(--amber-60); }
+    .code-tab__num { font-family: var(--font-mono); font-size: 11px; color: var(--text-placeholder); }
+    .code-tab.active .code-tab__num { color: var(--amber-50); }
+    .code-tab__label { font-weight: 500; }
+    .code-tab__file { font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder); }
+    .code-panel { display: none; min-height: 320px; }
+    .code-panel.active { display: block; }
+    .code-panel pre {
+      margin: 0 !important; padding: var(--sp-5) var(--sp-6) !important;
+      background: transparent !important; border-radius: 0 !important;
+      font-size: 13px !important; line-height: 1.7 !important;
+      font-family: var(--font-mono) !important; overflow-x: auto;
+    }
+    .cta-strip {
+      display: flex; align-items: center; gap: var(--sp-4);
+      flex-wrap: wrap; margin-top: var(--sp-6);
+    }
+    .install-cmd {
+      display: flex; align-items: center; gap: var(--sp-3);
+      height: 48px; padding: 0 var(--sp-4);
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 14px; color: var(--text-primary);
+    }
+    .install-cmd__prompt { color: var(--green-50); user-select: none; }
+    .install-cmd__text { user-select: all; }
+    .install-cmd__copy {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; margin-left: var(--sp-2);
+      background: none; border: none; color: var(--text-placeholder);
+      cursor: pointer; transition: color 120ms ease; position: relative;
+    }
+    .install-cmd__copy:hover { color: var(--text-primary); }
+    .install-cmd__copy .check-icon { position: absolute; opacity: 0; color: var(--green-50); }
+    .install-cmd.copied .install-cmd__copy svg:first-child { opacity: 0; }
+    .install-cmd.copied .install-cmd__copy .check-icon { opacity: 1; }
+
+    /* Footer */
+    .footer { padding: var(--sp-5) 0; border-top: 1px solid var(--border-subtle); }
+    .footer__container {
+      max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer__left { display: flex; align-items: center; gap: var(--sp-2); font-size: 14px; color: var(--text-secondary); }
+    .footer__name { font-weight: 600; }
+    .footer__right {
+      display: flex; align-items: center; gap: var(--sp-3);
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder);
+    }
+    .footer__right a { color: var(--text-placeholder); text-decoration: none; }
+    .footer__right a:hover { color: var(--text-secondary); }
+    .footer__sep { opacity: 0.4; }
+
+    /* Animations */
+    .anim-fade-up { opacity: 0; transform: translateY(16px); animation: fadeUp 600ms ease forwards; }
+    .anim-delay-1 { animation-delay: 120ms; }
+    .anim-delay-2 { animation-delay: 240ms; }
+    @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .inference-grid,
+      .drift-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .header { height: auto; min-height: var(--header-height); }
+      .header__inner { padding: 0 var(--sp-4); flex-wrap: wrap; height: var(--header-height); }
+      .header__menu-btn { display: flex; }
+      .header__nav {
+        display: none; flex-direction: column; width: 100%;
+        border-top: 1px solid var(--border-subtle); background: var(--bg); order: 3;
+      }
+      .header--open .header__inner { height: auto; }
+      .header--open .header__nav { display: flex; }
+      .header__nav a {
+        width: 100%; height: 48px; padding: 0 var(--sp-4);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .hero { padding: var(--sp-8) 0 var(--sp-7); }
+      .hero__container { padding: 0 var(--sp-4); }
+      .hero__title { font-size: 2rem; }
+      .hero__lead { font-size: 15px; }
+      .section { padding: var(--sp-8) 0; }
+      .section__container,
+      .code-section__container { padding: 0 var(--sp-4); }
+      .section-title { font-size: 1.35rem; }
+      .section-desc { font-size: 14px; }
+      .panel__header { padding: var(--sp-4); }
+      .inference-form { padding: var(--sp-4); gap: var(--sp-5); }
+      .preset-bar { padding: var(--sp-3) var(--sp-4); flex-wrap: wrap; }
+      .output-stats { grid-template-columns: 1fr 1fr; }
+      .artifact-ls { margin: 0 var(--sp-4) var(--sp-4); }
+      .drift-desc,
+      .drift-toggle-row { padding: var(--sp-4); }
+      .schema-diff { margin: var(--sp-4); }
+      .drift-output { padding: var(--sp-4) !important; }
+      .drift-explanation { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+      .code-tab__file { display: none; }
+      .code-tab { padding: 0 var(--sp-3); height: 44px; flex: 1; justify-content: center; }
+      .code-panel { min-height: 240px; }
+      .code-panel pre { padding: var(--sp-4) !important; font-size: 12px !important; }
+      .cta-strip { flex-direction: column; align-items: stretch; }
+      .cta-strip .btn--secondary { text-align: center; justify-content: center; }
+      .install-cmd { font-size: 13px; }
+      .footer__container { flex-direction: column; gap: var(--sp-3); text-align: center; }
+    }
+  </style>
+</BaseLayout>

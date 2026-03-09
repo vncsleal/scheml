@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "generate": "prisma generate",
+    "db:push": "prisma db push --skip-generate",
+    "seed": "tsx prisma/seed.ts",
+    "setup-demo": "pnpm run db:push && pnpm run generate && pnpm run seed",
     "train": "prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma",
+    "train:demo": "prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma --output ../../apps/website/demo-artifacts",
     "infer": "tsx src/infer.ts"
   },
   "dependencies": {
@@ -15,6 +19,7 @@
     "tsx": "^4.7.0"
   },
   "devDependencies": {
-    "@vncsleal/prisml-cli": "workspace:*"
+    "@vncsleal/prisml-cli": "workspace:*",
+    "prisma": "^5.7.0"
   }
 }

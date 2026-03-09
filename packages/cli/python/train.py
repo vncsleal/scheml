@@ -86,9 +86,14 @@ def compute_metrics(task_type: str, y_true: List[Any], y_pred: List[Any]) -> Lis
     ]
 
 
-def export_onnx(model, num_features: int, output_path: Path) -> str:
+def export_onnx(model, task_type: str, num_features: int, output_path: Path) -> str:
     initial_type = [("input", FloatTensorType([None, num_features]))]
-    onnx_model = convert_sklearn(model, initial_types=initial_type)
+    options = None
+
+    if task_type != "regression":
+        options = {id(model): {"zipmap": False}}
+
+    onnx_model = convert_sklearn(model, initial_types=initial_type, options=options)
     output_path.write_bytes(onnx_model.SerializeToString())
     return str(output_path)
 
@@ -120,7 +125,7 @@ def main() -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = output_dir / f"{args.model_name}.onnx"
-    export_onnx(model, X_train.shape[1], onnx_path)
+    export_onnx(model, task_type, X_train.shape[1], onnx_path)
 
     response = {
         "metrics": metrics,
