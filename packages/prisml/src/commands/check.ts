@@ -12,7 +12,7 @@ import {
   parseModelSchema,
   ModelMetadata,
   FeatureDependency,
-} from '@vncsleal/prisml-core';
+} from '..';
 
 const PRISMA_TYPE_MAP: Record<string, FeatureDependency['scalarType']> = {
   String: 'string',
@@ -117,7 +117,9 @@ export const checkCommand = {
             const field = fields[fieldName];
 
             if (!field) {
-              errors.push(`${metadata.modelName}: Missing field ${dep.path} in Prisma schema.`);
+              errors.push(
+                `${metadata.modelName}: Missing field ${dep.path} in Prisma schema.`
+              );
               return;
             }
 

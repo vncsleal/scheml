@@ -1,7 +1,6 @@
-import { readFile } from 'fs/promises';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
-import type { ModelMetadata } from '@vncsleal/prisml-core';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { PredictionSession, defineModel, type ModelMetadata } from '@vncsleal/prisml';
 
 export type DemoPredictionInput = {
   daysSinceActive: number;
@@ -16,7 +15,7 @@ export type DemoModelInfo = {
   compiledAt: string;
 };
 
-type DemoEntity = {
+type User = {
   id: string;
   email: string;
   createdAt: Date;
@@ -29,53 +28,40 @@ type DemoEntity = {
 const DEMO_NOW = new Date('2026-03-08T12:00:00.000Z');
 const DAY_MS = 86_400_000;
 
-const schemaPath = fileURLToPath(
-  new URL('../../demo-artifacts/schema.prisma', import.meta.url)
-);
-const metadataPath = fileURLToPath(
-  new URL('../../demo-artifacts/userChurn.metadata.json', import.meta.url)
-);
-const onnxPath = fileURLToPath(
-  new URL('../../demo-artifacts/userChurn.onnx', import.meta.url)
-);
+const artifactsDir = path.resolve(process.cwd(), 'demo-artifacts');
+const schemaPath = path.join(artifactsDir, 'schema.prisma');
 
-const require = createRequire(import.meta.url);
-const prismlCore = require('@vncsleal/prisml-core') as typeof import('@vncsleal/prisml-core');
-const prismlRuntime = require('@vncsleal/prisml-runtime') as typeof import('@vncsleal/prisml-runtime');
-
-const demoFeatureResolvers = {
-  daysSinceActive: (user: DemoEntity) => {
-    const days = (DEMO_NOW.getTime() - user.lastActiveAt.getTime()) / DAY_MS;
-    return Math.max(0, Math.floor(days));
+export const churnModel = defineModel<User>({
+  name: 'userChurn',
+  modelName: 'User',
+  algorithm: { name: 'gbm', version: '1.0.0' },
+  output: {
+    field: 'willChurn',
+    taskType: 'binary_classification',
+    resolver: (u) => u.willChurn,
   },
-  monthlySpend: (user: DemoEntity) => Math.max(0, user.monthlySpend),
-  supportTickets: (user: DemoEntity) => Math.max(0, user.supportTickets),
-};
+  features: {
+    daysSinceActive: (u) =>
+      Math.max(0, Math.floor((DEMO_NOW.getTime() - u.lastActiveAt.getTime()) / DAY_MS)),
+    monthlySpend: (u) => Math.max(0, u.monthlySpend),
+    supportTickets: (u) => Math.max(0, u.supportTickets),
+  },
+});
 
-let metadataPromise: Promise<ModelMetadata> | undefined;
-let sessionPromise: Promise<import('@vncsleal/prisml-runtime').PredictionSession> | undefined;
+let sessionPromise: Promise<PredictionSession> | undefined;
 
-async function getMetadata(): Promise<ModelMetadata> {
-  if (!metadataPromise) {
-    metadataPromise = readFile(metadataPath, 'utf-8').then((raw) => JSON.parse(raw) as ModelMetadata);
-  }
-  return metadataPromise;
-}
-
-async function getSession(): Promise<import('@vncsleal/prisml-runtime').PredictionSession> {
+async function getSession(): Promise<PredictionSession> {
   if (!sessionPromise) {
     sessionPromise = (async () => {
-      const schema = await readFile(schemaPath, 'utf-8');
-      const schemaHash = prismlCore.hashPrismaSchema(schema);
-      const session = new prismlRuntime.PredictionSession();
-      await session.initializeModel(metadataPath, onnxPath, schemaHash);
+      const session = new PredictionSession();
+      await session.load(churnModel, { artifactsDir, schemaPath });
       return session;
     })();
   }
   return sessionPromise;
 }
 
-function toDemoEntity(input: DemoPredictionInput, accountId = 'demo-user'): DemoEntity {
+function toDemoEntity(input: DemoPredictionInput, accountId = 'demo-user'): User {
   return {
     id: accountId,
     email: `${accountId}@prisml.dev`,
@@ -88,7 +74,8 @@ function toDemoEntity(input: DemoPredictionInput, accountId = 'demo-user'): Demo
 }
 
 export async function getDemoModelInfo(): Promise<DemoModelInfo> {
-  const metadata = await getMetadata();
+  const raw = readFileSync(path.join(artifactsDir, 'userChurn.metadata.json'), 'utf-8');
+  const metadata = JSON.parse(raw) as ModelMetadata;
   return {
     modelName: metadata.modelName,
     taskType: metadata.taskType,
@@ -104,7 +91,7 @@ export async function predictDemoChurn(
   const session = await getSession();
   const entity = toDemoEntity(input, accountId);
   const startedAt = Date.now();
-  const result = await session.predict('userChurn', entity, demoFeatureResolvers);
+  const result = await session.predict(churnModel, entity);
   return {
     ...result,
     latencyMs: Date.now() - startedAt,

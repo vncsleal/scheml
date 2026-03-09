@@ -3,19 +3,14 @@
 ## Installation
 
 ```bash
-# Runtime (ships in your application)
+# Runtime + CLI + Python backend (single package)
 npm install @vncsleal/prisml
-
-# CLI (build-time only — runs `prisml train` and `prisml check`)
-npm install --save-dev @vncsleal/prisml-cli
 ```
-
-`@vncsleal/prisml` contains only the prediction runtime (core types + `PredictionSession`). The CLI — Python backend included — is a dev dependency: it produces ONNX artifacts at build time and is never required in production.
 
 Install Python training dependencies (Python 3.9+ required):
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
 ```
 
 > **Note:** Python is only needed at build time for `prisml train`. The runtime prediction engine (`PredictionSession`) is pure Node.js.
@@ -91,22 +86,13 @@ This generates:
 
 ```typescript
 import { PredictionSession } from '@vncsleal/prisml';
+import { userPredictionsModel } from './prisml.config';
 
 const session = new PredictionSession();
-const schemaHash = '...'; // See docs for how to get this
+await session.load(userPredictionsModel);
+// Automatically resolves .prisml/userValue.{onnx,metadata.json} and hashes prisma/schema.prisma
 
-await session.initializeModel(
-  './.prisml/userValue.metadata.json',
-  './.prisml/userValue.onnx',
-  schemaHash
-);
-
-const prediction = await session.predict('userValue', user, {
-  accountAge: (u) => (Date.now() - u.createdAt.getTime()) / (1000 * 60 * 60 * 24),
-  plan: (u) => u.plan,
-  spent: (u) => u.spent,
-});
-
+const prediction = await session.predict(userPredictionsModel, user);
 console.log(prediction.prediction); // e.g., 1500
 ```
 
@@ -140,5 +126,5 @@ python --version
 
 Ensure Python dependencies are installed:
 ```bash
-pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
 ```

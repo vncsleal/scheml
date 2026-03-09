@@ -1,9 +1,9 @@
-# PrisML MVP — Manifest & Checklist
+# PrisML — Manifest & Checklist
 
 **Project:** PrisML (Compiler-First ML for TypeScript + Prisma)  
-**Status:** ✅ MVP Implementation Complete  
-**Date:** February 3, 2026  
-**Scope:** Strictly within MVP PRD  
+**Status:** ✅ v0.1.0 — Single-package consolidation complete  
+**Date:** March 9, 2026  
+**Package:** `@vncsleal/prisml` (single package, all sub-packages retired)  
 
 ---
 
@@ -70,10 +70,11 @@
 - [x] Imputation strategies: constant, mean, median, mode
 - [x] Categorical encoding: label and hash
 
-### CLI Package
+### CLI
 - [x] bin.ts entry point
 - [x] Yargs argument parsing
 - [x] prisml train command
+- [x] prisml check command
 - [x] Options: --config, --schema, --output, --python
 - [x] Status output with ora spinners
 - [x] Colored output with chalk
@@ -83,9 +84,11 @@
 - [x] ModelMetadataLoader class
 - [x] FeatureExtractor class
 - [x] PredictionSession class
-- [x] initializeModel() method
-- [x] predict<T>() method — single prediction
-- [x] predictBatch<T>() method — atomic batch
+- [x] `load(model, opts?)` — auto-resolves artifacts + schema hash
+- [x] `initializeModel(metadataPath, onnxPath, schemaHash)` — explicit path init
+- [x] `predict<T>(model, entity)` — single prediction (model definition overload)
+- [x] `predict<T>(name, entity, resolvers)` — single prediction (string overload)
+- [x] `predictBatch<T>(model, entities)` — atomic batch
 - [x] dispose() method — cleanup
 - [x] disposeAll() method — cleanup all
 - [x] Feature extraction
@@ -93,84 +96,48 @@
 - [x] Schema hash validation
 
 ### Documentation
-- [x] ARCHITECTURE.md (system design)
-- [x] API.md (complete API reference)
-- [x] GUIDE.md (user guide with examples)
-- [x] GETTING_STARTED.md (5-minute setup)
-- [x] FEATURES.md (feature specifications)
-- [x] SECURITY.md (safety guarantees)
-- [x] INDEX.md (documentation index)
-- [x] README.md (project overview)
+- [x] README.md (package overview + API)
 - [x] ROADMAP.md (V1, V2, V3 timeline)
-- [x] CONTRIBUTING.md (developer guide)
-- [x] IMPLEMENTATION_STATUS.md (completion status)
-- [x] IMPLEMENTATION_COMPLETE.md (MVP summary)
+- [x] MANIFEST.md (this file)
+- [x] CHANGELOG.md
 
-### Example Project
-- [x] prisml.config.ts — two models (regression + classification)
-- [x] src/index.ts — overview
-- [x] src/infer.ts — prediction example
-- [x] package.json — scripts and dependencies
+### Test Coverage
+- [x] src/schema.test.ts (19 tests)
+- [x] src/errors.test.ts (32 tests)
+- [x] src/encoding.test.ts (29 tests)
+- [x] src/prediction.test.ts (15 tests)
+- **Total: 95 tests, all passing**
 
-### Project Configuration
-- [x] Root package.json with workspaces
-- [x] Root tsconfig.json
+### Package Configuration
+- [x] packages/prisml/package.json
+- [x] packages/prisml/tsconfig.json
+- [x] Root pnpm-workspace.yaml
 - [x] Root turbo.json
-- [x] @vncsleal/prisml package.json + tsconfig.json
-- [x] @vncsleal/prisml-core package.json + tsconfig.json
-- [x] @vncsleal/prisml-cli package.json + tsconfig.json
-- [x] @vncsleal/prisml-runtime package.json + tsconfig.json
-- [x] .gitignore (root)
 
 ---
 
 ## File Manifest
 
-### Core Source (packages/core/src)
-| File | Lines | Purpose |
-|------|-------|---------|
-| types.ts | 250+ | Type definitions |
-| errors.ts | 200+ | Error classes |
-| defineModel.ts | 100+ | Model definition API |
-| schema.ts | 150+ | Schema hashing |
-| analysis.ts | 200+ | AST analysis |
-| encoding.ts | 200+ | Feature encoding |
-| index.ts | 50+ | Public exports |
+### Source (`packages/prisml/src`)
+| File | Purpose |
+|------|---------|
+| types.ts | All type definitions |
+| errors.ts | Error classes |
+| defineModel.ts | Model definition API |
+| schema.ts | Schema hashing |
+| analysis.ts | AST feature analysis |
+| encoding.ts | Feature encoding |
+| prediction.ts | ONNX inference engine |
+| bin.ts | CLI entry point |
+| commands/train.ts | `prisml train` |
+| commands/check.ts | `prisml check` |
+| index.ts | Public exports |
 
-### CLI Source (packages/cli/src)
-| File | Lines | Purpose |
-|------|-------|---------|
-| bin.ts | 50+ | CLI entry point |
-| commands/train.ts | 200+ | Train command |
-| index.ts | 10+ | Exports |
-
-### Runtime Source (packages/runtime/src)
-| File | Lines | Purpose |
-|------|-------|---------|
-| inference.ts | 250+ | Prediction engine |
-| index.ts | 10+ | Exports |
-
-### Documentation (docs + root)
-| File | Lines | Purpose |
-|------|-------|---------|
-| ARCHITECTURE.md | 400+ | System architecture |
-| API.md | 400+ | API reference |
-| GUIDE.md | 600+ | User guide |
-| GETTING_STARTED.md | 150+ | Quick start |
-| FEATURES.md | 350+ | Feature specs |
-| SECURITY.md | 350+ | Safety & security |
-| INDEX.md | 150+ | Documentation index |
-| README.md | 50+ | Project overview |
-| ROADMAP.md | 200+ | Feature roadmap |
-| CONTRIBUTING.md | 200+ | Developer guide |
-| IMPLEMENTATION_STATUS.md | 150+ | Completion status |
-| IMPLEMENTATION_COMPLETE.md | 400+ | MVP summary |
-
-### Total
-- **TypeScript Source:** 1400+ lines
-- **Documentation:** 3000+ lines
-- **Configuration:** 50+ lines
-- **Examples:** 150+ lines
+### Python Backend (`packages/prisml/python`)
+| File | Purpose |
+|------|---------|
+| train.py | scikit-learn → ONNX training |
+| requirements.txt | numpy, scikit-learn, skl2onnx, onnx |
 
 **Total: 4,600+ lines across 37 files**
 
@@ -179,30 +146,26 @@
 ## Architecture Summary
 
 ```
-┌─────────────────────────────────────────┐
-│  @vncsleal/prisml                       │
-│  @vncsleal/prisml-core                  │
-│  ├── Types & interfaces                 │
-│  ├── Error hierarchy                    │
-│  ├── defineModel() API                  │
-│  ├── Schema hashing (SHA256)            │
-│  ├── AST feature analysis               │
-│  └── Feature encoding/normalization     │
-└─────────────────────────────────────────┘
-         ▲                              ▲
-         │                              │
-         └──────────┬───────────────────┘
-                    │
-        ┌───────────┴──────────┐
-        ▼                      ▼
-   @vncsleal/prisml-cli   @vncsleal/prisml-runtime
-   (prisml train)       (PredictionSession)
-   ├── Load models      ├── Load metadata
-   ├── Validate schema  ├── Validate schema
-   ├── Extract data     ├── Extract features
-   ├── Train            ├── Single prediction
-   ├── Quality gates    ├── Batch prediction
-   └── Export artifacts └── Handle errors
+┌──────────────────────────────────────────────────────┐
+│  @vncsleal/prisml                                    │
+│                                                      │
+│  Types & interfaces       CLI (prisml train/check)   │
+│  Error hierarchy          ├── Load models            │
+│  defineModel() API        ├── Validate schema        │
+│  Schema hashing (SHA256)  ├── Extract data           │
+│  AST feature analysis     ├── Train (Python)         │
+│  Feature encoding         ├── Quality gates          │
+│                           └── Export artifacts       │
+│  PredictionSession                                   │
+│  ├── session.load(model)  ── resolves artifacts      │
+│  ├── session.predict(model, entity)                  │
+│  ├── session.predictBatch(model, entities)           │
+│  └── session.initializeModel(...)  ── low-level      │
+└──────────────────────────────────────────────────────┘
+           ▲                          ▲
+           │                          │
+    Build-time (CLI)          Runtime (Node.js)
+    Python + ONNX             ONNX Runtime
 ```
 
 ---
@@ -274,28 +237,24 @@
 - ✅ Integration planning
 
 ### Not ready for:
-- [NOT INCLUDED] npm publish (needs test suite first)
-- [NOT INCLUDED] CI/CD (configuration not included)
+- [ ] npm publish (not yet published to registry)
+- [ ] CI/CD (configuration not yet included)
 
 ---
 
 ## Validation Commands
 
 ```bash
-# Check file count
-find . -type f -not -path './.git/*' | wc -l
-# Expected: ~37 files
+# Verify TypeScript compiles
+cd packages/prisml && pnpm build
 
-# Count lines of code
-wc -l packages/*/src/*.ts docs/*.md *.md
-# Expected: ~4,600 lines
-
-# Verify TypeScript compiles (after npm install)
-npm run build
+# Run test suite
+cd packages/prisml && pnpm test
+# Expected: 95 tests passing
 
 # Check core exports
-grep -l "export" packages/*/src/index.ts
-# Expected: 3 files (core, cli, runtime)
+grep -l "export" packages/prisml/src/index.ts
+# Expected: 1 file
 ```
 
 ---
@@ -319,13 +278,11 @@ grep -l "export" packages/*/src/index.ts
 
 To move to **V1.0 (Beta)**:
 
-1. Implement Python training backend
-2. Implement Prisma data extraction
-3. Add comprehensive test suite
-4. Set up CI/CD
-5. Publish to npm
-
-Estimated effort: 2-4 weeks for one engineer
+1. Publish to npm (`@vncsleal/prisml`)
+2. Set up CI/CD (GitHub Actions)
+3. Performance benchmarks
+4. Security audit
+5. External community feedback on API design
 
 ---
 

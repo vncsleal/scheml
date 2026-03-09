@@ -16,7 +16,7 @@ TypeScript Model Definitions
 
 ## Core Concepts
 
-### Model Definitions (`@vncsleal/prisml` or `@vncsleal/prisml-core`)
+### Model Definitions
 
 Models are pure declarative specifications using `defineModel()`:
 
@@ -58,7 +58,7 @@ Every model is bound to a specific Prisma schema via SHA256 hash:
 
 This prevents silent bugs from schema drift.
 
-### Compilation Pipeline (`@vncsleal/prisml-cli`)
+### Compilation Pipeline (`prisml train`)
 
 `prisml train` executes:
 
@@ -143,7 +143,7 @@ All resolver outputs are normalized to numeric vectors:
 
 **No implicit encoding:** All encoding is explicit and deterministic.
 
-### Runtime Predictions (`@vncsleal/prisml` or `@vncsleal/prisml-runtime`)
+### Runtime Predictions
 
 At runtime:
 

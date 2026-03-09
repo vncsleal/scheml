@@ -12,65 +12,56 @@ const demoInfo = await getDemoModelInfo();
 const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
 const initialPrediction = await predictDemoChurn(initialInputs, 'demo-default');
 
-const defineCode = `import { defineModel, TaskType } from '@vncsleal/prisml';
+const defineCode = `import { defineModel } from '@vncsleal/prisml';
 
 export const churnModel = defineModel<User>({
   name: 'userChurn',
   modelName: 'User',
   output: {
     field: 'willChurn',
-    taskType: TaskType.BinaryClassification,
-    resolver: (u) => u.cancelledAt !== null,
+    taskType: 'binary_classification',
+    resolver: (u) => u.willChurn,
   },
   features: {
     daysSinceActive: (u) =>
-      (Date.now() - u.lastActiveAt.getTime()) / 86_400_000,
+      Math.floor((Date.now() - u.lastActiveAt.getTime()) / 86_400_000),
     monthlySpend: (u) => u.monthlySpend,
     supportTickets: (u) => u.supportTickets,
   },
-  algorithm: { name: 'forest', version: '1.0.0' },
+  algorithm: { name: 'gbm', version: '1.0.0' },
   qualityGates: [
     { metric: 'f1', threshold: 0.80, comparison: 'gte' },
     { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
   ],
 });`;
 
-const trainCode = `$ prisml train \\
-    --config ./prisml.config.ts \\
-    --schema ./prisma/schema.prisma
+const trainCode = `$ prisml train
 
 ◉ Loading Prisma schema...
 ✔ Schema loaded (hash: a3f8c1b2)
-◉ Discovering model definitions...
-✔ Loaded 1 model: userChurn
+◉ Loading model definitions...
+✔ Loaded 1 model definition(s)
+◉ Validating models...
+✔ Models validated
 ◉ Extracting training data via Prisma...
-✔ 800 rows extracted
-◉ Training RandomForestClassifier...
-✔ Quality gate passed: f1=0.872 ≥ 0.80
-✔ Quality gate passed: accuracy=0.904 ≥ 0.85
-✔ Artifacts written to ./.prisml/
+◉ Training userChurn (gbm)...
+✔ Training complete
+◉ Writing artifacts...
+✔ Artifacts written to ./.prisml
 
-  userChurn.onnx          52KB
-  userChurn.metadata.json  4KB`;
+[OK] Training complete
 
-const predictCode = `import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
+Artifacts:
+  userChurn.metadata.json
+  userChurn.onnx`;
+
+const predictCode = `import { PredictionSession } from '@vncsleal/prisml';
 import { churnModel } from './models/churn';
-import { readFileSync } from 'fs';
 
 const session = new PredictionSession();
-const schema = readFileSync('./prisma/schema.prisma', 'utf-8');
+await session.load(churnModel); // resolves .prisml/ and prisma/schema.prisma
 
-await session.initializeModel(
-  './.prisml/userChurn.metadata.json',
-  './.prisml/userChurn.onnx',
-  hashPrismaSchema(schema),   // bound to schema hash a3f8c1b2
-);
-
-const result = await session.predict(
-  'userChurn',
-  user,
-  churnModel.features,
-);
+const result = await session.predict(churnModel, user);
 
 console.log(result.prediction);  // "1" or "0"
 console.log(result.timestamp);   // "2026-03-08T12:00:00.000Z"
@@ -82,11 +73,8 @@ const driftCode = `// After adding a new field to schema.prisma:
 //   subscriptionTier String   // ← new field
 // }
 
-await session.initializeModel(
-  './.prisml/userChurn.metadata.json',
-  './.prisml/userChurn.onnx',
-  hashPrismaSchema(newSchemaContent),  // hash: 7d2e9f1a
-);
+// session.load() re-hashes the current schema file before loading.
+await session.load(churnModel); // schema now hashes to 7d2e9f1a
 
 // ✖ Throws:
 // SchemaDriftError: Model 'userChurn' was trained on schema
@@ -395,17 +383,13 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             </div>
             <pre class="drift-output" id="driftOutput"><code id="driftOutputCode">// Schema hash matches — inference proceeds normally.
 
-const result = await session.predict(
-  'userChurn',
-  user,
-  churnModel.features,
-);
+const result = await session.predict(churnModel, user);
 // result.prediction → "0"
 // result.timestamp  → "2026-03-08T12:00:00.000Z"</code></pre>
             <div class="drift-explanation" id="driftExplanation">
               <p>
                 The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-                When calling <code>initializeModel()</code>, PrisML re-hashes the current schema and compares.
+                When calling <code>session.load()</code>, PrisML re-hashes the current schema file and compares.
                 A match means the feature resolvers are still valid against the live data shape.
               </p>
             </div>
@@ -509,7 +493,7 @@ const result = await session.predict(
           <span>MIT License</span>
         </div>
         <div class="footer__right">
-          <span>v0.2.2</span>
+          <span>v0.1.0</span>
           <span class="footer__sep">·</span>
           <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer">github.com/vncsleal/prisml</a>
         </div>
@@ -619,21 +603,13 @@ const result = await session.predict(
 
       const normalCode = `// Schema hash matches — inference proceeds normally.
 
-const result = await session.predict(
-  'userChurn',
-  user,
-  churnModel.features,
-);
+const result = await session.predict(churnModel, user);
 // result.prediction → "0"
 // result.timestamp  → "2026-03-08T12:00:00.000Z"`;
 
-      const errorCode = `// initializeModel() re-hashes the schema on every call.
+      const errorCode = `// session.load() re-hashes the schema file on every call.
 
-await session.initializeModel(
-  './.prisml/userChurn.metadata.json',
-  './.prisml/userChurn.onnx',
-  hashPrismaSchema(updatedSchema), // hash: 7d2e9f1a
-);
+await session.load(churnModel); // schema now hashes to 7d2e9f1a
 
 // ✖ Throws before any inference:
 // SchemaDriftError: Model 'userChurn' was trained on schema
@@ -660,10 +636,10 @@ await session.initializeModel(
         if (driftExplanation) {
           driftExplanation.innerHTML = driftActive
             ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>.
-PrisML catches the mismatch in <code>initializeModel()</code> and throws <code>SchemaDriftError</code>
+PrisML catches the mismatch in <code>session.load()</code> and throws <code>SchemaDriftError</code>
 before running a single inference. You are forced to retrain — no silent model incorrectness.</p>`
             : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-When calling <code>initializeModel()</code>, PrisML re-hashes the current schema and compares.
+When calling <code>session.load()</code>, PrisML re-hashes the current schema file and compares.
 A match means the feature resolvers are still valid against the live data shape.</p>`;
         }
       });

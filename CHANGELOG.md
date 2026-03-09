@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] — 2026-03-09
+
+### Changed
+
+- Consolidated `@vncsleal/prisml-core`, `@vncsleal/prisml-runtime`, `@vncsleal/prisml-cli`, and `@vncsleal/prisml-generator` into a single `@vncsleal/prisml` package. All sub-packages are retired.
+- New `session.load(model, opts?)` API — resolves `.prisml/` artifacts and `prisma/schema.prisma` automatically from the model definition.
+- New `session.predict(model, entity)` overload — resolvers are colocated in `model.features`, no longer passed as a separate argument.
+- New `session.predictBatch(model, entities)` overload.
+- `prisml check` command included in the single package.
+- Python training backend (`python/train.py`) included in `packages/prisml/python/`.
+- Package version reset to `0.1.0`.
+
+### Removed
+
+- `@vncsleal/prisml-core` (retired)
+- `@vncsleal/prisml-runtime` (retired)
+- `@vncsleal/prisml-cli` (retired)
+- `@vncsleal/prisml-generator` (retired)
+
+---
+
+## Legacy (Multi-Package Era)
+
+> The entries below document the development history of the multi-package era (`@vncsleal/prisml-core`, `-runtime`, `-cli`). They are preserved for historical context.
+
 ## [0.2.3] - 2026-03-08
 
 ### Changed
@@ -79,7 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ESM Configuration Loading**: Fixed dynamic import handling for "type": "module" packages
 - **Default Output Directory**: Changed from `./prisml-artifacts` to `./.prisml` (follows industry standard dotfile pattern like `.next/`, `.nuxt/`)
 
-## [0.1.0] - 2026-02-04
+## [0.1.0-legacy] - 2026-02-04
 
 ### Added
 
@@ -198,8 +223,9 @@ None (initial release)
 
 ---
 
+[0.1.0]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0
 [0.2.3]: https://github.com/vncsleal/prisml/releases/tag/v0.2.3
 [0.2.2]: https://github.com/vncsleal/prisml/releases/tag/v0.2.2
 [0.2.1]: https://github.com/vncsleal/prisml/releases/tag/v0.2.1
 [0.2.0]: https://github.com/vncsleal/prisml/releases/tag/v0.2.0
-[0.1.0]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0
+[0.1.0-legacy]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0-legacy

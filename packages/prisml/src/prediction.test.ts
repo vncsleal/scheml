@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
-import { SchemaDriftError, ArtifactError, FeatureExtractionError } from '@vncsleal/prisml-core';
-import type { ModelMetadata, FeatureSchema } from '@vncsleal/prisml-core';
+import { SchemaDriftError, ArtifactError, FeatureExtractionError } from './errors';
+import type { ModelMetadata, FeatureSchema } from './types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -12,7 +12,7 @@ import type { ModelMetadata, FeatureSchema } from '@vncsleal/prisml-core';
 
 function makeMetadata(overrides: Partial<ModelMetadata> = {}): ModelMetadata {
   const base: ModelMetadata = {
-    version: '0.2.0',
+    version: '0.1.0',
     metadataSchemaVersion: '1.1.0',
     modelName: 'TestModel',
     taskType: 'regression',
@@ -75,7 +75,7 @@ describe('ModelMetadataLoader', () => {
     const first = loader.loadMetadata(filePath);
     const second = loader.loadMetadata(filePath);
 
-    expect(first).toBe(second); // same object reference from cache
+    expect(first).toBe(second);
   });
 
   it('throws ArtifactError for missing modelName', () => {
@@ -90,13 +90,14 @@ describe('ModelMetadataLoader', () => {
     const meta = makeMetadata({ prismaSchemaHash: '' as any });
     const filePath = writeTmpMetadata('NoHash', meta);
 
-    // Need to write manually since we're removing the hash
     const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, 'NoHash.metadata.json'), 'utf-8'));
     delete raw.prismaSchemaHash;
     fs.writeFileSync(path.join(tmpDir, 'NoHash.metadata.json'), JSON.stringify(raw));
 
     const loader = new ModelMetadataLoader();
-    expect(() => loader.loadMetadata(path.join(tmpDir, 'NoHash.metadata.json'))).toThrow(ArtifactError);
+    expect(() =>
+      loader.loadMetadata(path.join(tmpDir, 'NoHash.metadata.json'))
+    ).toThrow(ArtifactError);
   });
 
   it('throws ArtifactError for invalid JSON', () => {
@@ -151,7 +152,7 @@ describe('FeatureExtractor', () => {
 
   it('throws FeatureExtractionError when a resolver is missing', () => {
     const extractor = new FeatureExtractor();
-    const incompleteResolvers = { price: (p: Product) => p.price }; // missing 'stock'
+    const incompleteResolvers = { price: (p: Product) => p.price };
 
     expect(() =>
       extractor.extract<Product>({ price: 10, stock: 5 }, incompleteResolvers, schema)
@@ -161,7 +162,9 @@ describe('FeatureExtractor', () => {
   it('throws FeatureExtractionError when a resolver throws', () => {
     const extractor = new FeatureExtractor();
     const badResolvers = {
-      price: (_: Product) => { throw new Error('resolver exploded'); },
+      price: (_: Product) => {
+        throw new Error('resolver exploded');
+      },
       stock: (p: Product) => p.stock,
     };
 
@@ -177,7 +180,11 @@ describe('FeatureExtractor', () => {
       stock: (p: Product) => p.stock,
     };
 
-    const result = extractor.extract<Product>({ price: 10, stock: 5 }, nullableResolvers, schema);
+    const result = extractor.extract<Product>(
+      { price: 10, stock: 5 },
+      nullableResolvers,
+      schema
+    );
     expect(result.values[0]).toBeNull();
   });
 });
@@ -194,11 +201,7 @@ describe('PredictionSession — schema drift detection', () => {
     const session = new PredictionSession();
 
     await expect(
-      session.initializeModel(
-        metaPath,
-        '/nonexistent/model.onnx', // never reached
-        'runtime-hash-xyz'          // different from 'compiled-hash-abc'
-      )
+      session.initializeModel(metaPath, '/nonexistent/model.onnx', 'runtime-hash-xyz')
     ).rejects.toThrow(SchemaDriftError);
   });
 
@@ -225,8 +228,6 @@ describe('PredictionSession — schema drift detection', () => {
 
     const session = new PredictionSession();
 
-    // Hashes match, so it will try to load the ONNX file (which doesn't exist)
-    // We expect an error, but NOT a SchemaDriftError
     await expect(
       session.initializeModel(metaPath, '/nonexistent/will-fail-on-onnx.onnx', 'matching-hash')
     ).rejects.not.toThrow(SchemaDriftError);
@@ -242,11 +243,7 @@ describe('PredictionSession — uninitialized model guards', () => {
     const session = new PredictionSession();
 
     await expect(
-      session.predict(
-        'NonExistentModel',
-        { price: 10 },
-        { price: (e: any) => e.price }
-      )
+      session.predict('NonExistentModel', { price: 10 }, { price: (e: any) => e.price })
     ).rejects.toThrow(ArtifactError);
   });
 
@@ -254,11 +251,9 @@ describe('PredictionSession — uninitialized model guards', () => {
     const session = new PredictionSession();
 
     await expect(
-      session.predictBatch(
-        'NonExistentModel',
-        [{ price: 10 }],
-        { price: (e: any) => e.price }
-      )
+      session.predictBatch('NonExistentModel', [{ price: 10 }], {
+        price: (e: any) => e.price,
+      })
     ).rejects.toThrow(ArtifactError);
   });
 });

@@ -5,23 +5,24 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ort from 'onnxruntime-node';
+import * as ort from 'onnxruntime-web';
 import {
   ModelMetadata,
-  PredictionInput,
+  ModelDefinition,
   PredictionOutput,
   BatchPredictionResult,
   FeatureSchema,
   ExtractedFeatures,
-  normalizeFeatureVector,
-} from '@vncsleal/prisml-core';
+} from './types';
+import { normalizeFeatureVector } from './encoding';
+import { hashPrismaSchema } from './schema';
 import {
   SchemaDriftError,
   ArtifactError,
   HydrationError,
   FeatureExtractionError,
   ONNXRuntimeError,
-} from '@vncsleal/prisml-core';
+} from './errors';
 
 /**
  * Loads and caches ONNX model metadata
@@ -133,18 +134,15 @@ export class PredictionSession {
   private metadata: Map<string, ModelMetadata> = new Map();
 
   /**
-   * Initialize a model for predictions
+   * Initialize a model for predictions using explicit paths.
    */
   async initializeModel(
     metadataPath: string,
     onnxPath: string,
     prismaSchemaHash: string
   ): Promise<void> {
-    const modelName = path.basename(metadataPath, '.metadata.json');
-
     const metadata = this.metadataLoader.loadMetadata(metadataPath);
 
-    // Validate schema hash
     if (metadata.prismaSchemaHash !== prismaSchemaHash) {
       throw new SchemaDriftError(metadata.prismaSchemaHash, prismaSchemaHash);
     }
@@ -156,13 +154,68 @@ export class PredictionSession {
   }
 
   /**
-   * Run prediction on a single entity
+   * Load a model from disk using default artifact paths.
+   *
+   * Auto-resolves `.prisml/<name>.{onnx,metadata.json}` relative to process.cwd()
+   * and reads + hashes `prisma/schema.prisma` automatically.
+   *
+   * @example
+   * ```ts
+   * const session = new PredictionSession();
+   * await session.load(productSalesModel);
+   * ```
    */
+  async load(
+    model: ModelDefinition,
+    opts?: { artifactsDir?: string; schemaPath?: string }
+  ): Promise<void> {
+    const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.prisml');
+    const schemaFilePath =
+      opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    const schema = fs.readFileSync(schemaFilePath, 'utf-8');
+    const hash = hashPrismaSchema(schema);
+    await this.initializeModel(
+      path.resolve(dir, `${model.name}.metadata.json`),
+      path.resolve(dir, `${model.name}.onnx`),
+      hash
+    );
+  }
+
+  /**
+   * Run prediction on a single entity.
+   *
+   * Overload 1 (recommended): pass the model definition — resolvers are read from model.features
+   * ```ts
+   * await session.predict(productSalesModel, product);
+   * ```
+   *
+   * Overload 2 (advanced): pass model name + explicit resolver map
+   * ```ts
+   * await session.predict('productSales', product, { price: p => p.price });
+   * ```
+   */
+  async predict<T>(model: ModelDefinition<T>, entity: T): Promise<PredictionOutput>;
   async predict<T>(
     modelName: string,
     entity: T,
     featureResolvers: Record<string, (e: T) => any>
+  ): Promise<PredictionOutput>;
+  async predict<T>(
+    modelOrName: ModelDefinition<T> | string,
+    entity: T,
+    featureResolvers?: Record<string, (e: T) => any>
   ): Promise<PredictionOutput> {
+    let modelName: string;
+    let resolvers: Record<string, (e: T) => any>;
+
+    if (typeof modelOrName === 'string') {
+      modelName = modelOrName;
+      resolvers = featureResolvers!;
+    } else {
+      modelName = modelOrName.name;
+      resolvers = modelOrName.features as Record<string, (e: T) => any>;
+    }
+
     const metadata = this.metadata.get(modelName);
     if (!metadata) {
       throw new ArtifactError(modelName, 'Model not initialized');
@@ -174,12 +227,7 @@ export class PredictionSession {
     }
 
     try {
-      // Extract features
-      const extracted = this.featureExtractor.extract(
-        entity,
-        featureResolvers,
-        metadata.features
-      );
+      const extracted = this.featureExtractor.extract(entity, resolvers, metadata.features);
 
       const featureRecord: Record<string, unknown> = {};
       for (let i = 0; i < extracted.featureNames.length; i++) {
@@ -195,7 +243,10 @@ export class PredictionSession {
 
       const inputName = session.inputNames[0] || 'input';
       const outputName = session.outputNames[0] || 'output';
-      const inputTensor = new ort.Tensor('float32', Float32Array.from(vector), [1, vector.length]);
+      const inputTensor = new ort.Tensor('float32', Float32Array.from(vector), [
+        1,
+        vector.length,
+      ]);
       const results = await session.run({ [inputName]: inputTensor });
       const outputTensor = results[outputName];
 
@@ -209,11 +260,7 @@ export class PredictionSession {
       if (metadata.taskType === 'regression') {
         prediction = outputData[0];
       } else if (metadata.taskType === 'binary_classification') {
-        if (outputData.length === 1) {
-          prediction = String(outputData[0]);
-        } else {
-          prediction = outputData[0] >= 0.5 ? '1' : '0';
-        }
+        prediction = outputData.length === 1 ? String(outputData[0]) : outputData[0] >= 0.5 ? '1' : '0';
       } else {
         if (outputData.length === 1) {
           prediction = String(outputData[0]);
@@ -230,36 +277,55 @@ export class PredictionSession {
         }
       }
 
-      return {
-        modelName,
-        prediction,
-        timestamp: new Date().toISOString(),
-      };
+      return { modelName, prediction, timestamp: new Date().toISOString() };
     } catch (error) {
       if (error instanceof HydrationError || error instanceof FeatureExtractionError) {
         throw error;
       }
-      throw new ONNXRuntimeError(modelName, `Prediction failed: ${(error as Error).message}`);
+      throw new ONNXRuntimeError(
+        modelName,
+        `Prediction failed: ${(error as Error).message}`
+      );
     }
   }
 
   /**
-   * Run batch predictions
-   * 
-   * PRD Requirement: "Preflight validation runs atomically over the entire batch.
-   * Any failure aborts inference with no partial execution."
-   * 
-   * Implementation:
-   * Phase 1: Validate all entities and extract features (no ONNX execution)
-   * Phase 2: Execute ONNX inference (only if all entities validated)
+   * Run batch predictions.
+   *
+   * Preflight validation runs atomically over the entire batch.
+   * Any failure aborts inference with no partial execution.
+   *
+   * Overload 1 (recommended): pass the model definition
+   * ```ts
+   * await session.predictBatch(productSalesModel, products);
+   * ```
+   *
+   * Overload 2 (advanced): pass model name + explicit resolver map
    */
+  async predictBatch<T>(model: ModelDefinition<T>, entities: T[]): Promise<BatchPredictionResult>;
   async predictBatch<T>(
     modelName: string,
     entities: T[],
     featureResolvers: Record<string, (e: T) => any>
+  ): Promise<BatchPredictionResult>;
+  async predictBatch<T>(
+    modelOrName: ModelDefinition<T> | string,
+    entities: T[],
+    featureResolvers?: Record<string, (e: T) => any>
   ): Promise<BatchPredictionResult> {
     if (!Array.isArray(entities)) {
       throw new Error('entities must be an array');
+    }
+
+    let modelName: string;
+    let resolvers: Record<string, (e: T) => any>;
+
+    if (typeof modelOrName === 'string') {
+      modelName = modelOrName;
+      resolvers = featureResolvers!;
+    } else {
+      modelName = modelOrName.name;
+      resolvers = modelOrName.features as Record<string, (e: T) => any>;
     }
 
     const metadata = this.metadata.get(modelName);
@@ -272,28 +338,19 @@ export class PredictionSession {
       throw new ArtifactError(modelName, 'ONNX session not initialized');
     }
 
-    // Phase 1: Preflight validation - extract and validate all features atomically
-    // If ANY entity fails validation, abort the entire batch with no partial execution
-    const extractedFeatures: ExtractedFeatures[] = [];
+    // Phase 1: Preflight validation — extract and validate all features atomically.
+    // If ANY entity fails, abort the entire batch with no partial execution.
     const featureVectors: number[][] = [];
 
     for (let i = 0; i < entities.length; i++) {
       try {
-        // Extract features
-        const extracted = this.featureExtractor.extract(
-          entities[i],
-          featureResolvers,
-          metadata.features
-        );
-        extractedFeatures.push(extracted);
+        const extracted = this.featureExtractor.extract(entities[i], resolvers, metadata.features);
 
-        // Convert to feature record
         const featureRecord: Record<string, unknown> = {};
         for (let j = 0; j < extracted.featureNames.length; j++) {
           featureRecord[extracted.featureNames[j]] = extracted.values[j];
         }
 
-        // Normalize to vector
         const vector = normalizeFeatureVector(
           featureRecord,
           metadata.features,
@@ -302,31 +359,20 @@ export class PredictionSession {
         );
         featureVectors.push(vector);
       } catch (error) {
-        // Atomic abort: if any entity fails preflight, throw immediately
-        // Attach batch index for debugging
         if (error instanceof FeatureExtractionError) {
-          const context = error.context as {
-            featureName?: unknown;
-            reason?: unknown;
-          };
+          const context = error.context as { featureName?: unknown; reason?: unknown };
           const featureName =
             typeof context.featureName === 'string' ? context.featureName : 'unknown';
-          const reason =
-            typeof context.reason === 'string' ? context.reason : 'unknown';
+          const reason = typeof context.reason === 'string' ? context.reason : 'unknown';
           throw new FeatureExtractionError(modelName, featureName, reason, i, error.context);
         }
         if (error instanceof HydrationError) {
-          const context = error.context as {
-            entityPath?: unknown;
-            reason?: unknown;
-          };
+          const context = error.context as { entityPath?: unknown; reason?: unknown };
           const entityPath =
             typeof context.entityPath === 'string' ? context.entityPath : 'unknown';
-          const reason =
-            typeof context.reason === 'string' ? context.reason : 'unknown';
+          const reason = typeof context.reason === 'string' ? context.reason : 'unknown';
           throw new HydrationError(modelName, entityPath, reason, i);
         }
-        // Re-throw other errors with batch context
         throw new FeatureExtractionError(
           modelName,
           'unknown',
@@ -344,7 +390,10 @@ export class PredictionSession {
     for (let i = 0; i < featureVectors.length; i++) {
       try {
         const vector = featureVectors[i];
-        const inputTensor = new ort.Tensor('float32', Float32Array.from(vector), [1, vector.length]);
+        const inputTensor = new ort.Tensor('float32', Float32Array.from(vector), [
+          1,
+          vector.length,
+        ]);
         const onnxResults = await session.run({ [inputName]: inputTensor });
         const outputTensor = onnxResults[outputName];
 
@@ -358,11 +407,8 @@ export class PredictionSession {
         if (metadata.taskType === 'regression') {
           prediction = outputData[0];
         } else if (metadata.taskType === 'binary_classification') {
-          if (outputData.length === 1) {
-            prediction = String(outputData[0]);
-          } else {
-            prediction = outputData[0] >= 0.5 ? '1' : '0';
-          }
+          prediction =
+            outputData.length === 1 ? String(outputData[0]) : outputData[0] >= 0.5 ? '1' : '0';
         } else {
           if (outputData.length === 1) {
             prediction = String(outputData[0]);
@@ -379,13 +425,8 @@ export class PredictionSession {
           }
         }
 
-        results.push({
-          modelName,
-          prediction,
-          timestamp: new Date().toISOString(),
-        });
+        results.push({ modelName, prediction, timestamp: new Date().toISOString() });
       } catch (error) {
-        // ONNX execution failure (should be rare after successful preflight)
         throw new ONNXRuntimeError(
           modelName,
           `Batch inference failed at index ${i}: ${(error as Error).message}`
@@ -393,28 +434,19 @@ export class PredictionSession {
       }
     }
 
-    return {
-      modelName,
-      results,
-      successCount: results.length,
-      failureCount: 0,
-    };
+    return { modelName, results, successCount: results.length, failureCount: 0 };
   }
 
   /**
-   * Cleanup session
+   * Dispose a specific model session.
    */
   async dispose(modelName: string): Promise<void> {
-    if (!this.sessions.has(modelName)) {
-      return;
-    }
-
     this.sessions.delete(modelName);
     this.metadata.delete(modelName);
   }
 
   /**
-   * Cleanup all sessions
+   * Dispose all model sessions.
    */
   async disposeAll(): Promise<void> {
     this.sessions.clear();

@@ -17,6 +17,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
+import { createJiti } from 'jiti';
 import * as dotenv from 'dotenv';
 import { Argv } from 'yargs';
 import ora from 'ora';
@@ -32,12 +33,11 @@ import {
   ImputationRule,
   TrainingMetrics,
   FeatureDependency,
-  TensorSpec,
   buildCategoryMapping,
   normalizeFeatureVector,
   parseModelSchema,
-} from '@vncsleal/prisml-core';
-import { QualityGateError, ModelDefinitionError, ConfigurationError } from '@vncsleal/prisml-core';
+} from '..';
+import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -140,19 +140,8 @@ function computeBooleanMode(values: unknown[]): boolean | undefined {
 }
 
 async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
-  try {
-    const requireConfig = createRequire(path.resolve(process.cwd(), 'package.json'));
-    return requireConfig(configPath);
-  } catch (error: any) {
-    if (error && error.code === 'ERR_REQUIRE_ESM') {
-      const moduleUrl = pathToFileURL(configPath).href;
-      const dynamicImport = new Function('specifier', 'return import(specifier)') as (
-        specifier: string
-      ) => Promise<Record<string, unknown>>;
-      return await dynamicImport(moduleUrl);
-    }
-    throw error;
-  }
+  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
+  return (await jiti.import(configPath)) as Record<string, unknown>;
 }
 
 function buildFeatureSchema(stats: FeatureStats[]): FeatureSchema {
@@ -192,8 +181,7 @@ export const trainCommand = {
         type: 'string',
         default: './.prisml',
       })
-      .option('python',
-        {
+      .option('python', {
         description: 'Python backend: "local"',
         type: 'string',
         default: 'local',
@@ -207,16 +195,10 @@ export const trainCommand = {
     try {
       dotenv.config();
 
-      // Validate required arguments
-      if (!argv.config) {
-        throw new Error('--config is required');
-      }
-
       const configPath = path.resolve(argv.config);
       const schemaPath = path.resolve(argv.schema);
       const outputPath = path.resolve(argv.output);
 
-      // Create output directory if it doesn't exist
       if (!fs.existsSync(outputPath)) {
         fs.mkdirSync(outputPath, { recursive: true });
       }
@@ -230,14 +212,14 @@ export const trainCommand = {
       // 2. Load model definitions
       spinner.start('Loading model definitions...');
 
-      // @ts-ignore - ts-node register is used for runtime transpilation
-      await import('ts-node/register/transpile-only');
       const configModule = await loadConfigModule(configPath);
       const configExports =
         configModule.default && typeof configModule.default === 'object'
           ? { ...configModule, ...configModule.default }
           : configModule;
-      const modelDefinitions = Object.values(configExports).filter(isModelDefinition) as ResolvedModel[];
+      const modelDefinitions = Object.values(configExports).filter(
+        isModelDefinition
+      ) as ResolvedModel[];
 
       if (modelDefinitions.length === 0) {
         throw new ModelDefinitionError('unknown', 'No models exported from config');
@@ -251,24 +233,32 @@ export const trainCommand = {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      // 4. For each model: validate, extract data, train
+      // 4. Validate models and load PrismaClient
       spinner.start('Validating models...');
-      
-      // Load PrismaClient from user's project
-      const requirePrisma = createRequire(path.resolve(process.cwd(), 'node_modules/@prisma/client/package.json'));
+
+      const requirePrisma = createRequire(
+        path.resolve(process.cwd(), 'node_modules/@prisma/client/package.json')
+      );
       const { PrismaClient } = requirePrisma('@prisma/client');
       prisma = new PrismaClient();
       const modelArtifacts: { metadata: ModelMetadata; onnxPath: string }[] = [];
 
-      const prismaModels = schemaContent
-        .match(/model\s+(\w+)\s*{/g)
-        ?.map((match: string) => match.split(' ')[1]) || [];
+      const prismaModels =
+        schemaContent
+          .match(/model\s+(\w+)\s*{/g)
+          ?.map((match: string) => match.split(' ')[1]) || [];
       for (const model of modelDefinitions) {
         if (!prismaModels.includes(model.modelName)) {
-          throw new ModelDefinitionError(model.name, `Prisma model "${model.modelName}" not found in schema`);
+          throw new ModelDefinitionError(
+            model.name,
+            `Prisma model "${model.modelName}" not found in schema`
+          );
         }
         if (!model.output.resolver) {
-          throw new ModelDefinitionError(model.name, 'Output resolver is required for training');
+          throw new ModelDefinitionError(
+            model.name,
+            'Output resolver is required for training'
+          );
         }
       }
       spinner.succeed('Models validated');
@@ -279,7 +269,9 @@ export const trainCommand = {
       for (const model of modelDefinitions) {
         const prismaDelegate = (prisma as any)[toCamelCase(model.modelName)];
         if (!prismaDelegate || typeof prismaDelegate.findMany !== 'function') {
-          throw new ConfigurationError(`PrismaClient does not expose model "${model.modelName}"`);
+          throw new ConfigurationError(
+            `PrismaClient does not expose model "${model.modelName}"`
+          );
         }
 
         const entities = await prismaDelegate.findMany();
@@ -311,7 +303,9 @@ export const trainCommand = {
             stat.stringMode = computeStringMode(stat.values);
             stat.encoding = {
               type: 'label',
-              mapping: buildCategoryMapping(stat.values.filter((v) => typeof v === 'string') as string[]),
+              mapping: buildCategoryMapping(
+                stat.values.filter((v) => typeof v === 'string') as string[]
+              ),
             };
           }
           if (stat.type === 'number') {
@@ -337,7 +331,9 @@ export const trainCommand = {
           const extractable = !!field;
           const issues = extractable
             ? []
-            : [`Feature "${stat.name}" is not a direct field on model "${model.modelName}"`];
+            : [
+                `Feature "${stat.name}" is not a direct field on model "${model.modelName}"`,
+              ];
           return {
             modelName: model.modelName,
             path: `${model.modelName}.${stat.name}`,
@@ -408,21 +404,22 @@ export const trainCommand = {
         };
 
         const datasetPath = path.join(outputDir, `${model.name}.dataset.json`);
-        fs.writeFileSync(datasetPath, JSON.stringify({
-          X_train,
-          y_train,
-          X_test,
-          y_test,
-          taskType: model.output.taskType,
-          algorithm: model.algorithm.name,
-          hyperparameters: model.algorithm.hyperparameters || {},
-        }));
+        fs.writeFileSync(
+          datasetPath,
+          JSON.stringify({
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+            taskType: model.output.taskType,
+            algorithm: model.algorithm.name,
+            hyperparameters: model.algorithm.hyperparameters || {},
+          })
+        );
 
         spinner.text = `Training ${model.name} (${model.algorithm.name})...`;
-        // Python script is in the CLI package
         const pythonScript = path.resolve(__dirname, '../../python/train.py');
-        const pythonCmd = argv.python === 'local' ? 'python3' : 'python3';
-        const result = spawnSync(pythonCmd, [pythonScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', model.name], {
+        const result = spawnSync('python3', [pythonScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', model.name], {
           stdio: 'pipe',
           encoding: 'utf-8',
         });
@@ -440,15 +437,30 @@ export const trainCommand = {
 
         if (model.qualityGates?.length) {
           for (const gate of model.qualityGates) {
-            const metric = metrics.find((m) => m.metric === gate.metric && m.split === 'test');
+            const metric = metrics.find(
+              (m) => m.metric === gate.metric && m.split === 'test'
+            );
             if (!metric) {
-              throw new QualityGateError(model.name, gate.metric, gate.threshold, NaN, gate.comparison);
+              throw new QualityGateError(
+                model.name,
+                gate.metric,
+                gate.threshold,
+                NaN,
+                gate.comparison
+              );
             }
-            const passes = gate.comparison === 'gte'
-              ? metric.value >= gate.threshold
-              : metric.value <= gate.threshold;
+            const passes =
+              gate.comparison === 'gte'
+                ? metric.value >= gate.threshold
+                : metric.value <= gate.threshold;
             if (!passes) {
-              throw new QualityGateError(model.name, gate.metric, gate.threshold, metric.value, gate.comparison);
+              throw new QualityGateError(
+                model.name,
+                gate.metric,
+                gate.threshold,
+                metric.value,
+                gate.comparison
+              );
             }
           }
         }
@@ -460,14 +472,8 @@ export const trainCommand = {
           taskType: model.output.taskType,
           algorithm: model.algorithm,
           features: schema,
-          output: {
-            field: model.output.field,
-            shape: [1],
-          },
-          tensorSpec: {
-            inputShape: [1, schema.count],
-            outputShape: [1],
-          },
+          output: { field: model.output.field, shape: [1] },
+          tensorSpec: { inputShape: [1, schema.count], outputShape: [1] },
           featureDependencies,
           encoding: encodings,
           imputation: imputations,
@@ -480,14 +486,10 @@ export const trainCommand = {
         const metadataPath = path.join(outputDir, `${model.name}.metadata.json`);
         fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
-        modelArtifacts.push({
-          metadata,
-          onnxPath: response.onnxPath,
-        });
+        modelArtifacts.push({ metadata, onnxPath: response.onnxPath });
       }
 
       spinner.succeed('Training complete');
-
       spinner.start('Writing artifacts...');
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
@@ -498,10 +500,7 @@ export const trainCommand = {
         console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
       }
     } catch (error) {
-      const errorMessage = (error as Error).message;
-      
-      spinner.fail(errorMessage);
-      
+      spinner.fail((error as Error).message);
       throw error;
     } finally {
       if (prisma) {

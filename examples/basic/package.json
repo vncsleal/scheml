@@ -19,7 +19,6 @@
     "tsx": "^4.7.0"
   },
   "devDependencies": {
-    "@vncsleal/prisml-cli": "workspace:*",
     "prisma": "^5.7.0"
   }
 }

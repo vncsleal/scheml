@@ -21,7 +21,7 @@ Node.js **18 or higher** is required.
 Install the Python dependencies once, before your first `prisml train`:
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
 ```
 
 You can confirm everything is available by running:
@@ -43,14 +43,10 @@ This same check runs automatically in CI on every push via the [`ci.yml`](../.gi
 ## Installation
 
 ```bash
-# Application runtime dependency
 npm install @vncsleal/prisml
-
-# Build-time CLI — only needed to run `prisml train` and `prisml check`
-npm install --save-dev @vncsleal/prisml-cli
 ```
 
-`@vncsleal/prisml` ships only the runtime kernel (core types + `PredictionSession`). The CLI depends on Python, yargs, ora, and chalk — none of which belong in your production bundle.
+`@vncsleal/prisml` is the only package — it includes the runtime prediction engine, CLI (`prisml train`, `prisml check`), and Python training backend.
 
 ---
 
@@ -131,91 +127,24 @@ prisml check --schema ./prisma/schema.prisma --output ./.prisml
 
 This fails on field type or nullability mismatches and warns on dynamic feature paths.
 
-### 2.6. Schema Annotations (Optional)
+### 2.6. Schema Annotations (Planned — V2)
 
-Add ML configuration metadata to your Prisma schema using the generator:
-
-#### Install Generator
-
-```bash
-npm install --save-dev @vncsleal/prisml-generator
-```
-
-#### Configure in Schema
-
-```prisma
-generator prisml {
-  provider = "prisml-generator"
-  output   = "./generated"
-}
-
-model Product {
-  id    Int    @id
-  price Float
-  
-  /// @prisml: model="ProductSalesV2" threshold=0.9 fallback=0
-  predictedSales Float?
-}
-```
-
-#### Generate Type-Safe Constants
-
-```bash
-npx prisma generate
-```
-
-This creates `./prisma/generated/prisml.schema.ts`:
-
-```typescript
-export const PrisMLAnnotations = {
-  'Product.predictedSales': {
-    model: "ProductSalesV2",
-    threshold: 0.9,
-    fallback: 0,
-  },
-} as const;
-```
-
-#### Use in Application
-
-```typescript
-import { PrisMLAnnotations } from './prisma/generated/prisml.schema.js';
-
-const config = PrisMLAnnotations['Product.predictedSales'];
-const prediction = await session.predict(config.model, product);
-
-// Apply threshold logic
-const value = prediction.confidence >= config.threshold 
-  ? prediction.value 
-  : config.fallback;
-```
-
-**Note:** Annotations are application-level hints only. They don't affect training configuration.
+> **Note:** The Prisma schema annotations feature (`@prisml` docstring annotations and generated type-safe constants) is planned for V2. See the [roadmap](../ROADMAP.md).
 
 ### 3. Run Predictions
 
 Use trained models in your application:
 
 ```typescript
-import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
+import { PredictionSession } from '@vncsleal/prisml';
+import { userLTVModel } from './prisml.config';
 
 const session = new PredictionSession();
-const schemaHash = hashPrismaSchema(schemaContent);
-
-// Initialize model
-await session.initializeModel(
-  './.prisml/userLTV.metadata.json',
-  './.prisml/userLTV.onnx',
-  schemaHash
-);
+await session.load(userLTVModel);
+// Automatically resolves .prisml/userLTV.{onnx,metadata.json} and hashes prisma/schema.prisma
 
 // Single prediction
-const result = await session.predict('userLTV', user, {
-  accountAge: (u) => (Date.now() - u.createdAt.getTime()) / (1000 * 60 * 60 * 24),
-  source: (u) => u.signupSource,
-  isPremium: (u) => u.plan === 'premium',
-});
-
+const result = await session.predict(userLTVModel, user);
 console.log(result.prediction); // e.g., 1500
 ```
 

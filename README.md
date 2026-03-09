@@ -29,7 +29,7 @@ onnx==1.16.0
 Install them in your environment before running `prisml train`:
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
+pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
 ```
 
 > **Note:** Python is a **build-time dependency only** — it is not required at runtime. Prediction via `PredictionSession` runs entirely in Node.js against the compiled ONNX artifact.
@@ -39,14 +39,10 @@ pip install -r node_modules/@vncsleal/prisml-cli/python/requirements.txt
 ### Installation
 
 ```bash
-# Runtime (application dependency)
 npm install @vncsleal/prisml
-
-# CLI (dev/build-time only)
-npm install --save-dev @vncsleal/prisml-cli
 ```
 
-`@vncsleal/prisml` contains only the runtime prediction engine (core types + `PredictionSession`). The CLI — which shells out to Python to produce ONNX artifacts — is a build-time tool and should not be a runtime dependency of your application.
+`@vncsleal/prisml` is the only package — it includes the runtime prediction engine, CLI, and Python training backend.
 
 ### 1. Define Models
 
@@ -81,18 +77,13 @@ Generates immutable artifacts:
 
 ```typescript
 import { PredictionSession } from '@vncsleal/prisml';
+import { salesModel } from './prisml.config';
 
 const session = new PredictionSession();
-await session.initializeModel(
-  './.prisml/ProductSales.metadata.json',
-  './.prisml/ProductSales.onnx',
-  schemaHash
-);
+await session.load(salesModel);
 
-const result = await session.predict('ProductSales', product, {
-  price: (p) => p.price,
-  stock: (p) => p.stock,
-});
+const result = await session.predict(salesModel, product);
+// { modelName: 'ProductSales', prediction: 42.3, timestamp: '...' }
 ```
 
 ## Features
@@ -105,15 +96,14 @@ const result = await session.predict('ProductSales', product, {
 ✓ Quality gates for build-time validation  
 ✓ Typed error handling  
 
-## Packages
+## Monorepo
 
-| Package | Install as | Purpose |
-|---|---|---|
-| [`@vncsleal/prisml`](packages/prisml) | `dependency` | Runtime entry point — re-exports core types and `PredictionSession` |
-| [`@vncsleal/prisml-core`](packages/core) | `dependency` | Model definitions, types, encoding, schema hashing |
-| [`@vncsleal/prisml-runtime`](packages/runtime) | `dependency` | ONNX inference engine (`PredictionSession`) |
-| [`@vncsleal/prisml-cli`](packages/cli) | **`devDependency`** | `prisml train` and `prisml check` commands |
-| [`@vncsleal/prisml-generator`](packages/generator) | `devDependency` | Prisma generator for schema annotations |
+| Path | Contents |
+|---|---|
+| [`packages/prisml`](packages/prisml) | `@vncsleal/prisml` — types, errors, CLI, runtime, Python backend |
+| [`apps/website`](apps/website) | [prisml.dev](https://prisml.dev) — documentation site and live demo |
+| [`examples/basic`](examples/basic) | End-to-end example project |
+| [`docs/`](docs) | Architecture, API reference, guides |
 
 ## Documentation
 

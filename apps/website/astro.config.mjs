@@ -8,7 +8,23 @@ const vercelUrl = process.env.VERCEL_URL
   : 'https://prisml.dev';
 
 export default defineConfig({
-  adapter: vercel(),
+  adapter: vercel({
+    // Include demo model artifacts in the serverless function bundle.
+    // They land at the project root inside the function, resolved via process.cwd().
+    includeFiles: [
+      'demo-artifacts/schema.prisma',
+      'demo-artifacts/userChurn.metadata.json',
+      'demo-artifacts/userChurn.onnx',
+    ],
+  }),
   site: vercelUrl,
   output: 'hybrid',
+  vite: {
+    ssr: {
+      // Keep @vncsleal/prisml (and its onnxruntime-web dependency) as
+      // runtime externals so WASM assets are not inlined into the bundle.
+      // nft will trace them into the function's node_modules automatically.
+      external: ['@vncsleal/prisml', 'onnxruntime-web'],
+    },
+  },
 });

@@ -1,12 +1,12 @@
 # PrisML Roadmap
 
-## Current — v0.2.1
+## Current — v0.1.0
 
 **Release:** March 2026
 
 **Focus:** Prove core concept — compile-first, schema-safe, deterministic ML
 
-**Status:** Published. 95 integration tests, CI on GitHub Actions, correct runtime/devDependency split.
+**Status:** Single consolidated package (`@vncsleal/prisml`). 95 integration tests passing. Not yet published to npm.
 
 **Key features:**
 - defineModel() type-safe API
@@ -17,8 +17,8 @@
 - Full documentation
 
 **Limitations:**
-- No test coverage
-- Not published to npm
+- Not yet published to npm
+- No CI/CD configuration
 
 ---
 
@@ -117,11 +117,12 @@ Potential areas:
 ## Success Metrics
 
 By V1.0:
-- [OK] Deterministic predictions with reproducible artifacts
-- [OK] Schema safety enforced (no silent drift)
-- [OK] Production-ready Python backend
-- [OK] 100+ lines of documentation
-- [OK] Working examples (regression + classification)
+- [x] Deterministic predictions with reproducible artifacts
+- [x] Schema safety enforced (no silent drift)
+- [x] Production-ready Python backend
+- [x] 100+ lines of documentation
+- [x] Working examples (regression + classification)
+- [x] 95 integration tests passing
 
 By V2.0:
 - [PLANNED] Support adaptive learning workflows
@@ -133,10 +134,10 @@ By V2.0:
 
 ## Release Cadence
 
-- **v0.2.1:** Mar 2026 (public)
-- **V1.0 (Beta):** May 2026 (public)
-- **V1.x (Maintenance):** Jun-Aug 2026
-- **V2.0 (Flexibility):** Sep 2026
+- **v0.1.0:** Mar 2026 (local / not yet published)
+- **V1.0 (Beta):** Q2 2026 (npm publish)
+- **V1.x (Maintenance):** Q3 2026
+- **V2.0 (Flexibility):** Q4 2026
 - **V3.0 (Ecosystem):** 2027
 
 ---

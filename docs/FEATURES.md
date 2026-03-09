@@ -163,7 +163,7 @@ export const PrisMLAnnotations = {
 - Separate training concerns from runtime usage logic
 - Explicit imports (no CLI auto-load)
 
-**Status:** ✅ Complete (prisml-generator package)
+**Status:** ⏳ Planned (V2) — the generator package has been retired; this feature is on the V2 roadmap
 
 ---
 

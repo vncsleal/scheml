@@ -2,11 +2,11 @@
 
 ## @vncsleal/prisml
 
-Runtime entry point. Re-exports all public APIs from `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`.
+Single production dependency. Includes the runtime prediction engine, type system, CLI (`prisml train`, `prisml check`), and Python training backend.
 
-Install as a production `dependency`. The CLI (`@vncsleal/prisml-cli`) is a separate package intended as a `devDependency`.
-
-## @vncsleal/prisml-core
+```bash
+npm install @vncsleal/prisml
+```
 
 ### Types
 
@@ -235,7 +235,7 @@ try {
 }
 ```
 
-## @vncsleal/prisml-cli
+## CLI
 
 ### `prisml train`
 
@@ -245,23 +245,29 @@ Compiler driver: loads models, trains, exports artifacts.
 prisml train \
   --config ./prisml.config.ts \
   --schema ./prisma/schema.prisma \
-  --output ./prisml-artifacts \
+  --output ./.prisml \
   --python local
 ```
 
 **Options:**
 - `--config, -c` — Path to model definitions (default: `./prisml.config.ts`)
 - `--schema, -s` — Path to Prisma schema (default: `./prisma/schema.prisma`)
-- `--output, -o` — Output directory (default: `./prisml-artifacts`)
+- `--output, -o` — Output directory (default: `./.prisml`)
 - `--python` — Backend: `local` (default: `local`)
 
 **Output:**
 - `{output}/{modelName}.metadata.json` — Metadata contract
 - `{output}/{modelName}.onnx` — ONNX binary
 
-## @vncsleal/prisml-runtime
+### `prisml check`
 
-### `PredictionSession`
+Schema-only validation. Validates feature dependencies against the Prisma schema without running training. Fast CI-friendly check (no Python required).
+
+```bash
+prisml check --schema ./prisma/schema.prisma --output ./.prisml
+```
+
+## `PredictionSession`
 
 Manages ONNX model sessions and predictions.
 
@@ -271,9 +277,28 @@ Manages ONNX model sessions and predictions.
 const session = new PredictionSession();
 ```
 
-#### `initializeModel(metadataPath, onnxPath, prismaSchemaHash)`
+#### `session.load(model, opts?)`
 
-Load and validate model artifacts.
+Load a trained model by resolving `.prisml/{name}.{onnx,metadata.json}` and hashing `prisma/schema.prisma` automatically.
+
+```typescript
+import { userLTVModel } from './prisml.config';
+
+await session.load(userLTVModel);
+// or with path overrides:
+await session.load(userLTVModel, {
+  artifactsDir: './.prisml',           // default
+  schemaPath: 'prisma/schema.prisma',  // default
+});
+```
+
+**Throws:**
+- `SchemaDriftError` — if schema hash doesn't match the compiled artifacts
+- `ArtifactError` — if artifacts are missing or invalid
+
+#### `session.initializeModel(metadataPath, onnxPath, prismaSchemaHash)` _(low-level)_
+
+Explicit path-based initializer. Prefer `session.load()` for most use cases.
 
 ```typescript
 await session.initializeModel(
@@ -287,17 +312,24 @@ await session.initializeModel(
 - `SchemaDriftError` — if schema hash doesn't match
 - `ArtifactError` — if artifacts missing or invalid
 
-#### `predict<T>(modelName, entity, featureResolvers): Promise<PredictionOutput>`
+#### `session.predict<T>(model, entity): Promise<PredictionOutput>`
 
-Run prediction on a single entity.
+Run prediction on a single entity using the resolvers declared in `model.features`.
+
+```typescript
+const result = await session.predict(userLTVModel, user);
+console.log(result.prediction); // e.g., 1500
+```
+
+#### `session.predict<T>(modelName, entity, resolvers): Promise<PredictionOutput>` _(low-level)_
+
+String-based overload. Requires the model to be initialized via `initializeModel()` first.
 
 ```typescript
 const result = await session.predict('userLTV', user, {
   accountAge: (u) => Date.now() - u.createdAt.getTime(),
   isPremium: (u) => u.plan === 'premium',
 });
-
-console.log(result.prediction); // e.g., 1500
 ```
 
 **Returns:**
@@ -317,18 +349,13 @@ console.log(result.prediction); // e.g., 1500
 - `UnseenCategoryError` — if categorical value unseen
 - `ONNXRuntimeError` — if ONNX execution fails
 
-#### `predictBatch<T>(modelName, entities, featureResolvers): Promise<BatchPredictionResult>`
+#### `session.predictBatch<T>(model, entities): Promise<BatchPredictionResult>`
 
-Run prediction on multiple entities atomically.
+Run predictions on multiple entities atomically using resolvers from `model.features`.
 
 ```typescript
-const result = await session.predictBatch(
-  'userLTV',
-  [user1, user2, user3],
-  { accountAge: (u) => ..., ... }
-);
-
-console.log(result.successCount); // All entities succeeded
+const result = await session.predictBatch(userLTVModel, [user1, user2, user3]);
+console.log(result.successCount);
 ```
 
 **Behavior:**
@@ -347,7 +374,7 @@ console.log(result.successCount); // All entities succeeded
 }
 ```
 
-#### `dispose(modelName): Promise<void>`
+#### `session.dispose(modelName): Promise<void>`
 
 Release ONNX session for a model.
 
@@ -355,7 +382,7 @@ Release ONNX session for a model.
 await session.dispose('userLTV');
 ```
 
-#### `disposeAll(): Promise<void>`
+#### `session.disposeAll(): Promise<void>`
 
 Release all sessions.
 
@@ -369,7 +396,7 @@ await session.disposeAll();
 
 ```typescript
 try {
-  await session.initializeModel(meta, onnx, 'old-hash');
+  await session.load(userLTVModel);
 } catch (error) {
   if (error instanceof SchemaDriftError) {
     console.error('Schema mismatch since model compilation');
@@ -383,7 +410,7 @@ try {
 
 ```typescript
 try {
-  const result = await session.predict('userLTV', user, resolvers);
+  const result = await session.predict(userLTVModel, user);
 } catch (error) {
   if (error instanceof FeatureExtractionError) {
     console.error(`Feature "${error.context.featureName}" failed`);
@@ -396,7 +423,7 @@ try {
 
 ```typescript
 try {
-  const result = await session.predict('userLTV', user, resolvers);
+  const result = await session.predict(userLTVModel, user);
 } catch (error) {
   if (error instanceof UnseenCategoryError) {
     console.error(`Unseen category "${error.context.value}" for feature "${error.context.featureName}"`);

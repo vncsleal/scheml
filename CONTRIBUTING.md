@@ -4,37 +4,36 @@
 
 ```bash
 # Clone and install
-git clone https://github.com/prisml/prisml
+git clone https://github.com/vncsleal/prisml
 cd prisml
-npm install
+pnpm install
 
 # Build all packages
-npm run build
+pnpm -r build
 
 # Run tests
-npm run test
+pnpm test
 
 # Watch mode
-npm run dev
+pnpm -r --filter @vncsleal/prisml test -- --watch
 ```
 
 ## Project Structure
 
 ```
 packages/
-  core/      # Type system, errors, defineModel
-  cli/       # prisml train command
-  runtime/   # ONNX inference engine
-  python/    # Python training backend
+  prisml/    @vncsleal/prisml (types, errors, CLI, runtime, Python backend)
+apps/
+  website/   prisml.dev — Astro + Vercel
 examples/
-  basic/     # Working example
+  basic/     Working example
 docs/
   ARCHITECTURE.md
   API.md
   GUIDE.md
   GETTING_STARTED.md
   FEATURES.md
-  ROADMAP.md
+  SECURITY.md
 ```
 
 ## Coding Standards
@@ -192,16 +191,16 @@ Fixes #123
 
 ```bash
 # Bump version
-npm version minor
+pnpm version minor
 
 # Build
-npm run build
+pnpm -r build
 
 # Test
-npm run test
+pnpm test
 
 # Publish
-npm publish
+npm publish ./packages/prisml
 
 # Tag release
 git push origin v0.1.0

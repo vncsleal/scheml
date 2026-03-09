@@ -17,20 +17,21 @@ PrisML treats ML model training as a **compile-time step**, generating immutable
 npm install @vncsleal/prisml
 ```
 
-This umbrella package includes:
-- `@vncsleal/prisml-core` - Model definitions and types
-- `@vncsleal/prisml-cli` - Training and validation commands
-- `@vncsleal/prisml-runtime` - ONNX inference engine
+Python training backend requires:
+
+```bash
+pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
+```
 
 ## Quick Start
 
-### 1. Define Model
+### 1. Define your model (`prisml.config.ts`)
 
 ```typescript
 import { defineModel } from '@vncsleal/prisml';
 
 export const salesModel = defineModel<Product>({
-  name: 'ProductSales',
+  name: 'productSales',
   modelName: 'Product',
   output: { field: 'sales', taskType: 'regression' },
   features: {
@@ -41,61 +42,79 @@ export const salesModel = defineModel<Product>({
 });
 ```
 
-### 2. Train (Build-Time)
+### 2. Train (build-time)
 
 ```bash
 npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
 ```
 
-Generates:
-- `ProductSales.onnx` - Model binary
-- `ProductSales.metadata.json` - Schema contract
+Outputs to `.prisml/`:
+- `productSales.onnx` — model binary
+- `productSales.metadata.json` — schema contract
 
-### 3. Predict (Runtime)
+### 3. Predict (runtime)
 
 ```typescript
 import { PredictionSession } from '@vncsleal/prisml';
+import { salesModel } from './prisml.config';
 
 const session = new PredictionSession();
-await session.initializeModel(
-  './.prisml/ProductSales.metadata.json',
-  './.prisml/ProductSales.onnx',
-  schemaHash
-);
+await session.load(salesModel); // resolves .prisml/ and prisma/schema.prisma automatically
 
-const result = await session.predict('ProductSales', product, {
-  price: (p) => p.price,
-  stock: (p) => p.stock,
-});
+const result = await session.predict(salesModel, product);
+// { modelName: 'productSales', prediction: 42.3, timestamp: '...' }
 ```
 
-## Features
+## API
 
-✓ Type-safe model definitions  
-✓ Prisma schema binding with drift detection  
-✓ Schema-only contract validation (`prisml check`)  
-✓ ONNX Runtime integration  
-✓ Deterministic feature encoding  
-✓ Quality gates for build-time validation  
-✓ Typed error handling  
+### `defineModel<T>(definition)`
 
-## Additional Tools
+Declares a model. Pure config — no side effects.
 
-### Schema Annotations
+### `new PredictionSession()`
 
-Install `@vncsleal/prisml-generator` to add type-safe ML annotations to your Prisma schema:
+#### `session.load(model, opts?)`
 
-```bash
-npm install @vncsleal/prisml-generator --save-dev
+Loads a trained model from `.prisml/<name>.{onnx,metadata.json}` and hashes `prisma/schema.prisma` automatically.
+
+- `opts.artifactsDir` — override artifacts directory (default: `.prisml/`)
+- `opts.schemaPath` — override schema path (default: `prisma/schema.prisma`)
+
+#### `session.predict(model, entity)`
+
+Runs inference on a single entity using the resolvers declared in `model.features`.
+
+#### `session.predictBatch(model, entities)`
+
+Runs inference over an array of entities. Preflight is atomic — any validation failure aborts the entire batch with no partial execution.
+
+#### `session.initializeModel(metadataPath, onnxPath, schemaHash)`
+
+Low-level path-based initializer. Prefer `session.load()`.
+
+### `hashPrismaSchema(schema: string): string`
+
+Returns the normalized SHA-256 hash of a Prisma schema string. Used for drift detection.
+
+## Quality Gates
+
+```typescript
+qualityGates: [
+  { metric: 'r2', threshold: 0.85, comparison: 'gte' },
+  { metric: 'rmse', threshold: 500, comparison: 'lte' },
+]
 ```
 
-See [generator documentation](../generator/README.md) for details.
+`prisml train` exits non-zero if any gate fails.
 
-## Documentation
+## Supported Algorithms
 
-- [User Guide](../../docs/GUIDE.md)
-- [Feature Specification](../../docs/FEATURES.md)
-- [Architecture](../../docs/ARCHITECTURE.md)
+| Name | Regression | Classification |
+|------|-----------|----------------|
+| `linear` | LinearRegression | LogisticRegression |
+| `tree` | DecisionTreeRegressor | DecisionTreeClassifier |
+| `forest` | RandomForestRegressor | RandomForestClassifier |
+| `gbm` | GradientBoostingRegressor | GradientBoostingClassifier |
 
 ## License
 
