@@ -14,7 +14,7 @@
   "dependencies": {
     "@astrojs/vercel": "^7.8.0",
     "@vercel/analytics": "^1.6.1",
-    "@vncsleal/prisml": "file:../../packages/prisml",
+    "@vncsleal/prisml": "0.1.1",
     "onnxruntime-web": "1.24.3",
     "astro": "^4.16.2"
   },
