@@ -1,6 +1,5 @@
 {
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "framework": "astro",
-  "nodeVersion": "20"
+  "framework": "astro"
 }
