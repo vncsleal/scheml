@@ -8,21 +8,23 @@ const vercelUrl = process.env.VERCEL_URL
 
 export default defineConfig({
   adapter: vercel({
-    // Include demo model artifacts in the serverless function bundle.
-    // They land at the project root inside the function, resolved via process.cwd().
     includeFiles: [
+      // Demo model artifacts
       'demo-artifacts/schema.prisma',
       'demo-artifacts/userChurn.metadata.json',
       'demo-artifacts/userChurn.onnx',
+      // onnxruntime-web WASM files — nft doesn't trace dynamically-resolved
+      // binary assets, so they must be listed explicitly.
+      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
+      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm',
+      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs',
     ],
   }),
   site: vercelUrl,
   output: 'hybrid',
   vite: {
     ssr: {
-      // Keep @vncsleal/prisml (and its onnxruntime-web dependency) as
-      // runtime externals so WASM assets are not inlined into the bundle.
-      // nft will trace them into the function's node_modules automatically.
       external: ['@vncsleal/prisml', 'onnxruntime-web'],
     },
   },
