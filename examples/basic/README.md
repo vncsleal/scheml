@@ -73,7 +73,7 @@ Features: `daysSinceActive`, `monthlySpend`, `supportTickets`.
 
 ## Website Demo Artifacts
 
-To generate demo artifacts for the prisml.dev live demo:
+To generate demo artifacts for the getprisml.vercel.app live demo:
 
 ```sh
 pnpm train:demo

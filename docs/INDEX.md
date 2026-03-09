@@ -67,7 +67,7 @@ packages/
   prisml/            @vncsleal/prisml — types, errors, CLI, runtime, Python backend
 
 apps/
-  website/           prisml.dev — documentation site and live demo
+  website/           getprisml.vercel.app — documentation site and live demo
 
 examples/
   basic/             Working example project

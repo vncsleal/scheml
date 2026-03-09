@@ -24,7 +24,7 @@ pnpm -r --filter @vncsleal/prisml test -- --watch
 packages/
   prisml/    @vncsleal/prisml (types, errors, CLI, runtime, Python backend)
 apps/
-  website/   prisml.dev — Astro + Vercel
+  website/   getprisml.vercel.app — Astro + Vercel
 examples/
   basic/     Working example
 docs/

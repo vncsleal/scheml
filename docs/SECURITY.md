@@ -274,7 +274,7 @@ When to retrain:
 If you find a security issue:
 
 1. **Do not** create public GitHub issue
-2. Email security@prisml.dev (or project lead)
+2. Email oi@iamvini.co (or project lead)
 3. Include:
    - Description of issue
    - Reproduction steps

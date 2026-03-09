@@ -101,7 +101,7 @@ const result = await session.predict(salesModel, product);
 | Path | Contents |
 |---|---|
 | [`packages/prisml`](packages/prisml) | `@vncsleal/prisml` — types, errors, CLI, runtime, Python backend |
-| [`apps/website`](apps/website) | [prisml.dev](https://prisml.dev) — documentation site and live demo |
+| [`apps/website`](apps/website) | [getprisml.vercel.app](https://getprisml.vercel.app) — documentation site and live demo |
 | [`examples/basic`](examples/basic) | End-to-end example project |
 | [`docs/`](docs) | Architecture, API reference, guides |
 

@@ -1,6 +1,6 @@
-# prisml.dev
+# getprisml.vercel.app
 
-Marketing and documentation site for [PrisML](https://prisml.dev), with a live browser-side inference demo powered by ONNX and `@vncsleal/prisml`.
+Marketing and documentation site for [PrisML](https://getprisml.vercel.app), with a live browser-side inference demo powered by ONNX and `@vncsleal/prisml`.
 
 ## Stack
 
