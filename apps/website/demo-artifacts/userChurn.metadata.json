@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.2",
   "metadataSchemaVersion": "1.1.0",
   "modelName": "userChurn",
   "taskType": "binary_classification",
@@ -20,7 +20,7 @@
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 40.56041666666667
+          "value": 41.56041666666667
         }
       },
       {
@@ -29,7 +29,7 @@
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 183.5920416666666
+          "value": 183.59204166666652
         }
       },
       {
@@ -94,37 +94,37 @@
   "imputation": {
     "daysSinceActive": {
       "strategy": "constant",
-      "value": 40.56041666666667
+      "value": 41.56041666666667
     },
     "monthlySpend": {
       "strategy": "constant",
-      "value": 183.5920416666666
+      "value": 183.59204166666652
     },
     "supportTickets": {
       "strategy": "constant",
       "value": 5.227083333333334
     }
   },
-  "prismaSchemaHash": "1adf43143f4a2aef22719856fdffafe3c220f4020539aea8262727770971d918",
+  "prismaSchemaHash": "06cbb3d39c0e714b173fb65c5741b1f0cc10e968cd2adb44f79b6c34e2d48a65",
   "trainingMetrics": [
     {
       "metric": "accuracy",
-      "value": 0.9479166666666666,
+      "value": 0.9375,
       "split": "test"
     },
     {
       "metric": "precision",
-      "value": 0.953125,
+      "value": 0.9655172413793104,
       "split": "test"
     },
     {
       "metric": "recall",
-      "value": 0.9682539682539683,
+      "value": 0.9333333333333333,
       "split": "test"
     },
     {
       "metric": "f1",
-      "value": 0.9606299212598425,
+      "value": 0.9491525423728814,
       "split": "test"
     }
   ],
@@ -133,7 +133,7 @@
     "splitSeed": 42,
     "trainSize": 384,
     "testSize": 96,
-    "materializedAt": "2026-03-08T22:14:04.464Z"
+    "materializedAt": "2026-03-10T02:29:08.143Z"
   },
-  "compiledAt": "2026-03-08T22:14:07.690Z"
+  "compiledAt": "2026-03-10T02:29:10.845Z"
 }
