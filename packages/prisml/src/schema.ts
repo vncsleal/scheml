@@ -6,20 +6,71 @@
 import * as crypto from 'crypto';
 
 /**
- * Normalize a Prisma schema for hashing
- * Removes comments, normalizes whitespace, sorts model definitions
+ * Normalize a Prisma schema for hashing.
+ *
+ * Guarantees the output is invariant to:
+ * - Comments
+ * - Whitespace / indentation (including `prisma format` alignment)
+ * - Field declaration order within a model or enum block
+ * - Model / enum block order within the file
+ *
+ * This means the hash is stable across `prisma format` runs and across any
+ * manual reordering of fields or models, as long as the schema semantics are
+ * unchanged.
  */
 export function normalizePrismaSchema(schema: string): string {
-  // Remove single-line comments
-  let normalized = schema.replace(/\/\/.*$/gm, '');
-  
-  // Remove multi-line comments
-  normalized = normalized.replace(/\/\*[\s\S]*?\*\//g, '');
-  
-  // Normalize whitespace: collapse multiple spaces/newlines
-  normalized = normalized.replace(/\s+/g, ' ').trim();
-  
-  return normalized;
+  // 1. Strip comments
+  const text = schema
+    .replace(/\/\/.*$/gm, '')       // single-line
+    .replace(/\/\*[\s\S]*?\*\//g, ''); // block
+
+  // 2. Parse top-level blocks (datasource, generator, model, enum, type).
+  //    Prisma block bodies never contain nested braces so [^}]* is safe.
+  const blockRe = /\b(datasource|generator|model|enum|type)\s+(\w+)\s*\{([^}]*)\}/g;
+
+  interface ParsedBlock {
+    keyword: string;
+    name: string;
+    body: string;
+  }
+
+  const blocks: ParsedBlock[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(text)) !== null) {
+    blocks.push({ keyword: m[1], name: m[2], body: m[3] });
+  }
+
+  // 3. Canonicalize the body of each block:
+  //    - Collapse whitespace within each line
+  //    - model/enum: sort field lines alphabetically, then sort @@-directives
+  //      (keeping them after fields, since they apply to the block as a whole)
+  //    - datasource/generator: preserve declaration order (some tools are
+  //      order-sensitive for key=value pairs in these blocks)
+  function canonicalizeBody(keyword: string, body: string): string {
+    const lines = body
+      .split('\n')
+      .map(l => l.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+
+    if (keyword === 'model' || keyword === 'enum') {
+      const fields     = lines.filter(l => !l.startsWith('@@')).sort();
+      const directives = lines.filter(l =>  l.startsWith('@@')).sort();
+      return [...fields, ...directives].join(' ');
+    }
+    return lines.join(' ');
+  }
+
+  // 4. Sort blocks for ordering invariance:
+  //    datasource/generator stay first in their original order.
+  //    model, enum, type blocks are sorted by name.
+  const priority = blocks.filter(b => b.keyword === 'datasource' || b.keyword === 'generator');
+  const enums    = blocks.filter(b => b.keyword === 'enum').sort((a, b) => a.name.localeCompare(b.name));
+  const models   = blocks.filter(b => b.keyword === 'model').sort((a, b) => a.name.localeCompare(b.name));
+  const types    = blocks.filter(b => b.keyword === 'type').sort((a, b) => a.name.localeCompare(b.name));
+
+  return [...priority, ...enums, ...models, ...types]
+    .map(b => `${b.keyword} ${b.name} { ${canonicalizeBody(b.keyword, b.body)} }`)
+    .join(' ');
 }
 
 /**

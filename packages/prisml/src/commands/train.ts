@@ -274,7 +274,10 @@ export const trainCommand = {
           );
         }
 
-        const entities = await prismaDelegate.findMany();
+        // ORDER BY primary key for deterministic row ordering across runs.
+        // Without this, database row order is non-deterministic and the seeded
+        // shuffle produces a different train/test split on every invocation.
+        const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
         if (!entities.length) {
           throw new ConfigurationError(`No records found for model "${model.modelName}"`);
         }
@@ -375,6 +378,10 @@ export const trainCommand = {
           return label as any;
         });
 
+        // TODO(V2 tech debt): split belongs in Python, not here. Moving
+        // preprocessing to Python (V2 hardening) requires Python to own the
+        // split so that encoders fit on X_train only. Seed is fixed at 42 for
+        // now to keep artifact generation deterministic.
         const seed = 42;
         const indices = seededShuffle([...Array(vectors.length).keys()], seed);
         const testSize = Math.max(1, Math.floor(vectors.length * 0.2));
@@ -434,35 +441,46 @@ export const trainCommand = {
 
         const response = JSON.parse(result.stdout.trim());
         const metrics: TrainingMetrics[] = response.metrics || [];
+        const pendingOnnxPath: string = response.onnxPath;
 
-        if (model.qualityGates?.length) {
-          for (const gate of model.qualityGates) {
-            const metric = metrics.find(
-              (m) => m.metric === gate.metric && m.split === 'test'
-            );
-            if (!metric) {
-              throw new QualityGateError(
-                model.name,
-                gate.metric,
-                gate.threshold,
-                NaN,
-                gate.comparison
+        // Quality gate check runs after Python writes the ONNX artifact.
+        // If a gate fails we must delete the orphaned .onnx before rethrowing
+        // so that no artifact exists without a corresponding .metadata.json.
+        try {
+          if (model.qualityGates?.length) {
+            for (const gate of model.qualityGates) {
+              const metric = metrics.find(
+                (m) => m.metric === gate.metric && m.split === 'test'
               );
-            }
-            const passes =
-              gate.comparison === 'gte'
-                ? metric.value >= gate.threshold
-                : metric.value <= gate.threshold;
-            if (!passes) {
-              throw new QualityGateError(
-                model.name,
-                gate.metric,
-                gate.threshold,
-                metric.value,
-                gate.comparison
-              );
+              if (!metric) {
+                throw new QualityGateError(
+                  model.name,
+                  gate.metric,
+                  gate.threshold,
+                  NaN,
+                  gate.comparison
+                );
+              }
+              const passes =
+                gate.comparison === 'gte'
+                  ? metric.value >= gate.threshold
+                  : metric.value <= gate.threshold;
+              if (!passes) {
+                throw new QualityGateError(
+                  model.name,
+                  gate.metric,
+                  gate.threshold,
+                  metric.value,
+                  gate.comparison
+                );
+              }
             }
           }
+        } catch (gateError) {
+          if (pendingOnnxPath && fs.existsSync(pendingOnnxPath)) {
+            fs.unlinkSync(pendingOnnxPath);
+          }
+          throw gateError;
         }
 
         const metadata: ModelMetadata = {

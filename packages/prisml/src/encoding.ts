@@ -99,14 +99,18 @@ function applyImputation(rule: ImputationRule): number {
       }
       return rule.value;
     case 'mean':
-      // Mean is computed during training and stored in metadata
-      return 0;
     case 'median':
-      // Median is computed during training and stored in metadata
-      return 0;
     case 'mode':
-      // Mode is computed during training and stored in metadata
-      return 0;
+      // These strategies are resolved to a numeric constant at training time
+      // and stored in metadata as { strategy: 'constant', value: <computed> }.
+      // A runtime imputation rule with strategy 'mean'/'median'/'mode' and no
+      // precomputed value indicates a corrupt or hand-crafted metadata file.
+      if (typeof rule.value === 'number') {
+        return rule.value;
+      }
+      throw new Error(
+        `Imputation strategy '${rule.strategy}' requires a precomputed numeric value in metadata`
+      );
     default:
       throw new Error(`Unknown imputation strategy: ${rule.strategy}`);
   }

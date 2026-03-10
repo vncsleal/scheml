@@ -36,4 +36,4 @@ export {
 // Prediction engine
 export { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.2';

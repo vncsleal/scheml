@@ -66,7 +66,12 @@ export interface QualityGate {
 export interface AlgorithmConfig {
   /** Algorithm name: 'linear', 'tree', 'forest', 'gbm' */
   name: string;
-  /** Pinned version for determinism */
+  /**
+   * Pinned version for determinism.
+   * IMPORTANT: This field is declared but not currently enforced — the Python
+   * backend does not read or validate it. It is reserved for future version
+   * pinning once algorithm versioning is implemented.
+   */
   version: string;
   hyperparameters?: Record<string, unknown>;
 }

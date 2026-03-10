@@ -27,13 +27,13 @@ model Product {
 
 describe('normalizePrismaSchema', () => {
   it('removes single-line comments', () => {
-    const result = normalizePrismaSchema('// comment\nmodel User {}');
+    const result = normalizePrismaSchema('// comment\nmodel User { id String }');
     expect(result).not.toContain('//');
     expect(result).toContain('model User');
   });
 
   it('removes block comments', () => {
-    const result = normalizePrismaSchema('/* block */\nmodel User {}');
+    const result = normalizePrismaSchema('/* block */\nmodel User { id String }');
     expect(result).not.toContain('/*');
     expect(result).not.toContain('*/');
   });
@@ -43,9 +43,27 @@ describe('normalizePrismaSchema', () => {
     expect(result).not.toMatch(/\s{2,}/);
   });
 
-  it('produces identical output for semantically-equivalent schemas', () => {
+  it('produces identical output for semantically-equivalent schemas (whitespace)', () => {
     const a = normalizePrismaSchema('model User {\n  id String\n}');
     const b = normalizePrismaSchema('model User {   id String   }');
+    expect(a).toBe(b);
+  });
+
+  it('is invariant to field order within a model block', () => {
+    const a = normalizePrismaSchema('model User {\n  id String\n  name String\n  email String\n}');
+    const b = normalizePrismaSchema('model User {\n  email String\n  id String\n  name String\n}');
+    expect(a).toBe(b);
+  });
+
+  it('keeps @@ directives after field lines regardless of original position', () => {
+    const a = normalizePrismaSchema('model User {\n  @@map("users")\n  id String @id\n  email String\n}');
+    const b = normalizePrismaSchema('model User {\n  id String @id\n  email String\n  @@map("users")\n}');
+    expect(a).toBe(b);
+  });
+
+  it('is invariant to model block order within the file', () => {
+    const a = normalizePrismaSchema('model User { id String }\nmodel Post { id String }');
+    const b = normalizePrismaSchema('model Post { id String }\nmodel User { id String }');
     expect(a).toBe(b);
   });
 });
@@ -65,6 +83,18 @@ describe('hashPrismaSchema', () => {
   it('is comment-insensitive — adding a comment does not change hash', () => {
     const withComment = SAMPLE_SCHEMA + '\n// trailing comment';
     expect(hashPrismaSchema(SAMPLE_SCHEMA)).toBe(hashPrismaSchema(withComment));
+  });
+
+  it('is field-order invariant — reordering fields does not change the hash', () => {
+    const a = `model User {\n  id String @id\n  email String\n  plan String\n}`;
+    const b = `model User {\n  plan String\n  id String @id\n  email String\n}`;
+    expect(hashPrismaSchema(a)).toBe(hashPrismaSchema(b));
+  });
+
+  it('is model-order invariant — reordering model blocks does not change the hash', () => {
+    const a = `model User { id String }\nmodel Post { id String }`;
+    const b = `model Post { id String }\nmodel User { id String }`;
+    expect(hashPrismaSchema(a)).toBe(hashPrismaSchema(b));
   });
 
   it('is change-sensitive — modifying a field changes the hash', () => {

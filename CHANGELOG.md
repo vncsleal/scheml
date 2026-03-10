@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-03-09
+
+### Fixed
+
+- **Schema normalization order invariance** (`schema.ts`): `normalizePrismaSchema()` was sensitive to declaration order — running `prisma format` (which reorders fields and models) produced a different SHA-256 hash for semantically identical schemas, causing false `SchemaDriftError` on `session.load()`. The function now sorts field lines alphabetically within each `model`/`enum` block (with `@@` directives after fields), and sorts `model`/`enum`/`type` blocks by name. `datasource`/`generator` blocks are preserved first in original order.
+
+  **Migration:** Existing `.onnx` + `.metadata.json` artifacts must be regenerated with `prisml train`. The stored `prismaSchemaHash` will differ from the hash produced by this version. Tests pinning `KNOWN_SCHEMA_HASH` must be updated to the new value (run `hashPrismaSchema()` against your schema to obtain it).
+
+- **ONNX orphan on quality gate failure** (`commands/train.ts`): When a quality gate failed, the Python backend had already written the `.onnx` file before the gate was evaluated. The gate threw `QualityGateError` and the `.metadata.json` was never written, leaving a dangling `.onnx` with no corresponding metadata. The artifact is now deleted before rethrowing, ensuring no artifact exists without its metadata counterpart.
+
+- **Non-deterministic train/test split** (`commands/train.ts`): `prisma.findMany()` was called without `orderBy`, relying on database-defined row order which is undefined across vacuums, migrations, and engines. The seeded shuffle (`seed = 42`) was operating on a non-deterministic input, producing different train/test splits across runs. Fixed by adding `orderBy: { id: 'asc' }` to enforce a stable row ordering before shuffling.
+
+- **`applyImputation` silent zero return** (`encoding.ts`): The `mean`, `median`, and `mode` imputation branches returned `0` when no precomputed value was present in metadata, silently corrupting feature vectors instead of failing loudly. These branches now throw `"Imputation strategy 'X' requires a precomputed numeric value in metadata"` unless a valid `rule.value` is present.
+
+### Changed
+
+- `AlgorithmConfig.version` JSDoc updated to document that the field is declared but not currently enforced by the Python backend. Reserved for future version pinning.
+- Added `orderBy: { id: 'asc' }` to `findMany()` in the training pipeline (see fix above).
+- Seed `42` annotated as V2 tech debt — split logic belongs in Python once preprocessing moves there.
+
+### Added
+
+- 5 new tests in `schema.test.ts` covering: field-order invariance, `@@` directive placement after field sorting, model-block-order invariance, and whitespace-only schema handling.
+- `ONNX_RUNTIME_PARITY.md` — assessment of the `onnxruntime-web` vs `onnxruntime-node` execution parity gap. Documents divergence risk by algorithm, the quality gate correctness implication, and the fix path (`onnxruntime-node` as default, `onnxruntime-web` as opt-in `/edge` entrypoint). Flagged as a V1 blocker.
+
+---
+
 ## [0.1.0] — 2026-03-09
 
 ### Changed
