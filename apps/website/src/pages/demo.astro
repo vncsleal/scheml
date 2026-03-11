@@ -88,7 +88,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
   <div class="page">
 
     <!-- HEADER -->
-    <header class="header" id="top">
+    <header class="header" id="top" transition:name="site-header">
       <div class="header__inner">
         <a href="/" class="header__logo" aria-label="PrisML home">
           <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -476,7 +476,7 @@ const result = await session.predict(churnModel, user);
     </section>
 
     <!-- FOOTER -->
-    <footer class="footer">
+    <footer class="footer" transition:name="site-footer">
       <div class="footer__container">
         <div class="footer__left">
           <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -503,7 +503,7 @@ const result = await session.predict(churnModel, user);
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('astro:page-load', () => {
 
       // Range sliders
       const daysInput = document.getElementById('daysSinceActive') as HTMLInputElement | null;
@@ -582,6 +582,16 @@ const result = await session.predict(churnModel, user);
           if (resultLatency) resultLatency.textContent = `${latencyMs} ms`;
           if (latencyPrisml) latencyPrisml.textContent = `${latencyMs} ms`;
           if (latencyFill)   latencyFill.style.width   = `${Math.min(100, Math.max(1, (latencyMs / 800) * 100))}%`;
+
+          // Flash the result panel to signal a fresh result
+          if (resultPanel) {
+            resultPanel.classList.remove('result-updated');
+            void resultPanel.offsetWidth; // force reflow so animation retriggers
+            resultPanel.classList.add('result-updated');
+            resultPanel.addEventListener('animationend', () => {
+              resultPanel.classList.remove('result-updated');
+            }, { once: true });
+          }
 
         } catch (err) {
           if (resultStatus) resultStatus.textContent = err instanceof Error ? err.message : 'Request failed';
@@ -674,6 +684,32 @@ A match means the feature resolvers are still valid against the live data shape.
       document.querySelectorAll('.header__nav-link').forEach((link) => {
         link.addEventListener('click', () => header?.classList.remove('header--open'));
       });
+
+      // Header scroll — observe hero exit
+      const heroSection = document.querySelector('.hero');
+      const headerEl = document.querySelector('.header') as HTMLElement | null;
+      if (heroSection && headerEl) {
+        const heroObs = new IntersectionObserver(
+          ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
+          { threshold: 0, rootMargin: '0px 0px 0px 0px' }
+        );
+        heroObs.observe(heroSection);
+      }
+
+      // Scroll reveal for below-fold sections
+      const revealObs = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('revealed');
+            revealObs.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.06, rootMargin: '0px 0px -32px 0px' });
+
+      document.querySelectorAll('.drift-section .section-header, .drift-grid .panel, .drift-code-panel, .code-section .section-header').forEach((el) => {
+        el.classList.add('reveal-pending');
+        revealObs.observe(el);
+      });
     });
   </script>
 
@@ -717,6 +753,13 @@ A match means the feature resolvers are still valid against the live data shape.
       position: sticky; top: 0; z-index: 100;
       height: var(--header-height); background: var(--bg);
       border-bottom: 1px solid var(--border-subtle);
+      transition: background 200ms ease, border-color 200ms ease, backdrop-filter 200ms ease;
+    }
+    .header--scrolled {
+      background: rgba(22, 22, 22, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom-color: #333;
     }
     .header__inner {
       max-width: var(--max-width); margin: 0 auto;
@@ -1030,8 +1073,9 @@ A match means the feature resolvers are still valid against the live data shape.
     .code-tab.active .code-tab__num { color: var(--amber-50); }
     .code-tab__label { font-weight: 500; }
     .code-tab__file { font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder); }
-    .code-panel { display: none; min-height: 320px; }
-    .code-panel.active { display: block; }
+    .code-tabs__panels { display: grid; grid-template-columns: 1fr; }
+    .code-panel { grid-column: 1; grid-row: 1; min-height: 320px; opacity: 0; visibility: hidden; transition: opacity 220ms ease; pointer-events: none; }
+    .code-panel.active { opacity: 1; visibility: visible; pointer-events: auto; }
     .code-panel pre {
       margin: 0 !important; padding: var(--sp-5) var(--sp-6) !important;
       background: transparent !important; border-radius: 0 !important;
@@ -1063,6 +1107,37 @@ A match means the feature resolvers are still valid against the live data shape.
 
     /* Footer */
     .footer { padding: var(--sp-5) 0; border-top: 1px solid var(--border-subtle); }
+
+    /* Scroll reveal (applied by JS) */
+    .reveal-pending {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 400ms ease, transform 400ms ease;
+    }
+    .reveal-pending:nth-child(2) { transition-delay: 80ms; }
+    .reveal-pending:nth-child(3) { transition-delay: 160ms; }
+    .reveal-pending.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Result panel update flash — tone-aware border animation */
+    @keyframes resultFlashHealthy {
+      0%   { border-color: var(--green-50);           box-shadow: 0 0 0 3px rgba(66, 190, 101, 0.12); }
+      60%  { border-color: var(--green-50);           box-shadow: none; }
+      100% { border-color: rgba(66, 190, 101, 0.25); box-shadow: none; }
+    }
+    @keyframes resultFlashDanger {
+      0%   { border-color: var(--red-50);             box-shadow: 0 0 0 3px rgba(250, 77, 86, 0.10); }
+      60%  { border-color: var(--red-50);             box-shadow: none; }
+      100% { border-color: rgba(250, 77, 86, 0.3);   box-shadow: none; }
+    }
+    .result-panel[data-tone="healthy"].result-updated {
+      animation: resultFlashHealthy 800ms ease forwards;
+    }
+    .result-panel[data-tone="danger"].result-updated {
+      animation: resultFlashDanger 800ms ease forwards;
+    }
     .footer__container {
       max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6);
       display: flex; justify-content: space-between; align-items: center;

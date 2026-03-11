@@ -1,5 +1,6 @@
 ---
 import Analytics from '@vercel/analytics/astro';
+import { ViewTransitions } from 'astro:transitions';
 // Derive the canonical site origin from Astro.site, which is set from
 // VERCEL_URL at build time (see astro.config.mjs). Falls back gracefully.
 const siteOrigin = Astro.site?.origin ?? 'https://getprisml.vercel.app';
@@ -95,6 +96,30 @@ const image = `${siteOrigin}/og.png`;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <ViewTransitions />
+    <style is:global>
+      /* ── Page transition ── */
+      ::view-transition-old(root) {
+        animation: 180ms ease both vt-out;
+      }
+      ::view-transition-new(root) {
+        animation: 280ms ease both vt-in;
+      }
+      /* Site-header morphs in-place, so skip fade */
+      ::view-transition-old(site-header),
+      ::view-transition-new(site-header) {
+        animation: none;
+      }
+      @keyframes vt-out {
+        from { opacity: 1; transform: translateY(0); }
+        to   { opacity: 0; transform: translateY(-5px); }
+      }
+      @keyframes vt-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+    </style>
   </head>
   <body>
     <slot />

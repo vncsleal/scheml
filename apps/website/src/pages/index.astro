@@ -66,7 +66,7 @@ console.log(result.timestamp);
 <BaseLayout title={title} description={description}>
   <div class="page">
     <!-- ════════ HEADER ════════ -->
-    <header class="header" id="top">
+    <header class="header" id="top" transition:name="site-header">
       <div class="header__inner">
         <a href="/" class="header__logo" aria-label="PrisML home">
           <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -470,7 +470,7 @@ console.log(result.timestamp);
     </section>
 
     <!-- ════════ FOOTER ════════ -->
-    <footer class="footer">
+    <footer class="footer" transition:name="site-footer">
       <div class="footer__container">
         <div class="footer__left">
           <svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -495,7 +495,7 @@ console.log(result.timestamp);
 
   <!-- ════════ TAB SCRIPT ════════ -->
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('astro:page-load', () => {
       // Tab switching
       const tabs = document.querySelectorAll('.code-tab');
       const panels = document.querySelectorAll('.code-panel');
@@ -545,11 +545,22 @@ console.log(result.timestamp);
             observer.unobserve(entry.target);
           }
         });
-      }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+      }, { threshold: 0.08, rootMargin: '0px 0px -32px 0px' });
 
-      document.querySelectorAll('.feature-card, .arch-card, .supported__col').forEach((el) => {
+      document.querySelectorAll('.feature-card, .arch-card, .supported__col, .section-header').forEach((el) => {
         observer.observe(el);
       });
+
+      // Header scroll — observe hero exit
+      const heroSection = document.querySelector('.hero');
+      const headerEl = document.querySelector('.header') as HTMLElement | null;
+      if (heroSection && headerEl) {
+        const heroObs = new IntersectionObserver(
+          ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
+          { threshold: 0, rootMargin: '0px 0px 0px 0px' }
+        );
+        heroObs.observe(heroSection);
+      }
     });
   </script>
 
@@ -644,6 +655,13 @@ console.log(result.timestamp);
       height: var(--header-height);
       background: var(--bg);
       border-bottom: 1px solid var(--border-subtle);
+      transition: background 200ms ease, border-color 200ms ease, backdrop-filter 200ms ease;
+    }
+    .header--scrolled {
+      background: rgba(22, 22, 22, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom-color: #333;
     }
 
     .header__inner {
@@ -931,6 +949,13 @@ console.log(result.timestamp);
     /* ── Section headers ── */
     .section-header {
       margin-bottom: var(--sp-9);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 500ms ease, transform 500ms ease;
+    }
+    .section-header.revealed {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .section-tag {
@@ -1027,12 +1052,23 @@ console.log(result.timestamp);
       color: var(--text-placeholder);
     }
 
+    .code-tabs__panels {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
     .code-panel {
-      display: none;
+      grid-column: 1;
+      grid-row: 1;
       min-height: 320px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 220ms ease;
+      pointer-events: none;
     }
     .code-panel.active {
-      display: block;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
     }
     .code-panel pre {
       margin: 0 !important;
