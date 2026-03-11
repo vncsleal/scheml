@@ -1,133 +1,102 @@
 # PrisML
 
-[![CI](https://github.com/vncsleal/prisml/actions/workflows/ci.yml/badge.svg)](https://github.com/vncsleal/prisml/actions/workflows/ci.yml)
+Compiler-first machine learning for TypeScript + Prisma.
 
-Compiler-first machine learning library for TypeScript + Prisma applications.
+PrisML is for developers who want a narrow, local, reviewable ML workflow:
+- define models in TypeScript
+- train them at build time
+- commit immutable ONNX + metadata artifacts
+- run predictions in process with schema checks
 
-## Overview
+It is not a hosted ML platform, an online learning system, or a runtime experimentation layer.
 
-PrisML treats ML model training as a **compile-time step**, generating immutable ONNX artifacts that provide type-safe, in-process predictions at runtime.
+## Who It Is For
 
-**Philosophy:**
-- Training = compilation (build-time)
-- Artifacts = immutable binaries (committed to git)
-- Predictions = synchronous function calls (in-process)
+PrisML is aimed at TypeScript and Prisma teams that want:
+- deterministic builds
+- schema-aware model artifacts
+- local inference without adding a separate prediction service
+- an ML workflow that can live inside the same repo as application code
 
-## Requirements
+## Current Promise
 
-**Node.js**: 18 or higher
-
-**Python 3.9+** is required for the `prisml train` command. The training backend uses the following packages (pinned in [`packages/cli/python/requirements.txt`](packages/cli/python/requirements.txt)):
-
-```
-numpy==1.26.4
-scikit-learn==1.5.2
-skl2onnx==1.16.0
-onnx==1.16.0
-```
-
-Install them in your environment before running `prisml train`:
-
-```bash
-pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
-```
-
-> **Note:** Python is a **build-time dependency only** — it is not required at runtime. Prediction via `PredictionSession` runs entirely in Node.js against the compiled ONNX artifact.
+The current package provides:
+- `defineModel()` for typed model definitions
+- `prisml train` for build-time training
+- `prisml check` for schema-only validation
+- `PredictionSession` for runtime loading and inference
+- immutable `model.onnx` + `model.metadata.json` artifacts
 
 ## Quick Start
 
-### Installation
+Install the package:
 
 ```bash
 npm install @vncsleal/prisml
 ```
 
-`@vncsleal/prisml` is the only package — it includes the runtime prediction engine, CLI, and Python training backend.
+Define a model in `prisml.config.ts`:
 
-### 1. Define Models
-
-Create `prisml.config.ts`:
-
-```typescript
+```ts
 import { defineModel } from '@vncsleal/prisml';
 
-export const salesModel = defineModel<Product>({
-  name: 'ProductSales',
-  modelName: 'Product',
-  output: { field: 'sales', taskType: 'regression' },
-  features: {
-    price: (p) => p.price,
-    stock: (p) => p.stock,
+export const userChurnModel = defineModel<User>({
+  name: 'userChurn',
+  modelName: 'User',
+  output: {
+    field: 'churned',
+    taskType: 'binary_classification',
+    resolver: (user) => user.churned,
   },
-  algorithm: { name: 'forest', version: '1.0.0' },
+  features: {
+    loginCount: (user) => user.loginCount,
+    plan: (user) => user.plan,
+    daysSinceSignup: (user) =>
+      Math.floor((Date.now() - user.createdAt.getTime()) / 86400000),
+  },
+  algorithm: {
+    name: 'forest',
+    version: '1.0.0',
+  },
 });
 ```
 
-### 2. Train Models
+Train artifacts:
 
 ```bash
 npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
 ```
 
-Generates immutable artifacts:
-- `ProductSales.onnx` - Model binary
-- `ProductSales.metadata.json` - Schema contract
+Run predictions:
 
-### 3. Run Predictions
-
-```typescript
+```ts
 import { PredictionSession } from '@vncsleal/prisml';
-import { salesModel } from './prisml.config';
+import { userChurnModel } from './prisml.config';
 
 const session = new PredictionSession();
-await session.load(salesModel);
+await session.load(userChurnModel);
 
-const result = await session.predict(salesModel, product);
-// { modelName: 'ProductSales', prediction: 42.3, timestamp: '...' }
+const result = await session.predict(userChurnModel, user);
+console.log(result.prediction);
 ```
 
-## Features
+## Docs
 
-✓ Type-safe model definitions  
-✓ Prisma schema binding with drift detection  
-✓ Schema-only contract validation (`prisml check`)  
-✓ ONNX Runtime integration  
-✓ Deterministic feature encoding  
-✓ Quality gates for build-time validation  
-✓ Typed error handling  
-
-## Monorepo
-
-| Path | Contents |
-|---|---|
-| [`packages/prisml`](packages/prisml) | `@vncsleal/prisml` — types, errors, CLI, runtime, Python backend |
-| [`apps/website`](apps/website) | [getprisml.vercel.app](https://getprisml.vercel.app) — documentation site and live demo |
-| [`examples/basic`](examples/basic) | End-to-end example project |
-| [`docs/`](docs) | Architecture, API reference, guides |
-
-## Documentation
-
-- [User Guide](docs/GUIDE.md) - Complete usage guide and examples
-- [Feature Specification](docs/FEATURES.md) - Detailed feature documentation
-- [Architecture](docs/ARCHITECTURE.md) - System design and implementation
-- [Changelog](CHANGELOG.md) - Release history
+- [ROADMAP.md](ROADMAP.md) - direction, milestones, OSS path, monetization path
+- [MANIFEST.md](MANIFEST.md) - project stance and values
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - technical boundaries and invariants
+- [docs/GUIDE.md](docs/GUIDE.md) - usage guide
+- [docs/API.md](docs/API.md) - API reference
+- [docs/INDEX.md](docs/INDEX.md) - documentation map
 
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build all packages
-pnpm -r build
-
-# Run tests
-pnpm test
-
-# Run tests in watch mode
-pnpm test:watch
+pnpm --dir packages/prisml test
+pnpm --dir packages/prisml build
 ```
 
 ## License
 
-MIT © [Vinicius Leal](https://github.com/vncsleal)
+MIT

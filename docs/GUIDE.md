@@ -127,10 +127,6 @@ prisml check --schema ./prisma/schema.prisma --output ./.prisml
 
 This fails on field type or nullability mismatches and warns on dynamic feature paths.
 
-### 2.6. Schema Annotations (Planned — V2)
-
-> **Note:** The Prisma schema annotations feature (`@prisml` docstring annotations and generated type-safe constants) is planned for V2. See the [roadmap](../ROADMAP.md).
-
 ### 3. Run Predictions
 
 Use trained models in your application:

@@ -1,303 +1,244 @@
 # PrisML Architecture
 
-## Overview
+## Purpose
 
-PrisML is a compiler-first ML library that treats machine learning as a build-time process, not a runtime service.
+This document defines the technical boundaries of PrisML.
 
-```
-TypeScript Model Definitions
-            ↓
-        prisml train (CLI)
-            ↓
-    ONNX + Metadata
-            ↓
-    Runtime Predictions
-```
+It explains:
+- what the system does
+- how build-time and runtime responsibilities are separated
+- what guarantees the architecture is trying to uphold
+- where the current pressure points are
 
-## Core Concepts
+It does not define roadmap sequencing or business strategy.
 
-### Model Definitions
+## System Model
 
-Models are pure declarative specifications using `defineModel()`:
+PrisML is a compiler-first ML workflow for TypeScript + Prisma applications.
 
-```typescript
-import { defineModel } from '@vncsleal/prisml';
+The high-level flow is:
 
-const model = defineModel<User>({
-  name: 'userValue',
-  modelName: 'User',
-  output: {
-    field: 'estimatedValue',
-    taskType: 'regression',
-  },
-  features: {
-    accountAge: (user) => Date.now() - user.createdAt.getTime(),
-    isPremium: (user) => user.plan === 'premium',
-  },
-  algorithm: {
-    name: 'forest',
-    version: '1.0.0',
-  },
-});
+```text
+defineModel() declarations
+        ->
+prisml train
+        ->
+model.onnx + model.metadata.json
+        ->
+PredictionSession.load()
+        ->
+PredictionSession.predict()
 ```
 
-**Constraints:**
-- No data access in definitions
-- No training logic
-- No side effects
-- Pure functions for feature resolvers
+The core architectural boundary is simple:
+- training happens at build time
+- inference happens at runtime
+- artifacts connect the two
 
-### Prisma Schema Binding
+## Build-Time Boundary
 
-Every model is bound to a specific Prisma schema via SHA256 hash:
+Build-time work is responsible for:
+- loading model definitions
+- loading and hashing the Prisma schema
+- extracting rows through Prisma
+- running feature resolvers on those rows
+- encoding features into deterministic vectors
+- invoking the Python trainer
+- evaluating quality gates
+- writing immutable artifacts
 
-1. Schema is normalized (whitespace, comments removed)
-2. SHA256 hash is computed during compilation
-3. Hash is recorded in `model.metadata.json`
-4. At runtime, predictions are rejected if schema hash differs
+The build-time path is entered through `prisml train`.
 
-This prevents silent bugs from schema drift.
+### Build-Time Inputs
 
-### Compilation Pipeline (`prisml train`)
+- `prisml.config.ts`
+- `prisma/schema.prisma`
+- a reachable Prisma-backed dataset
+- Python dependencies required by the training backend
 
-`prisml train` executes:
+### Build-Time Outputs
 
-1. **Load & Validate**
-   - Load Prisma schema
-   - Load model definitions via AST discovery
-   - Validate TypeScript types
+- `model.onnx`
+- `model.metadata.json`
 
-2. **Resolve Defaults**
-   - Normalize feature resolver names
-   - Resolve algorithm versions
-   - Resolve quality gates
+These outputs are intended to be treated as immutable build artifacts.
 
-3. **Extract Training Data**
-   - Initialize PrismaClient
-   - Execute ordered query (via Prisma primary keys)
-   - Hydrate entities using lazy-loading/selection
+## Runtime Boundary
 
-4. **Feature Engineering**
-   - Run feature resolvers on each entity
-   - Build deterministic feature vectors
-   - Apply categorical encoding (label or hash)
-   - Apply imputation rules
+Runtime work is responsible for:
+- loading artifacts
+- validating the current schema hash against the compiled metadata
+- extracting features from application entities
+- normalizing those features with the compiled contract
+- running ONNX inference
+- returning prediction results
 
-5. **Train Model**
-  - Invoke pinned Python backend (local)
-   - Train algorithm on feature matrix
-   - Evaluate on hold-out test split
+The runtime path is entered through `PredictionSession`.
 
-6. **Evaluate Quality Gates**
-   - Compute metrics: RMSE, accuracy, precision, F1
-   - Compare against thresholds
-   - Abort if any gate fails (exit non-zero)
+Runtime is not responsible for:
+- retraining
+- mutating artifacts
+- experimenting with alternate live models
+- discovering new schema meaning dynamically
 
-7. **Export Artifacts**
-   - Write `model.onnx` (binary ONNX model)
-   - Write `model.metadata.json` (semantic contract)
-   - Intended to be committed to git
+## Core Invariants
 
-### Feature Extraction Analysis
+## 1. Training And Inference Are Separate Phases
 
-Feature resolvers are analyzed via TypeScript AST inspection:
+PrisML is designed around a hard split between compilation and execution.
 
-**Extractable patterns:**
-- Direct property access: `user.name`
-- Optional chaining: `user.profile?.bio`
-- Nested access: `user.account.tier.level`
-- Array length: `user.tags.length`
+Training may use Python and external ML libraries.
+Runtime should consume the compiled result, not recreate training behavior ad hoc.
 
-**Non-extractable patterns:**
-- Dynamic keys: `user[variable]`
-- Array indexing: `user.array[0]`
-- Iteration: `user.items.map(x => x.value)`
-- Opaque function calls
+## 2. Artifacts Are The Contract
 
-Non-extractable patterns are:
-- Marked as warnings
-- Allowed to compile
-- Validated strictly at runtime only
+The ONNX file alone is not enough.
 
-### Feature Encoding & Normalization
+`model.metadata.json` carries the semantic contract required for safe inference:
+- model identity
+- task type
+- feature order
+- encoding rules
+- imputation rules
+- schema hash
+- training metadata
 
-All resolver outputs are normalized to numeric vectors:
+If artifacts and runtime expectations diverge, inference should fail loudly.
 
-**Scalar types supported:**
-- `number` → used as-is (validated as finite)
-- `boolean` → encoded as 0/1
-- `string` → categorical encoding (label or hash)
-- `Date` → converted to Unix timestamp
+## 3. Schema Safety Is A First-Class Constraint
 
-**Categorical encoding:**
-- Label encoding: category → integer code (mapping serialized)
-- Hash encoding: category → hash(value) % 1000
-- Unseen categories at runtime → hard error
+Models are bound to a normalized Prisma schema hash.
 
-**Imputation rules:**
-- Declared per feature
-- Validated at compile time
-- Serialized into metadata
-- Applied identically in training and predictions
-- Strategies: `mean`, `median`, `mode`, `constant`
+The system should reject predictions when the runtime schema does not match the compiled schema contract.
 
-**No implicit encoding:** All encoding is explicit and deterministic.
+This is one of the main protections against silent training-serving skew.
 
-### Runtime Predictions
+## 4. Determinism Matters More Than Flexibility
 
-At runtime:
+The architecture is optimized for:
+- explicit inputs
+- explicit artifacts
+- reviewable behavior
 
-1. Load metadata from `model.metadata.json`
-2. Validate Prisma schema hash
-3. Initialize ONNX Runtime session (one per model, cached)
-4. Extract features from entity
-5. Normalize to feature vector
-6. Invoke ONNX prediction
-7. Return prediction
+It is not optimized for:
+- live adaptation
+- dynamic runtime model routing
+- continuously mutating model state
 
-**Determinism guarantees:**
-- Same input + same artifacts → same output
-- Within numeric guarantees of underlying platforms (ONNX, Python)
-- No random number generation in predictions
+## 5. The Feature Path Must Stay Coherent
 
-**Batch predictions:**
-- Explicit batch support
-- Atomic preflight validation
-- Blocking execution (caller must chunk)
-- Any failure aborts with no partial results
+Feature extraction at training time and feature normalization at runtime must describe the same contract.
 
-### Error Handling
+Any gap here is a correctness risk.
 
-Typed error hierarchy:
+## Artifact Model
 
-- `PrisMLError` — base class
-  - `SchemaValidationError` — invalid Prisma schema
-  - `SchemaDriftError` — schema hash mismatch
-  - `ModelDefinitionError` — invalid model definition
-  - `FeatureExtractionError` — resolver failed
-  - `HydrationError` — missing required fields
-  - `UnseenCategoryError` — unseen category value
-  - `ArtifactError` — artifact missing/corrupt
-  - `QualityGateError` — quality gate failed
-  - `ONNXRuntimeError` — ONNX execution failed
-  - `EncodingError` — feature encoding failed
-  - `ConfigurationError` — environment misconfigured
+Each trained model produces two files:
 
-All errors include structured context:
-- Model name
-- Feature path (if applicable)
-- Batch index (if applicable)
-- Root cause
+### `model.onnx`
 
-## Artifact Format
+The executable prediction artifact.
 
-### model.metadata.json
+### `model.metadata.json`
 
-```json
-{
-  "version": "0.1.0",
-  "metadataSchemaVersion": "1.0.0",
-  "modelName": "userLTV",
-  "taskType": "regression",
-  "algorithm": {
-    "name": "forest",
-    "version": "1.0.0",
-    "hyperparameters": { }
-  },
-  "features": {
-    "features": [
-      {
-        "name": "accountAge",
-        "index": 0,
-        "originalType": "number"
-      }
-    ],
-    "count": 3,
-    "order": ["accountAge", "signupSource", "isPremium"]
-  },
-  "output": {
-    "field": "estimatedLTV",
-    "shape": [1]
-  },
-  "encoding": {
-    "signupSource": {
-      "type": "label",
-      "mapping": {"organic": 0, "paid": 1, "referral": 2}
-    }
-  },
-  "imputation": { },
-  "prismaSchemaHash": "abc123...",
-  "trainingMetrics": [
-    {
-      "metric": "rmse",
-      "value": 425.5,
-      "split": "test"
-    }
-  ],
-  "dataset": {
-    "size": 10000,
-    "trainSize": 8000,
-    "testSize": 2000,
-    "splitSeed": 42,
-    "materializedAt": "2024-02-03T12:34:56Z"
-  },
-  "compiledAt": "2024-02-03T12:34:56Z"
-}
+The compatibility and semantics artifact.
+
+Metadata currently includes the information needed for runtime validation and feature normalization, including:
+- package version
+- metadata schema version
+- model name
+- task type
+- algorithm configuration
+- feature schema
+- encoding rules
+- imputation rules
+- Prisma schema hash
+- optional training metrics and dataset metadata
+- compilation timestamp
+
+## Compile-Time Versus Runtime Responsibilities
+
+### Compile-Time
+
+- resolve model definitions
+- validate configuration shape
+- materialize and encode training data
+- train the model
+- enforce quality gates
+- emit artifacts
+
+### Runtime
+
+- load artifacts
+- validate schema compatibility
+- evaluate resolvers on application entities
+- normalize feature vectors
+- run predictions
+
+### Out Of Runtime Scope
+
+- training orchestration beyond artifact loading
+- feedback loops
+- online learning
+- traffic splitting
+- rollout control planes
+
+## Current Technical Pressure Points
+
+These are architecture pressure points, not promises:
+
+### 1. Preprocessing Contract Correctness
+
+The product depends on training-time preprocessing and runtime normalization staying aligned.
+
+Any mismatch here weakens the compile-first guarantee.
+
+### 2. Auditability Depth
+
+The current artifact contract is useful, but the architecture can support richer provenance and inspection metadata.
+
+### 3. Multi-Model Growth
+
+The current system supports the core single-model path cleanly.
+If multi-model workflows become central, artifact organization and API boundaries will need to stay explicit.
+
+### 4. Source Specificity
+
+PrisML is currently built around Prisma.
+Any future generalization would need to preserve the same level of schema clarity and build-time contract discipline.
+
+## Architectural Limits
+
+PrisML intentionally does not optimize for:
+- online learning
+- dynamic experimentation platforms
+- runtime model control planes
+- opaque hosted inference as the primary product shape
+
+Those directions introduce state and operational complexity that conflict with the current architecture.
+
+## Repo Surface
+
+The main implementation lives in:
+
+```text
+packages/prisml/src
 ```
 
-### model.onnx
+The main build and runtime surfaces are:
+- `src/commands/train.ts`
+- `src/commands/check.ts`
+- `src/prediction.ts`
+- `src/schema.ts`
+- `src/encoding.ts`
+- `src/types.ts`
 
-Binary ONNX model file. Deterministic within platform guarantees.
+## Reading Order
 
-## Design Tradeoffs
+If you are new to the repo, use this order:
 
-### Gains
-
-- **Determinism:** No runtime state mutation
-- **Correctness:** Enforced by construction
-- **Reviewability:** All model code in git, all training logged
-- **CI Trust:** Models compiled like code
-- **Zero Infrastructure:** In-process, no service overhead
-
-### Intentional Losses
-
-- **Adaptive Learning:** No incremental retraining
-- **Experimentation:** No runtime model selection or A/B tests
-- **Runtime Flexibility:** Model behavior fixed at build time
-- **Feature Stores:** No external feature serving
-
-These are non-negotiable MVP tradeoffs. V2 may relax some constraints.
-
-## Directory Structure
-
-```
-prisml/
-  packages/
-    core/           # defineModel, types, schema hashing
-    cli/            # prisml train command
-    runtime/        # ONNX predictions, error handling
-    python/         # Python training backend
-  examples/
-    basic/          # Full working example
-  docs/
-    ARCHITECTURE.md # This file
-    API.md          # API reference
-    GUIDE.md        # User guide
-```
-
-## Getting Started
-
-See [examples/basic](../examples/basic) for a complete example.
-
-```bash
-# Install
-npm install
-
-# Build all packages
-npm run build
-
-# Run example
-cd examples/basic
-npm run train
-npm run predict
-```
+1. `README.md`
+2. `ROADMAP.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/GUIDE.md`
+5. `docs/API.md`

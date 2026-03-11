@@ -314,12 +314,3 @@ PrisML depends on:
 Monitor these for security issues.
 
 ---
-
-## Future
-
-V1.0+ roadmap includes:
-- Formal security audit
-- SBOM (Software Bill of Materials)
-- Security policy
-- CVE monitoring
-- Incident response plan
