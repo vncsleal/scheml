@@ -97,10 +97,14 @@ console.log(result.timestamp);
           </a>
         </nav>
         <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path class="menu-top" d="M3 5h14"/>
-            <path class="menu-mid" d="M3 10h14"/>
-            <path class="menu-bot" d="M3 15h14"/>
+          <svg class="menu-icon menu-icon--open" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M3 5h14"/>
+            <path d="M3 10h14"/>
+            <path d="M3 15h14"/>
+          </svg>
+          <svg class="menu-icon menu-icon--close" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M4 4l12 12"/>
+            <path d="M16 4L4 16"/>
           </svg>
         </button>
       </div>
@@ -735,19 +739,9 @@ console.log(result.timestamp);
       transition: color 120ms ease;
     }
     .header__menu-btn:hover { color: var(--text-primary); }
-    .header__menu-btn svg path {
-      transition: transform 200ms ease, opacity 150ms ease;
-      transform-origin: center;
-    }
-    .header--open .header__menu-btn .menu-top {
-      transform: translateY(5px) rotate(45deg);
-    }
-    .header--open .header__menu-btn .menu-mid {
-      opacity: 0;
-    }
-    .header--open .header__menu-btn .menu-bot {
-      transform: translateY(-5px) rotate(-45deg);
-    }
+    .menu-icon--close { display: none; }
+    .header--open .menu-icon--open { display: none; }
+    .header--open .menu-icon--close { display: block; }
 
     /* ── Hero ── */
     .hero {
@@ -1078,7 +1072,9 @@ console.log(result.timestamp);
       font-size: 13px !important;
       line-height: 1.7 !important;
       font-family: var(--font-mono) !important;
-      overflow-x: auto;
+      white-space: pre-wrap !important;
+      word-break: break-all !important;
+      overflow-x: hidden;
     }
 
     /* ── Features grid ── */
@@ -1482,6 +1478,8 @@ console.log(result.timestamp);
         font-size: 13px;
         height: 44px;
         padding: 0 var(--sp-3);
+        justify-content: center;
+        overflow: hidden;
       }
       .btn {
         width: 100%;

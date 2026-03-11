@@ -115,10 +115,14 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           </a>
         </nav>
         <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path class="menu-top" d="M3 5h14"/>
-            <path class="menu-mid" d="M3 10h14"/>
-            <path class="menu-bot" d="M3 15h14"/>
+          <svg class="menu-icon menu-icon--open" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M3 5h14"/>
+            <path d="M3 10h14"/>
+            <path d="M3 15h14"/>
+          </svg>
+          <svg class="menu-icon menu-icon--close" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M4 4l12 12"/>
+            <path d="M16 4L4 16"/>
           </svg>
         </button>
       </div>
@@ -784,13 +788,9 @@ A match means the feature resolvers are still valid against the live data shape.
       width: 40px; height: 40px; background: none; border: none;
       color: var(--text-secondary); cursor: pointer;
     }
-    .header__menu-btn svg path {
-      transition: transform 200ms ease, opacity 150ms ease;
-      transform-origin: center;
-    }
-    .header--open .header__menu-btn .menu-top { transform: translateY(5px) rotate(45deg); }
-    .header--open .header__menu-btn .menu-mid { opacity: 0; }
-    .header--open .header__menu-btn .menu-bot { transform: translateY(-5px) rotate(-45deg); }
+    .menu-icon--close { display: none; }
+    .header--open .menu-icon--open { display: none; }
+    .header--open .menu-icon--close { display: block; }
 
     /* Hero */
     .hero { padding: var(--sp-12) 0 var(--sp-10); border-bottom: 1px solid var(--border-subtle); }
@@ -826,6 +826,7 @@ A match means the feature resolvers are still valid against the live data shape.
     .section { padding: var(--sp-11) 0; border-bottom: 1px solid var(--border-subtle); }
     .section__container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6); }
     .section-header { margin-bottom: var(--sp-9); }
+    .drift-section .section-header { margin-bottom: var(--sp-5); }
     .section-tag {
       font-family: var(--font-mono); font-size: 12px; font-weight: 500;
       color: var(--amber-50); text-transform: uppercase; letter-spacing: 0.05em;
@@ -963,6 +964,7 @@ A match means the feature resolvers are still valid against the live data shape.
       margin: 0 var(--sp-6) var(--sp-6);
       background: var(--gray-100); border: 1px solid var(--border-subtle);
       padding: var(--sp-4) var(--sp-5); font-family: var(--font-mono); font-size: 12px;
+      overflow-x: hidden; white-space: pre-wrap; word-break: break-all;
     }
     .artifact-ls__prompt { color: var(--text-placeholder); margin-bottom: var(--sp-2); }
     .prompt { color: var(--green-50); }
@@ -1024,13 +1026,15 @@ A match means the feature resolvers are still valid against the live data shape.
     }
     .schema-diff__code {
       padding: var(--sp-4); font-family: var(--font-mono); font-size: 12px;
-      line-height: 1.7; color: var(--text-secondary); overflow-x: auto; margin: 0;
+      line-height: 1.7; color: var(--text-secondary); overflow-x: hidden;
+      white-space: pre-wrap; word-break: break-all; margin: 0;
     }
     .diff-add { color: var(--green-50); }
     .drift-output {
       margin: 0; padding: var(--sp-5) var(--sp-6);
       font-family: var(--font-mono); font-size: 12px; line-height: 1.7;
-      color: var(--text-secondary); overflow-x: auto;
+      color: var(--text-secondary); overflow-x: hidden;
+      white-space: pre-wrap; word-break: break-all;
       border-top: 1px solid var(--border-subtle);
     }
     .drift-output[data-tone="danger"] { color: var(--red-50); }
@@ -1048,7 +1052,8 @@ A match means the feature resolvers are still valid against the live data shape.
       margin: 0 !important; padding: var(--sp-5) var(--sp-6) !important;
       background: transparent !important; border-radius: 0 !important;
       font-size: 13px !important; line-height: 1.7 !important;
-      font-family: var(--font-mono) !important; overflow-x: auto;
+      font-family: var(--font-mono) !important;
+      white-space: pre-wrap !important; word-break: break-all !important; overflow-x: hidden;
     }
 
     /* Code section */
@@ -1080,7 +1085,8 @@ A match means the feature resolvers are still valid against the live data shape.
       margin: 0 !important; padding: var(--sp-5) var(--sp-6) !important;
       background: transparent !important; border-radius: 0 !important;
       font-size: 13px !important; line-height: 1.7 !important;
-      font-family: var(--font-mono) !important; overflow-x: auto;
+      font-family: var(--font-mono) !important;
+      white-space: pre-wrap !important; word-break: break-all !important; overflow-x: hidden;
     }
     .cta-strip {
       display: flex; align-items: center; gap: var(--sp-4);
@@ -1162,6 +1168,7 @@ A match means the feature resolvers are still valid against the live data shape.
     @media (max-width: 900px) {
       .inference-grid,
       .drift-grid { grid-template-columns: 1fr; }
+      .section-header { margin-bottom: var(--sp-5); }
     }
     @media (max-width: 640px) {
       .header { height: auto; min-height: var(--header-height); }
@@ -1190,7 +1197,8 @@ A match means the feature resolvers are still valid against the live data shape.
       .inference-form { padding: var(--sp-4); gap: var(--sp-5); }
       .preset-bar { padding: var(--sp-3) var(--sp-4); flex-wrap: wrap; }
       .output-stats { grid-template-columns: 1fr 1fr; }
-      .artifact-ls { margin: 0 var(--sp-4) var(--sp-4); }
+      .artifact-ls { margin: 0; padding: var(--sp-4); }
+      .drift-ls { margin: var(--sp-4) 0 0; }
       .drift-desc,
       .drift-toggle-row { padding: var(--sp-4); }
       .schema-diff { margin: var(--sp-4); }
@@ -1202,7 +1210,7 @@ A match means the feature resolvers are still valid against the live data shape.
       .code-panel pre { padding: var(--sp-4) !important; font-size: 12px !important; }
       .cta-strip { flex-direction: column; align-items: stretch; }
       .cta-strip .btn--secondary { text-align: center; justify-content: center; }
-      .install-cmd { font-size: 13px; }
+      .install-cmd { font-size: 13px; justify-content: center; overflow: hidden; }
       .footer__container { flex-direction: column; gap: var(--sp-3); text-align: center; }
     }
   </style>
