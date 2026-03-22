@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PrisML Python Training Backend
-Real MVP implementation using scikit-learn + skl2onnx
+FLAML AutoML (default) with scikit-learn fallback for explicit algorithm overrides.
 """
 
 import argparse
@@ -19,6 +19,7 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
+from flaml import AutoML
 
 
 def camel_to_snake(name: str) -> str:
@@ -33,10 +34,27 @@ def load_dataset(path: str) -> Dict[str, Any]:
         return json.load(handle)
 
 
-def build_model(task_type: str, algorithm: str, hyperparameters: Dict[str, Any]):
-    # Convert camelCase keys to snake_case for sklearn
+def build_automl_model(task_type: str, X_train, y_train, time_budget: int = 60):
+    """
+    Use FLAML AutoML to select and tune the best algorithm automatically.
+    Returns (fitted_estimator, best_estimator_name).
+    """
+    automl = AutoML()
+    flaml_task = "regression" if task_type == "regression" else "classification"
+    automl.fit(
+        X_train,
+        y_train,
+        task=flaml_task,
+        time_budget=time_budget,
+        verbose=0,
+    )
+    # automl.model.estimator is the underlying sklearn-compatible estimator
+    return automl.model.estimator, automl.best_estimator
+
+
+def build_sklearn_model(task_type: str, algorithm: str, hyperparameters: Dict[str, Any]):
+    """Build an explicit sklearn estimator for power-user overrides."""
     sklearn_params = {camel_to_snake(k): v for k, v in hyperparameters.items()}
-    
     algorithm = algorithm.lower()
     if task_type == "regression":
         if algorithm == "linear":
@@ -112,11 +130,16 @@ def main() -> None:
     X_test = np.array(dataset["X_test"], dtype=np.float32)
     y_test = np.array(dataset["y_test"])
     task_type = dataset["taskType"]
-    algorithm = dataset["algorithm"]
+    algorithm = dataset.get("algorithm", "automl")
     hyperparameters = dataset.get("hyperparameters") or {}
 
-    model = build_model(task_type, algorithm, hyperparameters)
-    model.fit(X_train, y_train)
+    best_estimator: str
+    if algorithm == "automl":
+        model, best_estimator = build_automl_model(task_type, X_train, y_train)
+    else:
+        model = build_sklearn_model(task_type, algorithm, hyperparameters)
+        model.fit(X_train, y_train)
+        best_estimator = algorithm
 
     y_pred = model.predict(X_test)
 
@@ -130,6 +153,7 @@ def main() -> None:
     response = {
         "metrics": metrics,
         "onnxPath": str(onnx_path),
+        "bestEstimator": best_estimator,
     }
 
     print(json.dumps(response))

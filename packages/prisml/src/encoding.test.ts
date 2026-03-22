@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeScalarValue,
   buildCategoryMapping,
+  buildCategories,
   normalizeFeatureVector,
 } from './encoding';
 import { FeatureSchema } from './types';
@@ -139,22 +140,31 @@ describe('buildCategoryMapping', () => {
     expect(Object.keys(mapping)).toHaveLength(2);
   });
 
-  it('returns empty object for hash strategy', () => {
-    const mapping = buildCategoryMapping(['a', 'b'], 'hash');
-    expect(mapping).toEqual({});
-  });
-
   it('returns empty object for empty input', () => {
     expect(buildCategoryMapping([])).toEqual({});
+  });
+});
+
+describe('buildCategories', () => {
+  it('returns sorted unique categories', () => {
+    expect(buildCategories(['b', 'a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('ignores null and undefined values', () => {
+    expect(buildCategories(['x', null, undefined, 'y'])).toEqual(['x', 'y']);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(buildCategories([])).toEqual([]);
   });
 });
 
 describe('normalizeFeatureVector', () => {
   const schema: FeatureSchema = {
     features: [
-      { name: 'price', index: 0, originalType: 'number' },
-      { name: 'isActive', index: 1, originalType: 'boolean' },
-      { name: 'plan', index: 2, originalType: 'string' },
+      { name: 'price', index: 0, originalType: 'number', columnCount: 1 },
+      { name: 'isActive', index: 1, originalType: 'boolean', columnCount: 1 },
+      { name: 'plan', index: 2, originalType: 'string', columnCount: 1 },
     ],
     count: 3,
     order: ['price', 'isActive', 'plan'],

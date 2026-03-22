@@ -9,12 +9,13 @@ export * from './types';
 export * from './errors';
 
 // Model definition
-export { defineModel, ModelRegistry, globalModelRegistry, registerModel } from './defineModel';
+export { defineModel } from './defineModel';
 
 // Schema utilities
 export {
   normalizePrismaSchema,
   hashPrismaSchema,
+  hashPrismaModelSubset,
   validateSchemaHash,
   extractModelNames,
   parseModelSchema,
@@ -27,7 +28,9 @@ export { analyzeFeatureResolver, validateHydration } from './analysis';
 // Encoding & normalization
 export {
   normalizeScalarValue,
+  applyScaling,
   buildCategoryMapping,
+  buildCategories,
   createFeatureSchema,
   normalizeFeatureVector,
   validateFeatureVector,
@@ -36,4 +39,4 @@ export {
 // Prediction engine
 export { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 
-export const VERSION = '0.1.2';
+export const VERSION = '0.2.0';

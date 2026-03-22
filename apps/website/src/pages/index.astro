@@ -22,7 +22,8 @@ export const churnModel = defineModel<User>({
     planTier: (u) => u.subscription.tier,
     monthlySpend: (u) => u.totalSpend / u.monthsActive,
   },
-  algorithm: { name: 'forest', version: '1.0.0' },
+  // algorithm is optional — omit it and FLAML AutoML
+  // selects the best estimator for you automatically.
   qualityGates: [
     { metric: 'f1', threshold: 0.85, comparison: 'gte' },
   ],
@@ -36,9 +37,11 @@ const trainCode = `$ prisml train
 ✔ Loaded 1 model definition(s)
 ◉ Validating models...
 ✔ Models validated
+◉ Checking Python environment...
+✔ Python environment OK (flaml, sklearn, skl2onnx)
 ◉ Extracting training data via Prisma...
-◉ Training churnRisk (forest)...
-✔ Training complete
+◉ Training churnRisk (FLAML AutoML, 60s budget)...
+✔ Best estimator: LGBMClassifier
 ◉ Writing artifacts...
 ✔ Artifacts written to ./.prisml
 
@@ -93,7 +96,7 @@ console.log(result.timestamp);
             </svg>
           </a>
           <a href="https://www.npmjs.com/package/@vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__npm-badge header__nav-link">
-            <span class="npm-version">v0.1.2</span>
+            <span class="npm-version">v0.2.0</span>
           </a>
         </nav>
         <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
@@ -432,6 +435,7 @@ console.log(result.timestamp);
           <div class="supported__col">
             <h3 class="supported__heading">Algorithms</h3>
             <ul class="supported__list">
+              <li><span class="supported__check">&#10003;</span> AutoML (FLAML, default)</li>
               <li><span class="supported__check">&#10003;</span> Linear / Logistic</li>
               <li><span class="supported__check">&#10003;</span> Decision tree</li>
               <li><span class="supported__check">&#10003;</span> Random forest</li>
@@ -441,9 +445,9 @@ console.log(result.timestamp);
           <div class="supported__col">
             <h3 class="supported__heading">Feature types</h3>
             <ul class="supported__list">
-              <li><span class="supported__check">&#10003;</span> Numeric (as-is)</li>
+              <li><span class="supported__check">&#10003;</span> Numeric (standard scaling)</li>
               <li><span class="supported__check">&#10003;</span> Boolean (0/1)</li>
-              <li><span class="supported__check">&#10003;</span> String (categorical)</li>
+              <li><span class="supported__check">&#10003;</span> String (one-hot encoding)</li>
               <li><span class="supported__check">&#10003;</span> Date (timestamp)</li>
               <li><span class="supported__check">&#10003;</span> Null (imputation)</li>
             </ul>

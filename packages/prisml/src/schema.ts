@@ -85,6 +85,54 @@ export function hashPrismaSchema(schema: string): string {
 }
 
 /**
+ * Compute SHA256 hash scoped to a single Prisma model and its referenced enums.
+ *
+ * Unlike hashPrismaSchema, this hash is stable across changes to unrelated
+ * models. Adding a new `BlogPost` model while `User` is unchanged no longer
+ * triggers SchemaDriftError for a User-based prediction model.
+ */
+export function hashPrismaModelSubset(schema: string, modelName: string): string {
+  // Parse all blocks using the same normalization used by the full schema hash
+  const text = schema
+    .replace(/\/\/.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const blockRe = /\b(datasource|generator|model|enum|type)\s+(\w+)\s*\{([^}]*)\}/g;
+  const allBlocks = new Map<string, { keyword: string; name: string; body: string }>();
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(text)) !== null) {
+    allBlocks.set(m[2], { keyword: m[1], name: m[2], body: m[3] });
+  }
+
+  const modelBlock = allBlocks.get(modelName);
+  if (!modelBlock) {
+    // Fall back to full hash if the model block can't be isolated
+    return hashPrismaSchema(schema);
+  }
+
+  // Collect enum names referenced in the model block body
+  const enumNames = Array.from(allBlocks.values())
+    .filter((b) => b.keyword === 'enum')
+    .map((b) => b.name);
+
+  const referencedEnums = enumNames.filter((name) =>
+    new RegExp(`\\b${name}\\b`).test(modelBlock.body)
+  );
+
+  const subsetBlocks = [
+    modelBlock,
+    ...referencedEnums.map((n) => allBlocks.get(n)).filter(Boolean),
+  ] as { keyword: string; name: string; body: string }[];
+
+  // Reuse canonicalization from normalizePrismaSchema
+  const normalized = normalizePrismaSchema(
+    subsetBlocks.map((b) => `${b.keyword} ${b.name} {\n${b.body}\n}`).join('\n\n')
+  );
+
+  return crypto.createHash('sha256').update(normalized, 'utf-8').digest('hex');
+}
+
+/**
  * Validate schema hash consistency
  */
 export function validateSchemaHash(

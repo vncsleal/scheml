@@ -8,26 +8,29 @@ import {
   ImputationRule,
   EncodedFeature,
   FeatureSchema,
+  ScalingSpec,
 } from './types';
 import {
   EncodingError,
-  HydrationError,
   UnseenCategoryError,
 } from './errors';
 
 /**
- * Normalize a scalar value to a numeric feature
+ * Encode a single feature value to a number or number[] (for onehot).
+ * Internal helper used by normalizeFeatureVector.
  */
-export function normalizeScalarValue(
+function encodeValue(
   value: unknown,
   featureName: string,
   encoding?: CategoryEncoding,
-  imputation?: ImputationRule
-): number {
+  imputation?: ImputationRule,
+  scaling?: ScalingSpec
+): number | number[] {
   // Handle null/undefined
   if (value === null || value === undefined) {
     if (imputation) {
-      return applyImputation(imputation);
+      const imputed = applyImputation(imputation);
+      return scaling ? applyScaling(imputed, scaling) : imputed;
     }
     throw new Error(`${featureName}: null value without imputation rule`);
   }
@@ -37,10 +40,10 @@ export function normalizeScalarValue(
     if (!isFinite(value)) {
       throw new Error(`${featureName}: non-finite number`);
     }
-    return value;
+    return scaling ? applyScaling(value, scaling) : value;
   }
 
-  // Handle boolean
+  // Handle boolean — booleans are never scaled
   if (typeof value === 'boolean') {
     return value ? 1 : 0;
   }
@@ -53,22 +56,55 @@ export function normalizeScalarValue(
     return encodeCategoryValue(value, featureName, encoding);
   }
 
-  // Handle Date
+  // Handle Date — convert to seconds since epoch, then optionally scale
   if (value instanceof Date) {
-    return value.getTime() / 1000; // Convert to seconds since epoch
+    const epoch = value.getTime() / 1000;
+    return scaling ? applyScaling(epoch, scaling) : epoch;
   }
 
   throw new Error(`${featureName}: unsupported scalar type ${typeof value}`);
 }
 
 /**
- * Encode a categorical value to numeric using label or hash encoding
+ * Normalize a scalar value to a single numeric feature.
+ * Does not support onehot encoding — use normalizeFeatureVector for full pipeline.
+ */
+export function normalizeScalarValue(
+  value: unknown,
+  featureName: string,
+  encoding?: CategoryEncoding,
+  imputation?: ImputationRule
+): number {
+  const result = encodeValue(value, featureName, encoding, imputation);
+  if (Array.isArray(result)) {
+    throw new Error(
+      `${featureName}: onehot encoding returns multiple values; use normalizeFeatureVector instead`
+    );
+  }
+  return result;
+}
+
+/**
+ * FNV-1a 32-bit hash — fast, zero-dependency, collision-resistant non-cryptographic hash.
+ */
+function fnv1a32(str: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
+/**
+ * Encode a categorical value using label, hash, or onehot encoding.
+ * Returns a single number for label/hash, or number[] for onehot.
  */
 function encodeCategoryValue(
   value: string,
   featureName: string,
   encoding: CategoryEncoding
-): number {
+): number | number[] {
   if (encoding.type === 'label') {
     if (!encoding.mapping) {
       throw new Error(`${featureName}: label encoding missing mapping`);
@@ -78,14 +114,32 @@ function encodeCategoryValue(
       throw new UnseenCategoryError('unknown-model', featureName, value);
     }
     return code;
-  } else if (encoding.type === 'hash') {
-    // Simple hash: sum of character codes mod 1000
-    // In practice, use MurmurHash or similar for production
-    const hash = Array.from(value).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return hash % 1000;
   }
 
-  throw new Error(`${featureName}: unknown encoding type ${encoding.type}`);
+  if (encoding.type === 'hash') {
+    return fnv1a32(value) % 1000;
+  }
+
+  if (encoding.type === 'onehot') {
+    const cats = encoding.categories;
+    if (!cats || cats.length === 0) {
+      throw new Error(`${featureName}: onehot encoding missing categories list`);
+    }
+    // Unseen category → all-zeros vector (safe degradation at inference time)
+    return cats.map((cat) => (cat === value ? 1 : 0));
+  }
+
+  throw new Error(`${featureName}: unknown encoding type ${(encoding as any).type}`);
+}
+
+/**
+ * Apply standard scaling to a numeric value.
+ */
+export function applyScaling(value: number, spec: ScalingSpec): number {
+  if (spec.strategy === 'standard' && spec.mean !== undefined && spec.std !== undefined) {
+    return (value - spec.mean) / spec.std;
+  }
+  return value;
 }
 
 /**
@@ -117,17 +171,11 @@ function applyImputation(rule: ImputationRule): number {
 }
 
 /**
- * Build category mapping from training data
+ * Build label encoding mapping from training data values.
  */
 export function buildCategoryMapping(
-  values: (string | null | undefined)[],
-  strategy: 'label' | 'hash' = 'label'
+  values: (string | null | undefined)[]
 ): Record<string, number> {
-  if (strategy === 'hash') {
-    // Hash encoding doesn't need explicit mapping
-    return {};
-  }
-
   const categories = new Set<string>();
   for (const val of values) {
     if (val !== null && val !== undefined) {
@@ -137,31 +185,40 @@ export function buildCategoryMapping(
 
   const mapping: Record<string, number> = {};
   const sorted = Array.from(categories).sort();
-
   for (let i = 0; i < sorted.length; i++) {
     mapping[sorted[i]] = i;
   }
-
   return mapping;
 }
 
 /**
- * Create feature schema from resolved features
+ * Extract sorted unique categories from training data for onehot encoding.
+ */
+export function buildCategories(values: (string | null | undefined)[]): string[] {
+  const categories = new Set<string>();
+  for (const val of values) {
+    if (val !== null && val !== undefined) {
+      categories.add(val);
+    }
+  }
+  return Array.from(categories).sort();
+}
+
+/**
+ * Create feature schema from resolved features.
+ * @deprecated Prefer constructing FeatureSchema directly in train.ts with full stat context.
  */
 export function createFeatureSchema(
   features: Record<string, unknown>,
-  encodingStrategies: Record<string, 'label' | 'hash'> = {},
   imputationRules: Record<string, ImputationRule> = {}
 ): FeatureSchema {
   const featureNames = Object.keys(features);
   const encodedFeatures: EncodedFeature[] = [];
+  let colIndex = 0;
 
-  for (let i = 0; i < featureNames.length; i++) {
-    const name = featureNames[i];
+  for (const name of featureNames) {
     const value = features[name];
-    const encoding = encodingStrategies[name];
     const imputation = imputationRules[name];
-
     const originalType = Array.isArray(value)
       ? 'array'
       : value === null
@@ -170,48 +227,48 @@ export function createFeatureSchema(
 
     encodedFeatures.push({
       name,
-      index: i,
+      index: colIndex,
+      columnCount: 1,
       originalType,
-      encoding: encoding
-        ? {
-            type: encoding,
-            mapping: encoding === 'label' ? buildCategoryMapping([]) : undefined,
-          }
-        : undefined,
       imputation,
     });
+    colIndex++;
   }
 
   return {
     features: encodedFeatures,
-    count: featureNames.length,
+    count: colIndex,
     order: featureNames,
   };
 }
 
 /**
- * Normalize feature vector from resolver outputs
+ * Normalize feature vector from resolver outputs.
+ * Handles onehot expansion (string features expand to one column per category)
+ * and optional standard scaling for numeric features.
  */
 export function normalizeFeatureVector(
   features: Record<string, unknown>,
   schema: FeatureSchema,
   encodings: Record<string, CategoryEncoding | undefined>,
-  imputations: Record<string, ImputationRule | undefined>
+  imputations: Record<string, ImputationRule | undefined>,
+  scalings?: Record<string, ScalingSpec | undefined>
 ): number[] {
-  const vector: number[] = new Array(schema.count);
+  const vector: number[] = [];
 
   for (const encoded of schema.features) {
     const value = features[encoded.name];
     const encoding = encodings[encoded.name];
     const imputation = imputations[encoded.name];
+    const scaling = scalings?.[encoded.name];
 
     try {
-      vector[encoded.index] = normalizeScalarValue(
-        value,
-        encoded.name,
-        encoding,
-        imputation
-      );
+      const result = encodeValue(value, encoded.name, encoding, imputation, scaling);
+      if (Array.isArray(result)) {
+        vector.push(...result);
+      } else {
+        vector.push(result);
+      }
     } catch (error) {
       throw new EncodingError('unknown-model', encoded.name, (error as Error).message);
     }

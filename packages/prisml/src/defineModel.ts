@@ -49,45 +49,6 @@ export function defineModel<TModel = any>(config: ModelDefinition<TModel>): Mode
   // Pure specification: no validation, no side effects
   return {
     ...config,
-    schemaHash: undefined, // Filled at compile time
+    schemaHash: undefined, // Populated by prisml train at compile time
   };
-}
-
-/**
- * Model registry for compile-time discovery
- * Models are discovered via TypeScript AST analysis of model definition files
- */
-export class ModelRegistry {
-  private models: Map<string, ModelDefinition> = new Map();
-
-  register(model: ModelDefinition): void {
-    if (this.models.has(model.name)) {
-      throw new Error(`Model "${model.name}" is already registered`);
-    }
-    this.models.set(model.name, model);
-  }
-
-  get(name: string): ModelDefinition | undefined {
-    return this.models.get(name);
-  }
-
-  getAll(): ModelDefinition[] {
-    return Array.from(this.models.values());
-  }
-
-  has(name: string): boolean {
-    return this.models.has(name);
-  }
-}
-
-/**
- * Global model registry instance
- */
-export const globalModelRegistry = new ModelRegistry();
-
-/**
- * Helper to register a model globally
- */
-export function registerModel(model: ModelDefinition): void {
-  globalModelRegistry.register(model);
 }

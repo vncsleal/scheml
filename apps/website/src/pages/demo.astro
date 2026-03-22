@@ -28,7 +28,7 @@ export const churnModel = defineModel<User>({
     monthlySpend: (u) => u.monthlySpend,
     supportTickets: (u) => u.supportTickets,
   },
-  algorithm: { name: 'gbm', version: '1.0.0' },
+  algorithm: { name: 'gbm' },
   qualityGates: [
     { metric: 'f1', threshold: 0.80, comparison: 'gte' },
     { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },

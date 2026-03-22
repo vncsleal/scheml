@@ -48,15 +48,7 @@ export const userLTVModel = defineModel<User>({
     isPremium: (user: User) => user.plan === 'pro' || user.plan === 'enterprise',
   },
 
-  algorithm: {
-    name: 'forest',
-    version: '1.0.0',
-    hyperparameters: {
-      nEstimators: 100,
-      maxDepth: 10,
-      minSamplesSplit: 5,
-    },
-  },
+  // algorithm is omitted — FLAML AutoML will select and tune the best estimator
 
   qualityGates: [
     {
@@ -106,9 +98,9 @@ export const userChurnModel = defineModel<ChurnUser>({
     supportTickets: (user: ChurnUser) => user.supportTickets,
   },
 
+  // Explicit override example: use GBM with custom hyperparameters
   algorithm: {
     name: 'gbm',
-    version: '1.0.0',
     hyperparameters: {
       nEstimators: 200,
       learningRate: 0.1,

@@ -34,9 +34,21 @@ export interface ImputationRule {
  * Categorical feature encoding strategy
  */
 export interface CategoryEncoding {
-  type: 'label' | 'hash';
+  /** 'onehot' is the default for nominal strings. 'label' and 'hash' are opt-in for power users. */
+  type: 'label' | 'hash' | 'onehot';
   /** For label encoding: mapping of category -> numeric code */
   mapping?: Record<string, number>;
+  /** For onehot encoding: ordered list of known training categories */
+  categories?: string[];
+}
+
+/**
+ * Standard scaling specification — computed at training time, applied at inference
+ */
+export interface ScalingSpec {
+  strategy: 'standard' | 'none';
+  mean?: number;
+  std?: number;
 }
 
 /**
@@ -44,10 +56,14 @@ export interface CategoryEncoding {
  */
 export interface EncodedFeature {
   name: string;
+  /** Column start index in the flat feature vector */
   index: number;
+  /** Number of columns this feature occupies (>1 for onehot) */
+  columnCount: number;
   originalType: string;
   encoding?: CategoryEncoding;
   imputation?: ImputationRule;
+  scaling?: ScalingSpec;
 }
 
 /**
@@ -61,18 +77,15 @@ export interface QualityGate {
 }
 
 /**
- * Algorithm selection with pinned version
+ * Algorithm override for power users.
+ * When omitted, FLAML AutoML selects and tunes the best algorithm automatically.
  */
 export interface AlgorithmConfig {
-  /** Algorithm name: 'linear', 'tree', 'forest', 'gbm' */
-  name: string;
   /**
-   * Pinned version for determinism.
-   * IMPORTANT: This field is declared but not currently enforced — the Python
-   * backend does not read or validate it. It is reserved for future version
-   * pinning once algorithm versioning is implemented.
+   * Algorithm name. Use 'automl' (default) to let FLAML choose.
+   * Explicit options: 'linear', 'tree', 'forest', 'gbm'.
    */
-  version: string;
+  name: string;
   hyperparameters?: Record<string, unknown>;
 }
 
@@ -107,11 +120,15 @@ export interface ModelDefinition<TModel = any> {
   
   /** Named feature resolvers */
   features: Record<string, FeatureResolver<TModel>>;
-  
-  /** Algorithm choice */
-  algorithm: AlgorithmConfig;
-  
+
+  /**
+   * Algorithm override. When omitted, FLAML AutoML selects the best algorithm
+   * automatically — recommended for most users.
+   */
+  algorithm?: AlgorithmConfig;
+
   /** Build-time quality gates */
+  
   qualityGates?: QualityGate[];
   
   /** Prisma schema version hash (computed at compile time) */
@@ -179,10 +196,13 @@ export interface ModelMetadata {
   modelName: string;
   taskType: TaskType;
   
-  algorithm: AlgorithmConfig;
-  
+  /** The algorithm that was selected (may be chosen by AutoML) */
+  algorithm?: AlgorithmConfig;
+  /** The estimator name chosen by FLAML AutoML, if automl was used */
+  bestEstimator?: string;
+
   features: FeatureSchema;
-  
+
   output: {
     field: string;
     shape: number[];
@@ -191,9 +211,13 @@ export interface ModelMetadata {
   encoding: {
     [featureName: string]: CategoryEncoding | undefined;
   };
-  
+
   imputation: {
     [featureName: string]: ImputationRule | undefined;
+  };
+
+  scaling: {
+    [featureName: string]: ScalingSpec | undefined;
   };
 
   featureDependencies?: FeatureDependency[];

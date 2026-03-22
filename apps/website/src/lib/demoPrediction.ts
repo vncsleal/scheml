@@ -34,7 +34,7 @@ const schemaPath = path.join(artifactsDir, 'schema.prisma');
 export const churnModel = defineModel<User>({
   name: 'userChurn',
   modelName: 'User',
-  algorithm: { name: 'gbm', version: '1.0.0' },
+  algorithm: { name: 'gbm' },
   output: {
     field: 'willChurn',
     taskType: 'binary_classification',

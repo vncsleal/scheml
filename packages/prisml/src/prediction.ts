@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ort from 'onnxruntime-web';
+import * as ort from 'onnxruntime-node';
 import {
   ModelMetadata,
   ModelDefinition,
@@ -15,7 +15,7 @@ import {
   ExtractedFeatures,
 } from './types';
 import { normalizeFeatureVector } from './encoding';
-import { hashPrismaSchema } from './schema';
+import { hashPrismaSchema, hashPrismaModelSubset } from './schema';
 import {
   SchemaDriftError,
   ArtifactError,
@@ -172,13 +172,19 @@ export class PredictionSession {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.prisml');
     const schemaFilePath =
       opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    const metadataPath = path.resolve(dir, `${model.name}.metadata.json`);
+    const onnxPath = path.resolve(dir, `${model.name}.onnx`);
     const schema = fs.readFileSync(schemaFilePath, 'utf-8');
-    const hash = hashPrismaSchema(schema);
-    await this.initializeModel(
-      path.resolve(dir, `${model.name}.metadata.json`),
-      path.resolve(dir, `${model.name}.onnx`),
-      hash
-    );
+
+    // Backward-compatible hash: v1.1.0 artifacts used the full-schema hash;
+    // v1.2.0+ artifacts use the model-scoped subset hash.
+    const meta = this.metadataLoader.loadMetadata(metadataPath);
+    const hash =
+      meta.metadataSchemaVersion === '1.2.0'
+        ? hashPrismaModelSubset(schema, model.modelName)
+        : hashPrismaSchema(schema);
+
+    await this.initializeModel(metadataPath, onnxPath, hash);
   }
 
   /**
@@ -238,7 +244,8 @@ export class PredictionSession {
         featureRecord,
         metadata.features,
         metadata.encoding || {},
-        metadata.imputation || {}
+        metadata.imputation || {},
+        metadata.scaling || {}
       );
 
       const inputName = session.inputNames[0] || 'input';
@@ -355,7 +362,8 @@ export class PredictionSession {
           featureRecord,
           metadata.features,
           metadata.encoding || {},
-          metadata.imputation || {}
+          metadata.imputation || {},
+          metadata.scaling || {}
         );
         featureVectors.push(vector);
       } catch (error) {

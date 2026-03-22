@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-03-21
+
+### Added
+
+- **FLAML AutoML backend** (`python/train.py`): `flaml.AutoML` is now the default training backend with a 60-second time budget. It automatically selects the best estimator across linear models, decision trees, random forests, gradient boosting (LightGBM/XGBoost), and more. The `bestEstimator` field is returned in the Python response and stored in metadata.
+- **`algorithm` is now optional** (`types.ts`, `commands/train.ts`): Omitting `algorithm` in `defineModel()` activates FLAML AutoML. Explicit algorithms (`forest`, `gbm`, `linear`, etc.) still work as overrides.
+- **One-hot encoding for string features** (`commands/train.ts`, `encoding.ts`): String features now default to `'onehot'` encoding instead of `'label'`. Unseen categories at inference produce all-zero columns. `buildCategories()` is added to compute sorted unique category arrays.
+- **Standard scaling for numeric features** (`commands/train.ts`, `encoding.ts`): Mean and standard deviation are computed at train time, stored in the metadata `scaling` map, and applied via `applyScaling()` at inference. Safe for all algorithm families.
+- **`hashPrismaModelSubset(schema, modelName)`** (`schema.ts`): New function that hashes only the relevant `model` block plus any referenced `enum` blocks, rather than the entire schema file. Reduces false-positive `SchemaDriftError` when unrelated models change.
+- **Python environment preflight** (`commands/train.ts`): `checkPythonEnvironment()` runs before training and fails fast with a `ConfigurationError` if `python3`, `flaml`, `sklearn`, `skl2onnx`, `numpy`, or `onnx` are missing.
+- **`flaml==2.3.0`** added to `python/requirements.txt`.
+- **`ModelMetadata.bestEstimator`** (optional string): the name of the estimator selected by AutoML, e.g. `"LGBMClassifier"`.
+- **`ModelMetadata.scaling`**: map of feature name → `ScalingSpec` stored in metadata for inference-time application.
+
+### Changed
+
+- **`onnxruntime-web` → `onnxruntime-node`** (`package.json`, `prediction.ts`): The correct Node.js ONNX Runtime binding is now used. `onnxruntime-web` is browser/WASM-only and caused silent correctness divergence when running in Node.
+- **`load()` backward-compatibility** (`prediction.ts`): `PredictionSession.load()` detects `metadataSchemaVersion` and uses `hashPrismaSchema` for v1.1.0 artifacts, `hashPrismaModelSubset` for v1.2.0+ artifacts. Existing artifacts do not need to be regenerated.
+- **FNV-1a 32-bit hash** replaces the toy `sum-of-char-codes % 1000` hash for `'hash'`-strategy category encoding.
+- **`metadataSchemaVersion` bumped to `'1.2.0'`** for artifacts produced by this version.
+- **`AlgorithmConfig.version` removed**: The field was declared but never used by the Python backend. Existing configs that include it must remove it.
+
+### Removed
+
+- **`ModelRegistry`, `globalModelRegistry`, `registerModel`** (`defineModel.ts`, `index.ts`): Dead code that was never integrated into the training or inference pipeline.
+
+### Breaking
+
+- `AlgorithmConfig.version` is removed from the type. Remove it from any `defineModel()` calls and `ModelMetadata` objects.
+- `buildCategoryMapping()` no longer accepts a second `strategy` parameter. The hash-strategy branch is gone; use `buildCategories()` + one-hot encoding instead.
+- New `EncodedFeature.columnCount: number` field is required (always `1` for non-onehot features).
+- New `ModelMetadata.scaling` field is required in the `ModelMetadata` type (use `{}` if no scaling).
+
+---
+
 ## [0.1.2] — 2026-03-09
 
 ### Fixed

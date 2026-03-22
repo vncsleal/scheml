@@ -16,11 +16,11 @@ function makeMetadata(overrides: Partial<ModelMetadata> = {}): ModelMetadata {
     metadataSchemaVersion: '1.1.0',
     modelName: 'TestModel',
     taskType: 'regression',
-    algorithm: { name: 'forest', version: '1.0.0' },
+    algorithm: { name: 'forest' },
     features: {
       features: [
-        { name: 'price', index: 0, originalType: 'number' },
-        { name: 'stock', index: 1, originalType: 'number' },
+        { name: 'price', index: 0, originalType: 'number', columnCount: 1 },
+        { name: 'stock', index: 1, originalType: 'number', columnCount: 1 },
       ],
       count: 2,
       order: ['price', 'stock'],
@@ -28,6 +28,7 @@ function makeMetadata(overrides: Partial<ModelMetadata> = {}): ModelMetadata {
     output: { field: 'sales', shape: [1] },
     encoding: {},
     imputation: {},
+    scaling: {},
     prismaSchemaHash: 'abc123hashvalue',
     compiledAt: new Date().toISOString(),
   };
@@ -127,8 +128,8 @@ describe('ModelMetadataLoader', () => {
 describe('FeatureExtractor', () => {
   const schema: FeatureSchema = {
     features: [
-      { name: 'price', index: 0, originalType: 'number' },
-      { name: 'stock', index: 1, originalType: 'number' },
+      { name: 'price', index: 0, originalType: 'number', columnCount: 1 },
+      { name: 'stock', index: 1, originalType: 'number', columnCount: 1 },
     ],
     count: 2,
     order: ['price', 'stock'],

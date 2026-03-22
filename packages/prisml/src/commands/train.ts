@@ -23,7 +23,7 @@ import { Argv } from 'yargs';
 import ora from 'ora';
 import chalk from 'chalk';
 import {
-  hashPrismaSchema,
+  hashPrismaModelSubset,
   VERSION,
   ModelMetadata,
   TrainingDataset,
@@ -31,9 +31,10 @@ import {
   FeatureSchema,
   CategoryEncoding,
   ImputationRule,
+  ScalingSpec,
   TrainingMetrics,
   FeatureDependency,
-  buildCategoryMapping,
+  buildCategories,
   normalizeFeatureVector,
   parseModelSchema,
 } from '..';
@@ -57,6 +58,7 @@ type FeatureStats = {
   booleanMode?: boolean;
   encoding?: CategoryEncoding;
   imputation?: ImputationRule;
+  scaling?: ScalingSpec;
 };
 
 type TrainingRow = {
@@ -71,8 +73,8 @@ function isModelDefinition(value: any): value is ResolvedModel {
     typeof value.name === 'string' &&
     typeof value.modelName === 'string' &&
     value.output &&
-    value.features &&
-    value.algorithm
+    value.features
+    // algorithm is intentionally optional
   );
 }
 
@@ -145,17 +147,49 @@ async function loadConfigModule(configPath: string): Promise<Record<string, unkn
 }
 
 function buildFeatureSchema(stats: FeatureStats[]): FeatureSchema {
-  return {
-    features: stats.map((stat, index) => ({
+  let colIndex = 0;
+  const features = stats.map((stat) => {
+    const columnCount =
+      stat.encoding?.type === 'onehot' && stat.encoding.categories
+        ? stat.encoding.categories.length
+        : 1;
+    const feature = {
       name: stat.name,
-      index,
+      index: colIndex,
+      columnCount,
       originalType: stat.type,
       encoding: stat.encoding,
       imputation: stat.imputation,
-    })),
-    count: stats.length,
+      scaling: stat.scaling,
+    };
+    colIndex += columnCount;
+    return feature;
+  });
+  return {
+    features,
+    count: colIndex, // total number of input columns after expansion
     order: stats.map((stat) => stat.name),
   };
+}
+
+function checkPythonEnvironment(): void {
+  const whichResult = spawnSync('which', ['python3'], { encoding: 'utf-8' });
+  if (whichResult.status !== 0) {
+    throw new ConfigurationError(
+      'Python 3 not found on PATH. Install Python 3 and ensure it is accessible.'
+    );
+  }
+  const importCheck = spawnSync(
+    'python3',
+    ['-c', 'import flaml, sklearn, skl2onnx, numpy, onnx'],
+    { encoding: 'utf-8' }
+  );
+  if (importCheck.status !== 0) {
+    throw new ConfigurationError(
+      'Required Python packages not found. Run:\n  pip install -r packages/prisml/python/requirements.txt\n\n' +
+        (importCheck.stderr || importCheck.stdout || '').trim()
+    );
+  }
 }
 
 export const trainCommand = {
@@ -203,12 +237,15 @@ export const trainCommand = {
         fs.mkdirSync(outputPath, { recursive: true });
       }
 
+      // 0. Verify Python environment before doing any heavy work
+      spinner.start('Checking Python environment...');
+      checkPythonEnvironment();
+      spinner.succeed('Python environment OK');
+
       // 1. Load Prisma schema
       spinner.start('Loading Prisma schema...');
       const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
-      const schemaHash = hashPrismaSchema(schemaContent);
-      spinner.succeed(`Schema loaded (hash: ${schemaHash.slice(0, 8)})`);
-
+      spinner.succeed('Schema loaded');
       // 2. Load model definitions
       spinner.start('Loading model definitions...');
 
@@ -302,22 +339,32 @@ export const trainCommand = {
         for (const stat of featureStats) {
           stat.hasNulls = stat.values.some((value) => value === null || value === undefined);
           stat.type = inferFeatureType(stat.values);
+
           if (stat.type === 'string') {
+            // One-hot is the default for nominal categoricals: no false ordinal relationships
             stat.stringMode = computeStringMode(stat.values);
-            stat.encoding = {
-              type: 'label',
-              mapping: buildCategoryMapping(
-                stat.values.filter((v) => typeof v === 'string') as string[]
-              ),
-            };
-          }
-          if (stat.type === 'number') {
-            const mean = computeNumericMean(stat.values);
-            if (mean !== undefined) {
-              stat.numericMean = mean;
-              stat.imputation = { strategy: 'constant', value: mean };
+            const categories = Array.from(
+              new Set(stat.values.filter((v): v is string => typeof v === 'string'))
+            ).sort();
+            stat.encoding = { type: 'onehot', categories };
+            if (stat.stringMode) {
+              stat.imputation = { strategy: 'constant', value: stat.stringMode };
             }
           }
+
+          if (stat.type === 'number') {
+            const nums = stat.values.filter((v): v is number => typeof v === 'number');
+            const mean = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+            const variance = nums.length
+              ? nums.reduce((a, b) => a + (b - mean) ** 2, 0) / nums.length
+              : 1;
+            const std = Math.sqrt(variance) || 1;
+            stat.numericMean = mean;
+            stat.imputation = { strategy: 'constant', value: mean };
+            // Standard scaling makes all numeric features comparable magnitude
+            stat.scaling = { strategy: 'standard', mean, std };
+          }
+
           if (stat.type === 'boolean') {
             const mode = computeBooleanMode(stat.values);
             if (mode !== undefined) {
@@ -349,11 +396,13 @@ export const trainCommand = {
         });
         const encodings: Record<string, CategoryEncoding | undefined> = {};
         const imputations: Record<string, ImputationRule | undefined> = {};
+        const scalings: Record<string, ScalingSpec | undefined> = {};
         const stringModes: Record<string, string | undefined> = {};
 
         for (const stat of featureStats) {
           encodings[stat.name] = stat.encoding;
           imputations[stat.name] = stat.imputation;
+          scalings[stat.name] = stat.scaling;
           if (stat.type === 'string') {
             stringModes[stat.name] = stat.stringMode;
           }
@@ -369,7 +418,7 @@ export const trainCommand = {
               }
             }
           }
-          return normalizeFeatureVector(prepared, schema, encodings, imputations);
+          return normalizeFeatureVector(prepared, schema, encodings, imputations, scalings);
         });
 
         const labels = rows.map((row: TrainingRow) => {
@@ -410,7 +459,13 @@ export const trainCommand = {
           materializedAt: new Date().toISOString(),
         };
 
+        // Per-model scoped schema hash: only hashes the relevant Prisma model block + its enums
+        const modelSchemaHash = hashPrismaModelSubset(schemaContent, model.modelName);
+        // Backfill schemaHash on the live model definition object
+        (model as any).schemaHash = modelSchemaHash;
+
         const datasetPath = path.join(outputDir, `${model.name}.dataset.json`);
+        const algorithmName = model.algorithm?.name ?? 'automl';
         fs.writeFileSync(
           datasetPath,
           JSON.stringify({
@@ -419,12 +474,12 @@ export const trainCommand = {
             X_test,
             y_test,
             taskType: model.output.taskType,
-            algorithm: model.algorithm.name,
-            hyperparameters: model.algorithm.hyperparameters || {},
+            algorithm: algorithmName,
+            hyperparameters: model.algorithm?.hyperparameters || {},
           })
         );
 
-        spinner.text = `Training ${model.name} (${model.algorithm.name})...`;
+        spinner.text = `Training ${model.name} (${algorithmName === 'automl' ? 'FLAML AutoML' : algorithmName})...`;
         const pythonScript = path.resolve(__dirname, '../../python/train.py');
         const result = spawnSync('python3', [pythonScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', model.name], {
           stdio: 'pipe',
@@ -442,6 +497,7 @@ export const trainCommand = {
         const response = JSON.parse(result.stdout.trim());
         const metrics: TrainingMetrics[] = response.metrics || [];
         const pendingOnnxPath: string = response.onnxPath;
+        const bestEstimator: string = response.bestEstimator || algorithmName;
 
         // Quality gate check runs after Python writes the ONNX artifact.
         // If a gate fails we must delete the orphaned .onnx before rethrowing
@@ -485,17 +541,19 @@ export const trainCommand = {
 
         const metadata: ModelMetadata = {
           version: VERSION,
-          metadataSchemaVersion: '1.1.0',
+          metadataSchemaVersion: '1.2.0',
           modelName: model.name,
           taskType: model.output.taskType,
           algorithm: model.algorithm,
+          bestEstimator,
           features: schema,
           output: { field: model.output.field, shape: [1] },
           tensorSpec: { inputShape: [1, schema.count], outputShape: [1] },
           featureDependencies,
           encoding: encodings,
           imputation: imputations,
-          prismaSchemaHash: schemaHash,
+          scaling: scalings,
+          prismaSchemaHash: modelSchemaHash,
           trainingMetrics: metrics,
           dataset,
           compiledAt: new Date().toISOString(),
@@ -505,16 +563,21 @@ export const trainCommand = {
         fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
         modelArtifacts.push({ metadata, onnxPath: response.onnxPath });
+        spinner.succeed(
+          `Trained ${chalk.bold(model.name)} \u2014 estimator: ${chalk.cyan(bestEstimator)}`
+        );
       }
 
-      spinner.succeed('Training complete');
       spinner.start('Writing artifacts...');
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
       console.log(chalk.green('\n[OK] Training complete\n'));
       console.log('Artifacts:');
       for (const artifact of modelArtifacts) {
-        console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}`);
+        const est = artifact.metadata.bestEstimator
+          ? chalk.dim(` (${artifact.metadata.bestEstimator})`)
+          : '';
+        console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}${est}`);
         console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
       }
     } catch (error) {
