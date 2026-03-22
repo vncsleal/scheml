@@ -37,8 +37,12 @@ export const salesModel = defineModel<Product>({
   features: {
     price: (p) => p.price,
     stock: (p) => p.stock,
+    category: (p) => p.category, // string → one-hot encoded automatically
   },
-  algorithm: { name: 'forest', version: '1.0.0' },
+  // algorithm is optional — omit it and FLAML AutoML selects the best estimator
+  qualityGates: [
+    { metric: 'r2', threshold: 0.85, comparison: 'gte' },
+  ],
 });
 ```
 
@@ -94,7 +98,11 @@ Low-level path-based initializer. Prefer `session.load()`.
 
 ### `hashPrismaSchema(schema: string): string`
 
-Returns the normalized SHA-256 hash of a Prisma schema string. Used for drift detection.
+Returns the normalized SHA-256 hash of a full Prisma schema string. Used for drift detection.
+
+### `hashPrismaModelSubset(schema: string, modelName: string): string`
+
+Returns a SHA-256 hash scoped to a single model block and its referenced enums. Changes to unrelated models do not invalidate artifacts compiled with this hash (default for artifacts compiled with `metadataSchemaVersion >= 1.2.0`).
 
 ## Quality Gates
 
@@ -111,10 +119,21 @@ qualityGates: [
 
 | Name | Regression | Classification |
 |------|-----------|----------------|
+| *(omit)* | **AutoML (FLAML, default)** — selects best estimator in 60s | same |
 | `linear` | LinearRegression | LogisticRegression |
 | `tree` | DecisionTreeRegressor | DecisionTreeClassifier |
 | `forest` | RandomForestRegressor | RandomForestClassifier |
 | `gbm` | GradientBoostingRegressor | GradientBoostingClassifier |
+
+## Feature Encoding
+
+| Feature type | Encoding |
+|---|---|
+| `number` | Standard scaling (mean/std computed at train time) |
+| `boolean` | 0 / 1 |
+| `string` | One-hot encoding (categories computed at train time) |
+| `Date` | Unix timestamp (ms) |
+| `null` / `undefined` | Imputation |
 
 ## License
 
