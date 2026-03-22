@@ -5,13 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.2] — 2026-03-21
+## [0.3.0] — 2026-03-21
+
+### Added
+
+- **FLAML AutoML backend** (`python/train.py`): `flaml.AutoML` is now the default training backend with a 60-second time budget. Automatically selects the best estimator across linear models, decision trees, random forests, and gradient boosting (LightGBM/XGBoost). The `bestEstimator` name is returned in the Python response and stored in metadata.
+- **`algorithm` is now optional** (`types.ts`, `commands/train.ts`): Omitting `algorithm` in `defineModel()` activates FLAML AutoML. Explicit algorithm overrides still work.
+- **One-hot encoding for string features** (`commands/train.ts`, `encoding.ts`): String features default to `'onehot'` instead of `'label'`. Category list computed at train time and stored in metadata. Unknown categories at inference produce all-zero columns. `buildCategories()` added.
+- **Standard scaling for numeric features**: Mean and standard deviation computed at train time, stored in metadata `scaling` map, applied at inference via `applyScaling()`.
+- **`hashPrismaModelSubset(schema, modelName)`** (`schema.ts`): Hashes only the relevant model block + referenced enums. Reduces false-positive `SchemaDriftError` when unrelated models change.
+- **Python environment preflight** (`commands/train.ts`): `checkPythonEnvironment()` runs before training and fails fast if `python3`, `flaml`, `sklearn`, `skl2onnx`, `numpy`, or `onnx` are missing.
+- **`flaml==2.3.0`** added to `python/requirements.txt`.
+- **`ModelMetadata.bestEstimator`**: optional string storing the estimator selected by AutoML.
+- **`ModelMetadata.scaling`**: map of feature name → `ScalingSpec` for inference-time scaling.
 
 ### Changed
 
-- Version patch to correctly supersede prior occupied versions on the npm registry. No functional changes.
+- **`onnxruntime-web` → `onnxruntime-node`**: The correct Node.js ONNX Runtime binding is now used.
+- **`load()` backward-compatibility**: Detects `metadataSchemaVersion` and uses `hashPrismaSchema` for v1.1.0 artifacts, `hashPrismaModelSubset` for v1.2.0+. Existing artifacts load without migration.
+- **FNV-1a 32-bit hash** replaces the toy `sum % 1000` hash for `'hash'`-strategy encoding.
+- **`metadataSchemaVersion` bumped to `'1.2.0'`** for new artifacts.
+- **`AlgorithmConfig.version` removed**: Field was never used by the Python backend.
 
-## [0.2.1] — 2026-03-21 *(superseded by 0.2.2)*
+### Removed
+
+- **`ModelRegistry`, `globalModelRegistry`, `registerModel`**: Dead code never integrated into the pipeline.
+
+### Breaking
+
+- `AlgorithmConfig.version` removed from the type — remove it from any `defineModel()` calls.
+- `buildCategoryMapping()` no longer accepts a `strategy` parameter.
+- `EncodedFeature.columnCount: number` is now required.
+- `ModelMetadata.scaling` is now required (use `{}` if no scaling).
+
+---
+
+## [0.2.2] — 2026-03-21 *(superseded by 0.3.0)*
+
+## [0.2.1] — 2026-03-21 *(superseded by 0.3.0)*
+
+## [0.2.0] — 2026-03-21 *(superseded by 0.3.0)*
 
 ### Added
 

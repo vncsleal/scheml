@@ -1,6 +1,6 @@
 {
   "name": "@vncsleal/prisml",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "PrisML: compiler-first ML for TypeScript + Prisma",
   "license": "MIT",
   "author": "Vinicius Leal <oi@iamvini.co> (https://github.com/vncsleal)",
