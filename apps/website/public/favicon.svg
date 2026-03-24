@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#161616"/>
-  <!-- M: dash dash -->
-  <rect x="8" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
-  <rect x="17" y="11" width="7" height="3" rx="1.5" fill="#f1c21b"/>
-  <!-- L: dot dash dot dot -->
-  <rect x="5" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
-  <rect x="10" y="18" width="7" height="3" rx="1.5" fill="#f1c21b"/>
-  <rect x="19" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
-  <rect x="24" y="18" width="3" height="3" rx="1.5" fill="#f1c21b"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.5 -1.5 8 8" fill="none" shape-rendering="crispEdges">
+  <rect x="-1.5" y="-1.5" width="8" height="8" rx="1.4" fill="#161616"/>
+  <rect x="0" y="0" width="5" height="1" fill="#f1c21b"/>
+  <rect x="0" y="1" width="1" height="4" fill="#f1c21b"/>
+  <rect x="2" y="1" width="1" height="2" fill="#f1c21b"/>
+  <rect x="4" y="2" width="1" height="3" fill="#f1c21b"/>
+  <rect x="1" y="2" width="1" height="1" fill="#f1c21b"/>
+  <rect x="2" y="4" width="2" height="1" fill="#f1c21b"/>
 </svg>
