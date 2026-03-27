@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 import { SchemaDriftError, ArtifactError, FeatureExtractionError } from './errors';
 import type { ModelMetadata, FeatureSchema } from './types';
+import { defineModel } from './defineModel';
+import { hashPrismaModelSubset } from './schema';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -256,5 +258,50 @@ describe('PredictionSession — uninitialized model guards', () => {
         price: (e: any) => e.price,
       })
     ).rejects.toThrow(ArtifactError);
+  });
+});
+
+describe('PredictionSession.load()', () => {
+  it('uses model-subset hashing for metadata schema v1.2.x artifacts', async () => {
+    const schema = `
+model User {
+  id   String @id
+  plan String
+}
+
+model AuditLog {
+  id String @id
+}
+`;
+
+    const schemaPath = path.join(tmpDir, 'schema-v121.prisma');
+    fs.writeFileSync(schemaPath, schema);
+
+    const metadata = makeMetadata({
+      metadataSchemaVersion: '1.2.1',
+      modelName: 'churnRisk',
+      prismaSchemaHash: hashPrismaModelSubset(schema, 'User'),
+      featureDependencies: [{ modelName: 'User' } as any],
+    });
+    writeTmpMetadata('churnRisk', metadata);
+    fs.writeFileSync(path.join(tmpDir, 'churnRisk.onnx'), 'fake-onnx');
+
+    const model = defineModel({
+      name: 'churnRisk',
+      modelName: 'User',
+      output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
+      features: { plan: (user: any) => user.plan },
+    });
+
+    const session = new PredictionSession();
+    const initializeSpy = vi.spyOn(session, 'initializeModel').mockResolvedValue(undefined);
+
+    await session.load(model, { artifactsDir: tmpDir, schemaPath });
+
+    expect(initializeSpy).toHaveBeenCalledWith(
+      path.join(tmpDir, 'churnRisk.metadata.json'),
+      path.join(tmpDir, 'churnRisk.onnx'),
+      hashPrismaModelSubset(schema, 'User')
+    );
   });
 });

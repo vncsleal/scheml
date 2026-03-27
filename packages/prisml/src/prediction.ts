@@ -15,7 +15,6 @@ import {
   ExtractedFeatures,
 } from './types';
 import { normalizeFeatureVector } from './encoding';
-import { hashPrismaSchema, hashPrismaModelSubset } from './schema';
 import {
   SchemaDriftError,
   ArtifactError,
@@ -23,6 +22,7 @@ import {
   FeatureExtractionError,
   ONNXRuntimeError,
 } from './errors';
+import { computeSchemaHashForMetadata } from './contracts';
 
 /**
  * Loads and caches ONNX model metadata
@@ -179,10 +179,7 @@ export class PredictionSession {
     // Backward-compatible hash: v1.1.0 artifacts used the full-schema hash;
     // v1.2.0+ artifacts use the model-scoped subset hash.
     const meta = this.metadataLoader.loadMetadata(metadataPath);
-    const hash =
-      meta.metadataSchemaVersion === '1.2.0'
-        ? hashPrismaModelSubset(schema, model.modelName)
-        : hashPrismaSchema(schema);
+    const hash = computeSchemaHashForMetadata(schema, meta);
 
     await this.initializeModel(metadataPath, onnxPath, hash);
   }

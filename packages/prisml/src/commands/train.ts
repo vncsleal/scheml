@@ -39,6 +39,7 @@ import {
   parseModelSchema,
 } from '..';
 import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
+import { validateTrainingModelDefinition } from '../contracts';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -237,11 +238,6 @@ export const trainCommand = {
         fs.mkdirSync(outputPath, { recursive: true });
       }
 
-      // 0. Verify Python environment before doing any heavy work
-      spinner.start('Checking Python environment...');
-      checkPythonEnvironment();
-      spinner.succeed('Python environment OK');
-
       // 1. Load Prisma schema
       spinner.start('Loading Prisma schema...');
       const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
@@ -264,13 +260,25 @@ export const trainCommand = {
 
       spinner.succeed(`Loaded ${modelDefinitions.length} model definition(s)`);
 
-      // 3. Create output directory
+      // 3. Preflight validate model definitions before invoking Python or instantiating PrismaClient / extracting data via Prisma.
+      spinner.start('Running preflight validation...');
+      for (const model of modelDefinitions) {
+        validateTrainingModelDefinition(model);
+      }
+      spinner.succeed('Preflight validation passed');
+
+      // 4. Verify Python environment before doing any heavy work
+      spinner.start('Checking Python environment...');
+      checkPythonEnvironment();
+      spinner.succeed('Python environment OK');
+
+      // 5. Create output directory
       const outputDir = path.resolve(argv.output);
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      // 4. Validate models and load PrismaClient
+      // 6. Validate models and load PrismaClient
       spinner.start('Validating models...');
 
       const requirePrisma = createRequire(
@@ -300,7 +308,7 @@ export const trainCommand = {
       }
       spinner.succeed('Models validated');
 
-      // 5. Extract training data and train
+      // 7. Extract training data and train
       spinner.start('Extracting training data via Prisma...');
 
       for (const model of modelDefinitions) {

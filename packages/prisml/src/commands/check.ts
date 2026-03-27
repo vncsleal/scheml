@@ -8,11 +8,11 @@ import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 import {
-  hashPrismaSchema,
   parseModelSchema,
   ModelMetadata,
   FeatureDependency,
 } from '..';
+import { computeSchemaHashForMetadata } from '../contracts';
 
 const PRISMA_TYPE_MAP: Record<string, FeatureDependency['scalarType']> = {
   String: 'string',
@@ -81,8 +81,6 @@ export const checkCommand = {
     const modelFilter = argv.model as string | undefined;
 
     const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
-    const schemaHash = hashPrismaSchema(schemaContent);
-
     const metadataPaths = loadMetadataFiles(outputDir, modelFilter);
 
     const errors: string[] = [];
@@ -139,7 +137,8 @@ export const checkCommand = {
           });
       }
 
-      if (metadata.prismaSchemaHash !== schemaHash) {
+      const expectedSchemaHash = computeSchemaHashForMetadata(schemaContent, metadata);
+      if (metadata.prismaSchemaHash !== expectedSchemaHash) {
         warnings.push(
           `${metadata.modelName}: Prisma schema hash differs from metadata (hash mismatch).`
         );

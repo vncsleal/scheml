@@ -32,13 +32,15 @@ export const churnModel = defineModel<User>({
 const trainCode = `$ prisml train
 
 ◉ Loading Prisma schema...
-✔ Schema loaded (hash: a3f8c1b2)
+✔ Schema loaded
 ◉ Loading model definitions...
 ✔ Loaded 1 model definition(s)
-◉ Validating models...
-✔ Models validated
+◉ Running preflight validation...
+✔ Preflight validation passed
 ◉ Checking Python environment...
 ✔ Python environment OK (flaml, sklearn, skl2onnx)
+◉ Validating models...
+✔ Models validated
 ◉ Extracting training data via Prisma...
 ◉ Training churnRisk (FLAML AutoML, 60s budget)...
 ✔ Best estimator: LGBMClassifier
@@ -218,7 +220,7 @@ console.log(result.timestamp);
           <h2 class="section-title">Three files. Zero infrastructure.</h2>
           <p class="section-desc">
             Models are defined as code, compiled at build time, and executed in-process.
-            Reuse the same feature resolver definitions for training and inference to keep behavior aligned.
+            Preflight validation catches config and environment issues early, before training crosses the Python boundary.
           </p>
         </div>
 

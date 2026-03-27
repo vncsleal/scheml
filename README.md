@@ -56,7 +56,6 @@ export const userChurnModel = defineModel<User>({
   },
   algorithm: {
     name: 'forest',
-    version: '1.0.0',
   },
 });
 ```
@@ -66,6 +65,8 @@ Train artifacts:
 ```bash
 npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
 ```
+
+`prisml train` now performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
 
 Run predictions:
 

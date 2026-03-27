@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Training preflight config validation** (`src/contracts.ts`, `src/commands/train.ts`): `prisml train` now rejects unsupported algorithms, unsupported hyperparameters, invalid hyperparameter constraints, and AutoML hyperparameter usage before Prisma extraction and Python handoff.
+- **Contract tests for preflight and hash semantics** (`src/contracts.test.ts`, `src/prediction.test.ts`): added coverage for training preflight validation and for model-subset hashing with `metadataSchemaVersion` `1.2.x`.
+
+### Changed
+
+- **`prisml check` schema-hash comparison now matches runtime semantics** (`src/commands/check.ts`): metadata using schema contract `1.2.0+` is now compared with `hashPrismaModelSubset()` instead of the full-schema hash, avoiding false hash-mismatch warnings when unrelated Prisma models change.
+- **`PredictionSession.load()` now treats all `1.2.x+` metadata as model-subset hashed** (`src/prediction.ts`): hash selection no longer relies on an exact `1.2.0` string match.
+
 ## [0.3.0] — 2026-03-21
 
 ### Added
