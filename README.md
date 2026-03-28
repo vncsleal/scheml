@@ -54,9 +54,6 @@ export const userChurnModel = defineModel<User>({
     daysSinceSignup: (user) =>
       Math.floor((Date.now() - user.createdAt.getTime()) / 86400000),
   },
-  algorithm: {
-    name: 'forest',
-  },
 });
 ```
 
@@ -66,7 +63,9 @@ Train artifacts:
 npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
 ```
 
-`prisml train` now performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
+`prisml train` performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
+
+The training step also compiles a train-derived feature contract into metadata: categorical encodings, imputation values, and scaling rules are fit during training and then replayed by `PredictionSession` at runtime.
 
 Run predictions:
 

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Train-derived preprocessing contract** (`packages/prisml/src/commands/train.ts`, `packages/prisml/src/encoding.ts`): feature encodings, imputations, and scaling rules are now expected to be fit from the training split before the Python backend receives `X_train` / `X_test`. This tightens the artifact contract and removes test-set leakage from preprocessing semantics.
+- **Docs and quickstart alignment** (`README.md`, `docs/GUIDE.md`): introductory examples now reflect AutoML as the default path and describe artifact metadata as the compiled train-derived feature contract used at runtime.
+
 ## [0.3.1] — 2026-03-26
 
 ### Added
