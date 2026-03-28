@@ -30,7 +30,7 @@ function encodeValue(
   if (value === null || value === undefined) {
     if (imputation) {
       const imputed = applyImputation(imputation);
-      return scaling ? applyScaling(imputed, scaling) : imputed;
+      return encodeValue(imputed, featureName, encoding, undefined, scaling);
     }
     throw new Error(`${featureName}: null value without imputation rule`);
   }
@@ -145,11 +145,11 @@ export function applyScaling(value: number, spec: ScalingSpec): number {
 /**
  * Apply imputation strategy
  */
-function applyImputation(rule: ImputationRule): number {
+function applyImputation(rule: ImputationRule): number | string | boolean {
   switch (rule.strategy) {
     case 'constant':
-      if (typeof rule.value !== 'number') {
-        throw new Error('Constant imputation requires numeric value');
+      if (rule.value === undefined) {
+        throw new Error('Constant imputation requires a value');
       }
       return rule.value;
     case 'mean':

@@ -107,6 +107,25 @@ describe('normalizeScalarValue', () => {
     it('throws when null with no imputation rule', () => {
       expect(() => normalizeScalarValue(null, 'score')).toThrow();
     });
+
+    it('supports string constant imputation for categorical features', () => {
+      const result = normalizeFeatureVector(
+        { plan: null },
+        {
+          features: [{ name: 'plan', index: 0, originalType: 'string', columnCount: 2 }],
+          count: 2,
+          order: ['plan'],
+        },
+        {
+          plan: { type: 'onehot', categories: ['free', 'pro'] },
+        },
+        {
+          plan: { strategy: 'constant', value: 'pro' },
+        }
+      );
+
+      expect(result).toEqual([0, 1]);
+    });
   });
 });
 

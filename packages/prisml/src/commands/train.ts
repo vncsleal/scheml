@@ -5,8 +5,8 @@
  * 2. Validate Prisma schemas and feature declarations
  * 3. Resolve defaults deterministically
  * 4. Extract historical data via Prisma
- * 5. Convert entities to feature vectors
- * 6. Materialize dataset
+ * 5. Split rows and fit a train-derived feature contract
+ * 6. Convert train/test rows to feature vectors
  * 7. Invoke Python backend
  * 8. Evaluate quality gates
  * 9. Export ONNX + metadata
@@ -28,18 +28,18 @@ import {
   ModelMetadata,
   TrainingDataset,
   ModelDefinition,
-  FeatureSchema,
-  CategoryEncoding,
-  ImputationRule,
-  ScalingSpec,
   TrainingMetrics,
   FeatureDependency,
-  buildCategories,
   normalizeFeatureVector,
   parseModelSchema,
 } from '..';
 import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
 import { validateTrainingModelDefinition } from '../contracts';
+import {
+  fitTrainingContract,
+  splitTrainingRows,
+  type TrainingRow,
+} from '../training_contract';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -47,24 +47,6 @@ type ResolvedModel = ModelDefinition & {
     taskType: ModelDefinition['output']['taskType'];
     resolver?: (entity: any) => number | string | boolean;
   };
-};
-
-type FeatureStats = {
-  name: string;
-  type: 'number' | 'boolean' | 'string' | 'date' | 'unknown';
-  values: unknown[];
-  hasNulls?: boolean;
-  stringMode?: string;
-  numericMean?: number;
-  booleanMode?: boolean;
-  encoding?: CategoryEncoding;
-  imputation?: ImputationRule;
-  scaling?: ScalingSpec;
-};
-
-type TrainingRow = {
-  features: Record<string, unknown>;
-  label: number | string | boolean;
 };
 
 function isModelDefinition(value: any): value is ResolvedModel {
@@ -83,94 +65,9 @@ function toCamelCase(name: string): string {
   return name ? name[0].toLowerCase() + name.slice(1) : name;
 }
 
-function seededShuffle<T>(items: T[], seed: number): T[] {
-  const result = items.slice();
-  let state = seed;
-  for (let i = result.length - 1; i > 0; i--) {
-    state = (state * 1664525 + 1013904223) % 0x100000000;
-    const j = state % (i + 1);
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-function inferFeatureType(values: unknown[]): FeatureStats['type'] {
-  for (const value of values) {
-    if (value === null || value === undefined) continue;
-    if (value instanceof Date) return 'date';
-    if (typeof value === 'number') return 'number';
-    if (typeof value === 'boolean') return 'boolean';
-    if (typeof value === 'string') return 'string';
-  }
-  return 'unknown';
-}
-
-function computeStringMode(values: unknown[]): string | undefined {
-  const counts = new Map<string, number>();
-  for (const value of values) {
-    if (typeof value === 'string') {
-      counts.set(value, (counts.get(value) || 0) + 1);
-    }
-  }
-  let best: string | undefined;
-  let bestCount = -1;
-  for (const [key, count] of counts.entries()) {
-    if (count > bestCount) {
-      best = key;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
-function computeNumericMean(values: unknown[]): number | undefined {
-  const nums = values.filter((v) => typeof v === 'number') as number[];
-  if (nums.length === 0) return undefined;
-  const sum = nums.reduce((acc, v) => acc + v, 0);
-  return sum / nums.length;
-}
-
-function computeBooleanMode(values: unknown[]): boolean | undefined {
-  let trueCount = 0;
-  let falseCount = 0;
-  for (const value of values) {
-    if (typeof value === 'boolean') {
-      value ? trueCount++ : falseCount++;
-    }
-  }
-  if (trueCount === 0 && falseCount === 0) return undefined;
-  return trueCount >= falseCount;
-}
-
 async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
   const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
   return (await jiti.import(configPath)) as Record<string, unknown>;
-}
-
-function buildFeatureSchema(stats: FeatureStats[]): FeatureSchema {
-  let colIndex = 0;
-  const features = stats.map((stat) => {
-    const columnCount =
-      stat.encoding?.type === 'onehot' && stat.encoding.categories
-        ? stat.encoding.categories.length
-        : 1;
-    const feature = {
-      name: stat.name,
-      index: colIndex,
-      columnCount,
-      originalType: stat.type,
-      encoding: stat.encoding,
-      imputation: stat.imputation,
-      scaling: stat.scaling,
-    };
-    colIndex += columnCount;
-    return feature;
-  });
-  return {
-    features,
-    count: colIndex, // total number of input columns after expansion
-    order: stats.map((stat) => stat.name),
-  };
 }
 
 function checkPythonEnvironment(): void {
@@ -338,53 +235,13 @@ export const trainCommand = {
           return { features: featureValues, label };
         });
 
-        const featureStats: FeatureStats[] = featureNames.map((name) => ({
-          name,
-          type: 'unknown',
-          values: rows.map((row: TrainingRow) => row.features[name]),
-        }));
+        const seed = 42;
+        const { trainRows, testRows } = splitTrainingRows(rows, seed, 0.2);
+        const fittedContract = fitTrainingContract(model.name, featureNames, trainRows, rows);
+        const { schema, featureStats, encodings, imputations, scalings } = fittedContract;
 
-        for (const stat of featureStats) {
-          stat.hasNulls = stat.values.some((value) => value === null || value === undefined);
-          stat.type = inferFeatureType(stat.values);
-
-          if (stat.type === 'string') {
-            // One-hot is the default for nominal categoricals: no false ordinal relationships
-            stat.stringMode = computeStringMode(stat.values);
-            const categories = Array.from(
-              new Set(stat.values.filter((v): v is string => typeof v === 'string'))
-            ).sort();
-            stat.encoding = { type: 'onehot', categories };
-            if (stat.stringMode) {
-              stat.imputation = { strategy: 'constant', value: stat.stringMode };
-            }
-          }
-
-          if (stat.type === 'number') {
-            const nums = stat.values.filter((v): v is number => typeof v === 'number');
-            const mean = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
-            const variance = nums.length
-              ? nums.reduce((a, b) => a + (b - mean) ** 2, 0) / nums.length
-              : 1;
-            const std = Math.sqrt(variance) || 1;
-            stat.numericMean = mean;
-            stat.imputation = { strategy: 'constant', value: mean };
-            // Standard scaling makes all numeric features comparable magnitude
-            stat.scaling = { strategy: 'standard', mean, std };
-          }
-
-          if (stat.type === 'boolean') {
-            const mode = computeBooleanMode(stat.values);
-            if (mode !== undefined) {
-              stat.booleanMode = mode;
-              stat.imputation = { strategy: 'constant', value: mode ? 1 : 0 };
-            }
-          }
-        }
-
-        const schema: FeatureSchema = buildFeatureSchema(featureStats);
         const prismaFields = parseModelSchema(schemaContent, model.modelName);
-        const featureDependencies: FeatureDependency[] = featureStats.map((stat) => {
+        const featureDependencies: FeatureDependency[] = featureStats.map((stat): FeatureDependency => {
           const field = prismaFields[stat.name];
           const extractable = !!field;
           const issues = extractable
@@ -396,71 +253,28 @@ export const trainCommand = {
             modelName: model.modelName,
             path: `${model.modelName}.${stat.name}`,
             scalarType: stat.type,
-            nullable: !!stat.hasNulls,
+            nullable: stat.hasNulls,
             encoding: stat.encoding,
             extractable,
             issues: issues.length ? issues : undefined,
           };
         });
-        const encodings: Record<string, CategoryEncoding | undefined> = {};
-        const imputations: Record<string, ImputationRule | undefined> = {};
-        const scalings: Record<string, ScalingSpec | undefined> = {};
-        const stringModes: Record<string, string | undefined> = {};
 
-        for (const stat of featureStats) {
-          encodings[stat.name] = stat.encoding;
-          imputations[stat.name] = stat.imputation;
-          scalings[stat.name] = stat.scaling;
-          if (stat.type === 'string') {
-            stringModes[stat.name] = stat.stringMode;
-          }
-        }
-
-        const vectors = rows.map((row: TrainingRow) => {
-          const prepared: Record<string, unknown> = { ...row.features };
-          for (const stat of featureStats) {
-            const value = prepared[stat.name];
-            if ((value === null || value === undefined) && stat.type === 'string') {
-              if (stringModes[stat.name]) {
-                prepared[stat.name] = stringModes[stat.name];
-              }
-            }
-          }
-          return normalizeFeatureVector(prepared, schema, encodings, imputations, scalings);
-        });
-
-        const labels = rows.map((row: TrainingRow) => {
+        const toVector = (row: TrainingRow) =>
+          normalizeFeatureVector(row.features, schema, encodings, imputations, scalings);
+        const toLabel = (row: TrainingRow) => {
           const label = row.label;
           if (typeof label === 'boolean') return label ? 1 : 0;
           return label as any;
-        });
+        };
 
-        // TODO(V2 tech debt): split belongs in Python, not here. Moving
-        // preprocessing to Python (V2 hardening) requires Python to own the
-        // split so that encoders fit on X_train only. Seed is fixed at 42 for
-        // now to keep artifact generation deterministic.
-        const seed = 42;
-        const indices = seededShuffle([...Array(vectors.length).keys()], seed);
-        const testSize = Math.max(1, Math.floor(vectors.length * 0.2));
-        const testIndices = new Set(indices.slice(0, testSize));
-
-        const X_train: number[][] = [];
-        const y_train: Array<number | string> = [];
-        const X_test: number[][] = [];
-        const y_test: Array<number | string> = [];
-
-        indices.forEach((idx) => {
-          if (testIndices.has(idx)) {
-            X_test.push(vectors[idx]);
-            y_test.push(labels[idx] as any);
-          } else {
-            X_train.push(vectors[idx]);
-            y_train.push(labels[idx] as any);
-          }
-        });
+        const X_train = trainRows.map(toVector);
+        const y_train = trainRows.map(toLabel);
+        const X_test = testRows.map(toVector);
+        const y_test = testRows.map(toLabel);
 
         const dataset: TrainingDataset = {
-          size: vectors.length,
+          size: rows.length,
           splitSeed: seed,
           trainSize: X_train.length,
           testSize: X_test.length,
