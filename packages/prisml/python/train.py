@@ -20,6 +20,7 @@ from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifi
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
 from flaml import AutoML
+from dataset_contract import load_dataset, validate_dataset
 
 
 def camel_to_snake(name: str) -> str:
@@ -27,13 +28,6 @@ def camel_to_snake(name: str) -> str:
     import re
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
-
-
-def load_dataset(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
 def build_automl_model(task_type: str, X_train, y_train, time_budget: int = 60):
     """
     Use FLAML AutoML to select and tune the best algorithm automatically.
@@ -124,6 +118,7 @@ def main() -> None:
     args = parser.parse_args()
 
     dataset = load_dataset(args.dataset)
+    validate_dataset(dataset)
 
     X_train = np.array(dataset["X_train"], dtype=np.float32)
     y_train = np.array(dataset["y_train"])
