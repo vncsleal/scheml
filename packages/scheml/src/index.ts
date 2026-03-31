@@ -120,4 +120,20 @@ export { detectOutputSchemaShape, validateGenerativeTrait, compileGenerativeTrai
 export type { ScheMlConfig } from './defineConfig';
 export { defineConfig } from './defineConfig';
 
+// History — append-only JSONL audit trail for training runs and drift events
+export type { HistoryRecord } from './history';
+export {
+  detectAuthor,
+  historyDir,
+  historyFilePath,
+  readHistoryRecords,
+  readLatestHistoryRecord,
+  appendHistoryRecord,
+  nextArtifactVersion,
+} from './history';
+
+// Drift detection — compare stored schema hash to current entity schema
+export type { SchemaFieldSnapshot, SchemaSnapshot, SchemaDelta } from './drift';
+export { extractArtifactFeatureNames, checkArtifactDrift } from './drift';
+
 export const VERSION = '0.3.1';

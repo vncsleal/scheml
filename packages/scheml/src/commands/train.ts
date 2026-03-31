@@ -51,6 +51,11 @@ import {
   validateGenerativeTrait,
   compileGenerativeTrait,
 } from '../generative';
+import {
+  appendHistoryRecord,
+  detectAuthor,
+  nextArtifactVersion,
+} from '../history';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -432,6 +437,17 @@ export const trainCommand = {
         spinner.succeed(
           `Trained ${chalk.bold(model.name)} \u2014 estimator: ${chalk.cyan(bestEstimator)}`
         );
+        appendHistoryRecord(outputDir, {
+          signal: model.name,
+          model: model.modelName,
+          adapter: 'prisma',
+          schemaHash: modelSchemaHash,
+          definedAt: new Date().toISOString(),
+          definedBy: detectAuthor(),
+          trainedAt: new Date().toISOString(),
+          artifactVersion: nextArtifactVersion(outputDir, model.name),
+          status: 'trained',
+        });
       }
 
       // -----------------------------------------------------------------------
@@ -480,10 +496,12 @@ export const trainCommand = {
             throw new Error(anomResult.stderr || 'Python anomaly backend failed');
           }
           const anomalyResponse = JSON.parse(anomResult.stdout.trim());
+          const anomalySchemaHash = hashPrismaModelSubset(schemaContent, entityName);
           const anomalyMetadata: AnomalyArtifactMetadata = {
             traitType: 'anomaly',
             traitName: trait.name,
-            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            schemaHash: anomalySchemaHash,
+            entityName,
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
@@ -500,6 +518,17 @@ export const trainCommand = {
           );
           spinner.succeed(`Trained anomaly trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
+          appendHistoryRecord(outputDir, {
+            signal: trait.name,
+            model: entityName,
+            adapter: 'prisma',
+            schemaHash: anomalySchemaHash,
+            definedAt: new Date().toISOString(),
+            definedBy: detectAuthor(),
+            trainedAt: new Date().toISOString(),
+            artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            status: 'trained',
+          });
 
         } else if (trait.type === 'similarity') {
           const features = trait.on;
@@ -529,10 +558,12 @@ export const trainCommand = {
             throw new Error(simResult.stderr || 'Python similarity backend failed');
           }
           const simResponse = JSON.parse(simResult.stdout.trim());
+          const simSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
           const simMetadata: SimilarityArtifactMetadata = {
             traitType: 'similarity',
             traitName: trait.name,
-            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            schemaHash: simSchemaHash,
+            entityName,
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
@@ -551,6 +582,17 @@ export const trainCommand = {
           );
           spinner.succeed(`Trained similarity trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
+          appendHistoryRecord(outputDir, {
+            signal: trait.name,
+            model: entityName,
+            adapter: 'prisma',
+            schemaHash: simSchemaHash,
+            definedAt: new Date().toISOString(),
+            definedBy: detectAuthor(),
+            trainedAt: new Date().toISOString(),
+            artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            status: 'trained',
+          });
 
         } else if (trait.type === 'sequential') {
           const entities = await prismaDelegate.findMany({ orderBy: { [trait.orderBy]: 'asc' } });
@@ -602,10 +644,12 @@ export const trainCommand = {
             throw new Error(seqResult.stderr || 'Python sequential backend failed');
           }
           const seqResponse = JSON.parse(seqResult.stdout.trim());
+          const seqSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
           const seqMetadata: SequentialArtifactMetadata = {
             traitType: 'sequential',
             traitName: trait.name,
-            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            schemaHash: seqSchemaHash,
+            entityName,
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
@@ -621,22 +665,44 @@ export const trainCommand = {
           );
           spinner.succeed(`Trained sequential trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
+          appendHistoryRecord(outputDir, {
+            signal: trait.name,
+            model: entityName,
+            adapter: 'prisma',
+            schemaHash: seqSchemaHash,
+            definedAt: new Date().toISOString(),
+            definedBy: detectAuthor(),
+            trainedAt: new Date().toISOString(),
+            artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            status: 'trained',
+          });
         // generative: no Python backend — compile-time template validation only
         } else if (trait.type === 'generative') {
           const prismaFields = parseModelSchema(schemaContent, entityName);
           const availableFields = new Set(Object.keys(prismaFields));
           validateGenerativeTrait(trait, availableFields);
-          const genMetadata: GenerativeArtifactMetadata = compileGenerativeTrait(
-            trait,
-            hashPrismaModelSubset(schemaContent, entityName),
-            VERSION
-          );
+          const genSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          const genMetadata: GenerativeArtifactMetadata = {
+            ...compileGenerativeTrait(trait, genSchemaHash, VERSION),
+            entityName,
+          };
           fs.writeFileSync(
             path.join(outputDir, `${trait.name}.metadata.json`),
             JSON.stringify(genMetadata, null, 2)
           );
           spinner.succeed(`Compiled generative trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
+          appendHistoryRecord(outputDir, {
+            signal: trait.name,
+            model: entityName,
+            adapter: 'prisma',
+            schemaHash: genSchemaHash,
+            definedAt: new Date().toISOString(),
+            definedBy: detectAuthor(),
+            trainedAt: new Date().toISOString(),
+            artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            status: 'trained',
+          });
         }
       }
 

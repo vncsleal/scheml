@@ -44,6 +44,12 @@ export interface ArtifactMetadataBase {
   prismaSchemaHash?: string;
   /** ISO-8601 timestamp when this artifact was written */
   compiledAt: string;
+  /**
+   * Source entity name (e.g. `"User"`, `"Order"`) used to compute
+   * `schemaHash`.  Required by `scheml check` to recompute the current hash
+   * and detect schema drift.  Populated by `scheml train` for all trait types.
+   */
+  entityName?: string;
 }
 
 // ---------------------------------------------------------------------------
