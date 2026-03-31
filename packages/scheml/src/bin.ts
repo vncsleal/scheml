@@ -12,6 +12,8 @@ import { trainCommand } from './commands/train';
 import { checkCommand } from './commands/check';
 import { historyCommand } from './commands/history';
 import { statusCommand } from './commands/status';
+import { materializeCommand } from './commands/materialize';
+import { auditCommand } from './commands/audit';
 
 function resolveCliVersion(): string {
   try {
@@ -35,6 +37,8 @@ async function main() {
     .command('check', 'Validate schema-only contract compatibility', checkCommand)
     .command('status', 'Show project status for trained traits', statusCommand)
     .command('history', 'Show trait history records', historyCommand)
+    .command('materialize', 'Batch inference and write trait predictions to DB column', materializeCommand)
+    .command('audit', 'Export full trait history as structured JSON', auditCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()
     .parse();

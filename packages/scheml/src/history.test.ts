@@ -27,7 +27,7 @@ function makeTmpDir(): string {
 
 function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
   return {
-    signal: 'userChurn',
+    trait: 'userChurn',
     model: 'User',
     adapter: 'prisma',
     schemaHash: 'abc123',
@@ -140,7 +140,7 @@ describe('appendHistoryRecord', () => {
   it('writes a valid JSON line to the file', () => {
     const record = makeRecord();
     appendHistoryRecord(tmpDir, record);
-    const filePath = historyFilePath(tmpDir, record.signal);
+    const filePath = historyFilePath(tmpDir, record.trait);
     const lines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0])).toMatchObject(record);
@@ -151,15 +151,15 @@ describe('appendHistoryRecord', () => {
     const r2 = makeRecord({ artifactVersion: '2', trainedAt: '2025-01-02T00:00:00.000Z' });
     appendHistoryRecord(tmpDir, r1);
     appendHistoryRecord(tmpDir, r2);
-    const filePath = historyFilePath(tmpDir, r1.signal);
+    const filePath = historyFilePath(tmpDir, r1.trait);
     const lines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[1]).artifactVersion).toBe('2');
   });
 
   it('keeps records for different signals in separate files', () => {
-    appendHistoryRecord(tmpDir, makeRecord({ signal: 'sigA' }));
-    appendHistoryRecord(tmpDir, makeRecord({ signal: 'sigB' }));
+    appendHistoryRecord(tmpDir, makeRecord({ trait: 'sigA' }));
+    appendHistoryRecord(tmpDir, makeRecord({ trait: 'sigB' }));
     expect(fs.existsSync(historyFilePath(tmpDir, 'sigA'))).toBe(true);
     expect(fs.existsSync(historyFilePath(tmpDir, 'sigB'))).toBe(true);
   });

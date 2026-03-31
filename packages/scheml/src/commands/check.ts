@@ -146,7 +146,7 @@ export const checkCommand = {
           // Write a drift history record
           const latest = readLatestHistoryRecord(outputDir, metadata.traitName);
           appendHistoryRecord(outputDir, {
-            signal: metadata.traitName,
+            trait: metadata.traitName,
             model: metadata.entityName,
             adapter: 'prisma',
             schemaHash: metadata.schemaHash,

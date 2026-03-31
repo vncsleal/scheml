@@ -1,6 +1,6 @@
 # ScheML — Implementation Plan
 
-> Transforming PrisML into ScheML: signal as a property of the type system.
+> Transforming PrisML into ScheML: trait as a property of the type system.
 
 **Written:** March 31, 2026  
 **Status:** Active
@@ -330,7 +330,7 @@ The `trait:` filter syntax (`findMany({ trait: { churnRisk: { gt: 0.75 } } })`) 
 **What:** `record()` and `recordBatch()` APIs on the definition object itself for collecting ground truth and measuring accuracy decay.
 
 ```ts
-// Single record — churnRisk is the signal definition object
+// Single record — churnRisk is the trait definition object
 await churnRisk.record(customerId, { actual: true })
 
 // Batch form — one round-trip for bulk ground-truth ingestion

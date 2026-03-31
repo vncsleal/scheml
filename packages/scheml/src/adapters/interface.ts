@@ -113,7 +113,7 @@ export interface DataExtractor {
    * Persist inference results back to the data store.
    * Only required for adapters that support materialisation.
    */
-  write?(modelName: string, results: InferenceResult[]): Promise<void>;
+  write?(modelName: string, results: InferenceResult[], columnName?: string): Promise<void>;
 }
 
 /**

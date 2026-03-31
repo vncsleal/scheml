@@ -153,7 +153,11 @@ export class PrismaDataExtractor implements DataExtractor {
     return delegate.findMany(query) as Promise<Row[]>;
   }
 
-  async write(modelName: string, results: InferenceResult[]): Promise<void> {
+  async write(
+    modelName: string,
+    results: InferenceResult[],
+    columnName: string = 'schemlPrediction'
+  ): Promise<void> {
     const client = this.getClient();
     const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
     const delegate = client[delegateName];
@@ -167,7 +171,7 @@ export class PrismaDataExtractor implements DataExtractor {
       results.map((r) =>
         delegate.update({
           where: { id: r.entityId },
-          data:  { schemlPrediction: r.prediction },
+          data: { [columnName]: r.prediction },
         })
       )
     );

@@ -1,8 +1,8 @@
 /**
- * ScheML History — append-only JSONL audit trail for signal definitions,
+ * ScheML History — append-only JSONL audit trail for trait definitions,
  * training runs, and drift events.
  *
- * Each signal gets its own file at `.scheml/history/<signalName>.jsonl`.
+ * Each trait gets its own file at `.scheml/history/<traitName>.jsonl`.
  * Records are newline-delimited JSON, one object per line, append-only.
  * This makes the file safe to tail, diff, and commit to version control.
  */
@@ -16,9 +16,9 @@ import { spawnSync } from 'child_process';
 // ---------------------------------------------------------------------------
 
 export interface HistoryRecord {
-  /** Signal (trait) name */
-  signal: string;
-  /** Entity/model name the signal was trained on */
+  /** Trait name */
+  trait: string;
+  /** Entity/model name the trait was trained on */
   model: string;
   /** Adapter used at training time */
   adapter: string;
@@ -35,7 +35,7 @@ export interface HistoryRecord {
   /** ISO-8601: when the artifact was trained (omitted for 'defined' status) */
   trainedAt?: string;
   /**
-   * Monotonically incrementing training version for this signal.
+  * Monotonically incrementing training version for this trait.
    * Starts at "1" and increments on each successful train.
    */
   artifactVersion: string;
@@ -44,7 +44,7 @@ export interface HistoryRecord {
    * Key is the metric name, value is `{ threshold, result }`.
    */
   qualityGates?: Record<string, { threshold: number; result: number }>;
-  status: 'defined' | 'trained' | 'drifted' | 'deprecated';
+  status: 'defined' | 'trained' | 'drifted' | 'deprecated' | 'materialized';
   /** ISO-8601: when drift was first detected */
   driftDetectedAt?: string;
   /** Field names that changed since the artifact was trained */
@@ -94,8 +94,8 @@ export function historyDir(outputDir: string): string {
   return path.join(outputDir, 'history');
 }
 
-export function historyFilePath(outputDir: string, signalName: string): string {
-  return path.join(outputDir, 'history', `${signalName}.jsonl`);
+export function historyFilePath(outputDir: string, traitName: string): string {
+  return path.join(outputDir, 'history', `${traitName}.jsonl`);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,11 +103,11 @@ export function historyFilePath(outputDir: string, signalName: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Read all history records for a signal from disk.
+ * Read all history records for a trait from disk.
  * Returns an empty array if the file does not exist.
  */
-export function readHistoryRecords(outputDir: string, signalName: string): HistoryRecord[] {
-  const filePath = historyFilePath(outputDir, signalName);
+export function readHistoryRecords(outputDir: string, traitName: string): HistoryRecord[] {
+  const filePath = historyFilePath(outputDir, traitName);
   if (!fs.existsSync(filePath)) return [];
   return fs
     .readFileSync(filePath, 'utf-8')
@@ -117,14 +117,14 @@ export function readHistoryRecords(outputDir: string, signalName: string): Histo
 }
 
 /**
- * Read only the most recent history record for a signal.
+ * Read only the most recent history record for a trait.
  * Returns `null` if no history exists.
  */
 export function readLatestHistoryRecord(
   outputDir: string,
-  signalName: string
+  traitName: string
 ): HistoryRecord | null {
-  const records = readHistoryRecords(outputDir, signalName);
+  const records = readHistoryRecords(outputDir, traitName);
   return records.length > 0 ? records[records.length - 1] : null;
 }
 
@@ -133,7 +133,7 @@ export function readLatestHistoryRecord(
 // ---------------------------------------------------------------------------
 
 /**
- * Append a history record to the signal's JSONL file.
+ * Append a history record to the trait's JSONL file.
  * Creates the `history/` directory if it does not exist.
  */
 export function appendHistoryRecord(outputDir: string, record: HistoryRecord): void {
@@ -141,7 +141,7 @@ export function appendHistoryRecord(outputDir: string, record: HistoryRecord): v
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  const filePath = historyFilePath(outputDir, record.signal);
+  const filePath = historyFilePath(outputDir, record.trait);
   fs.appendFileSync(filePath, JSON.stringify(record) + '\n', 'utf-8');
 }
 
@@ -150,11 +150,11 @@ export function appendHistoryRecord(outputDir: string, record: HistoryRecord): v
 // ---------------------------------------------------------------------------
 
 /**
- * Return the next artifact version string for a signal.
+ * Return the next artifact version string for a trait.
  * Counts existing 'trained' records and returns `String(count + 1)`.
  */
-export function nextArtifactVersion(outputDir: string, signalName: string): string {
-  const records = readHistoryRecords(outputDir, signalName);
+export function nextArtifactVersion(outputDir: string, traitName: string): string {
+  const records = readHistoryRecords(outputDir, traitName);
   const trainedCount = records.filter((r) => r.status === 'trained').length;
   return String(trainedCount + 1);
 }

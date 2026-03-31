@@ -454,7 +454,7 @@ export const trainCommand = {
           `Trained ${chalk.bold(model.name)} \u2014 estimator: ${chalk.cyan(bestEstimator)}`
         );
         appendHistoryRecord(outputDir, {
-          signal: model.name,
+          trait: model.name,
           model: model.modelName,
           adapter: 'prisma',
           schemaHash: modelSchemaHash,
@@ -535,7 +535,7 @@ export const trainCommand = {
           spinner.succeed(`Trained anomaly trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
           appendHistoryRecord(outputDir, {
-            signal: trait.name,
+            trait: trait.name,
             model: entityName,
             adapter: 'prisma',
             schemaHash: anomalySchemaHash,
@@ -599,7 +599,7 @@ export const trainCommand = {
           spinner.succeed(`Trained similarity trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
           appendHistoryRecord(outputDir, {
-            signal: trait.name,
+            trait: trait.name,
             model: entityName,
             adapter: 'prisma',
             schemaHash: simSchemaHash,
@@ -682,7 +682,7 @@ export const trainCommand = {
           spinner.succeed(`Trained sequential trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
           appendHistoryRecord(outputDir, {
-            signal: trait.name,
+            trait: trait.name,
             model: entityName,
             adapter: 'prisma',
             schemaHash: seqSchemaHash,
@@ -709,7 +709,7 @@ export const trainCommand = {
           spinner.succeed(`Compiled generative trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
           appendHistoryRecord(outputDir, {
-            signal: trait.name,
+            trait: trait.name,
             model: entityName,
             adapter: 'prisma',
             schemaHash: genSchemaHash,
