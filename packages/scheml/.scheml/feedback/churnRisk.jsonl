@@ -13,3 +13,6 @@
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-03-31T20:19:57.022Z"}
 {"entityId":"cust_2","actual":false,"recordedAt":"2026-03-31T20:19:57.025Z"}
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-03-31T20:19:57.025Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-03-31T22:14:05.466Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-03-31T22:14:05.467Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-03-31T22:14:05.467Z"}

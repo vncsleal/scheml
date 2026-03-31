@@ -271,3 +271,16 @@ export interface ExtractedFeatures {
   values: number[];
   featureNames: string[];
 }
+
+/**
+ * Output from a generative trait inference call.
+ * The result type depends on the trait's outputSchema:
+ * - `z.string()` / no schema → plain string
+ * - `z.enum([...])` → the selected enum value (string)
+ * - `z.object({...})` → structured object
+ */
+export interface GenerativePredictionOutput {
+  traitName: string;
+  result: string | Record<string, unknown>;
+  timestamp: string;
+}

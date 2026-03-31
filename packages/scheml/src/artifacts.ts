@@ -31,7 +31,7 @@ export interface ArtifactMetadataBase {
    * Trait type discriminant — must match the `type` field in the trait definition.
    * Used by PredictionSession to choose the correct loader.
    */
-  traitType: 'predictive' | 'anomaly' | 'similarity' | 'sequential';
+  traitType: 'predictive' | 'anomaly' | 'similarity' | 'sequential' | 'generative';
   /** Canonical trait name */
   traitName: string;
   /** Adapter-agnostic hash of the entity schema subset at training time */
@@ -180,6 +180,33 @@ export interface SequentialArtifactMetadata extends ArtifactMetadataBase {
 }
 
 // ---------------------------------------------------------------------------
+// Generative artifact (compiled prompt template — no Python backend)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compilation artifact for generative traits.
+ * Written by `scheml train` to capture the context field list, prompt template,
+ * and output schema shape. The Zod `outputSchema` is NOT serialised — it lives
+ * in the trait definition and is resolved at inference time.
+ */
+export interface GenerativeArtifactMetadata extends ArtifactMetadataBase {
+  traitType: 'generative';
+  /** Entity fields serialised into the prompt context block */
+  contextFields: string[];
+  /** Raw prompt template from the trait definition */
+  promptTemplate: string;
+  /**
+   * AI SDK invocation strategy derived from the `outputSchema` Zod type:
+   * - `'text'`   → `generateText` (plain output)
+   * - `'choice'` → `generateObject({ output: 'enum', enum: choiceOptions })`
+   * - `'object'` → `generateObject({ schema: zodSchema })`
+   */
+  outputSchemaShape: 'text' | 'choice' | 'object';
+  /** Enum values when outputSchemaShape === 'choice' */
+  choiceOptions?: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Discriminated union
 // ---------------------------------------------------------------------------
 
@@ -187,7 +214,8 @@ export type ArtifactMetadata =
   | PredictiveArtifactMetadata
   | AnomalyArtifactMetadata
   | SimilarityArtifactMetadata
-  | SequentialArtifactMetadata;
+  | SequentialArtifactMetadata
+  | GenerativeArtifactMetadata;
 
 // ---------------------------------------------------------------------------
 // Type guards
@@ -207,6 +235,10 @@ export function isSimilarityArtifact(m: ArtifactMetadata): m is SimilarityArtifa
 
 export function isSequentialArtifact(m: ArtifactMetadata): m is SequentialArtifactMetadata {
   return m.traitType === 'sequential';
+}
+
+export function isGenerativeArtifact(m: ArtifactMetadata): m is GenerativeArtifactMetadata {
+  return m.traitType === 'generative';
 }
 
 // ---------------------------------------------------------------------------

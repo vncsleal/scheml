@@ -98,6 +98,7 @@ export type {
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
   SequentialArtifactMetadata,
+  GenerativeArtifactMetadata,
   SimilarityStrategy,
 } from './artifacts';
 export {
@@ -105,9 +106,18 @@ export {
   isAnomalyArtifact,
   isSimilarityArtifact,
   isSequentialArtifact,
+  isGenerativeArtifact,
   metadataFileName,
   onnxFileName,
   similarityIndexFileName,
 } from './artifacts';
+
+// Generative trait utilities
+export type { OutputSchemaShape, DetectedOutputSchema } from './generative';
+export { detectOutputSchemaShape, validateGenerativeTrait, compileGenerativeTrait } from './generative';
+
+// Configuration factory
+export type { ScheMlConfig } from './defineConfig';
+export { defineConfig } from './defineConfig';
 
 export const VERSION = '0.3.1';

@@ -13,6 +13,7 @@ import {
   BatchPredictionResult,
   FeatureSchema,
   ExtractedFeatures,
+  GenerativePredictionOutput,
 } from './types';
 import { normalizeFeatureVector } from './encoding';
 import {
@@ -23,6 +24,8 @@ import {
   ONNXRuntimeError,
 } from './errors';
 import { computeSchemaHashForMetadata } from './contracts';
+import type { GenerativeTrait } from './traitTypes';
+import { detectOutputSchemaShape } from './generative';
 
 /**
  * Loads and caches ONNX model metadata
@@ -456,5 +459,97 @@ export class PredictionSession {
   async disposeAll(): Promise<void> {
     this.sessions.clear();
     this.metadata.clear();
+  }
+
+  // -------------------------------------------------------------------------
+  // Generative trait inference
+  // -------------------------------------------------------------------------
+
+  /**
+   * Run inference on a generative trait.
+   *
+   * Serializes the entity's context fields into a structured JSON block,
+   * prepends it to the prompt, then calls the configured AI provider via
+   * AI SDK v5+ (`generateText` or `generateObject` depending on `outputSchema`).
+   *
+   * @param trait   - The generative trait definition (used at inference time).
+   * @param entity  - The entity to generate output for.
+   * @param provider - A `LanguageModel` instance from `ai` (e.g. `openai('gpt-4o')`).
+   *
+   * @example
+   * ```ts
+   * import { openai } from '@ai-sdk/openai';
+   * const output = await session.predictGenerative(retentionMessage, user, openai('gpt-4o'));
+   * // output.result is the generated string / enum value / object
+   * ```
+   */
+  async predictGenerative<T>(
+    trait: GenerativeTrait<T>,
+    entity: T,
+    provider: unknown
+  ): Promise<GenerativePredictionOutput> {
+    // Build context object from the configured entity fields
+    const context: Record<string, unknown> = {};
+    for (const field of trait.context) {
+      context[field] = (entity as any)[field];
+    }
+
+    const prompt = `<context>\n${JSON.stringify(context, null, 2)}\n</context>\n\n${trait.prompt}`;
+
+    // Dynamic import — 'ai' is an optional peer dependency.
+    // This gives a clear error message if the user hasn't installed it.
+    let aiModule: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore — optional peer dep, not present in dev environment
+      aiModule = await import('ai');
+    } catch {
+      throw new Error(
+        'Package "ai" is required for generative trait inference. ' +
+          'Install it with: npm install ai'
+      );
+    }
+
+    const { generateText, generateObject } = aiModule;
+    const detected = detectOutputSchemaShape(trait.outputSchema);
+
+    try {
+      if (detected.shape === 'text') {
+        const { text } = await generateText({ model: provider, prompt });
+        return {
+          traitName: trait.name,
+          result: text as string,
+          timestamp: new Date().toISOString(),
+        };
+      } else if (detected.shape === 'choice') {
+        const { object } = await generateObject({
+          model: provider,
+          output: 'enum',
+          enum: detected.choiceOptions ?? [],
+          prompt,
+        });
+        return {
+          traitName: trait.name,
+          result: object as string,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        // 'object' shape — pass the user's Zod schema directly to generateObject
+        const { object } = await generateObject({
+          model: provider,
+          schema: trait.outputSchema,
+          prompt,
+        });
+        return {
+          traitName: trait.name,
+          result: object as Record<string, unknown>,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (error) {
+      throw new Error(
+        `Generative inference failed for trait "${trait.name}": ${(error as Error).message}`
+      );
+    }
   }
 }

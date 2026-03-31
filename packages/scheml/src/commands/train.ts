@@ -45,7 +45,12 @@ import type {
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
   SequentialArtifactMetadata,
+  GenerativeArtifactMetadata,
 } from '../artifacts';
+import {
+  validateGenerativeTrait,
+  compileGenerativeTrait,
+} from '../generative';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -73,7 +78,7 @@ function isTraitDefinition(value: any): value is AnyTraitDefinition {
     typeof value === 'object' &&
     typeof value.name === 'string' &&
     typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'sequential'].includes(value.type)
+    ['predictive', 'anomaly', 'similarity', 'sequential', 'generative'].includes(value.type)
   );
 }
 
@@ -616,8 +621,23 @@ export const trainCommand = {
           );
           spinner.succeed(`Trained sequential trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
+        // generative: no Python backend — compile-time template validation only
+        } else if (trait.type === 'generative') {
+          const prismaFields = parseModelSchema(schemaContent, entityName);
+          const availableFields = new Set(Object.keys(prismaFields));
+          validateGenerativeTrait(trait, availableFields);
+          const genMetadata: GenerativeArtifactMetadata = compileGenerativeTrait(
+            trait,
+            hashPrismaModelSubset(schemaContent, entityName),
+            VERSION
+          );
+          fs.writeFileSync(
+            path.join(outputDir, `${trait.name}.metadata.json`),
+            JSON.stringify(genMetadata, null, 2)
+          );
+          spinner.succeed(`Compiled generative trait ${chalk.bold(trait.name)}`);
+          traitArtifactNames.push(`${trait.name}.metadata.json`);
         }
-        // generative: no Python backend — Phase 5 handles compile-time template validation
       }
 
       spinner.start('Writing artifacts...');
