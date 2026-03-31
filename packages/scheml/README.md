@@ -1,10 +1,10 @@
-# @vncsleal/prisml
+# @vncsleal/scheml
 
 Compiler-first machine learning library for TypeScript + Prisma applications.
 
 ## Overview
 
-PrisML treats ML model training as a **compile-time step**, generating immutable ONNX artifacts that provide type-safe, in-process predictions at runtime.
+ScheML treats ML model training as a **compile-time step**, generating immutable ONNX artifacts that provide type-safe, in-process predictions at runtime.
 
 **Philosophy:**
 - Training = compilation (build-time)
@@ -14,21 +14,21 @@ PrisML treats ML model training as a **compile-time step**, generating immutable
 ## Installation
 
 ```bash
-npm install @vncsleal/prisml
+npm install @vncsleal/scheml
 ```
 
 Python training backend requires:
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
+pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 ```
 
 ## Quick Start
 
-### 1. Define your model (`prisml.config.ts`)
+### 1. Define your model (`scheml.config.ts`)
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/scheml';
 
 export const salesModel = defineModel<Product>({
   name: 'productSales',
@@ -49,21 +49,21 @@ export const salesModel = defineModel<Product>({
 ### 2. Train (build-time)
 
 ```bash
-npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
+npx scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma
 ```
 
-Outputs to `.prisml/`:
+Outputs to `.scheml/`:
 - `productSales.onnx` — model binary
 - `productSales.metadata.json` — schema contract
 
 ### 3. Predict (runtime)
 
 ```typescript
-import { PredictionSession } from '@vncsleal/prisml';
-import { salesModel } from './prisml.config';
+import { PredictionSession } from '@vncsleal/scheml';
+import { salesModel } from './scheml.config';
 
 const session = new PredictionSession();
-await session.load(salesModel); // resolves .prisml/ and prisma/schema.prisma automatically
+await session.load(salesModel); // resolves .scheml/ and prisma/schema.prisma automatically
 
 const result = await session.predict(salesModel, product);
 // { modelName: 'productSales', prediction: 42.3, timestamp: '...' }
@@ -79,9 +79,9 @@ Declares a model. Pure config — no side effects.
 
 #### `session.load(model, opts?)`
 
-Loads a trained model from `.prisml/<name>.{onnx,metadata.json}` and hashes `prisma/schema.prisma` automatically.
+Loads a trained model from `.scheml/<name>.{onnx,metadata.json}` and hashes `prisma/schema.prisma` automatically.
 
-- `opts.artifactsDir` — override artifacts directory (default: `.prisml/`)
+- `opts.artifactsDir` — override artifacts directory (default: `.scheml/`)
 - `opts.schemaPath` — override schema path (default: `prisma/schema.prisma`)
 
 #### `session.predict(model, entity)`
@@ -113,7 +113,7 @@ qualityGates: [
 ]
 ```
 
-`prisml train` exits non-zero if any gate fails.
+`scheml train` exits non-zero if any gate fails.
 
 ## Supported Algorithms
 

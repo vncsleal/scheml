@@ -9,19 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Train-derived preprocessing contract** (`packages/prisml/src/commands/train.ts`, `packages/prisml/src/encoding.ts`): feature encodings, imputations, and scaling rules are now expected to be fit from the training split before the Python backend receives `X_train` / `X_test`. This tightens the artifact contract and removes test-set leakage from preprocessing semantics.
+- **Train-derived preprocessing contract** (`packages/scheml/src/commands/train.ts`, `packages/scheml/src/encoding.ts`): feature encodings, imputations, and scaling rules are now expected to be fit from the training split before the Python backend receives `X_train` / `X_test`. This tightens the artifact contract and removes test-set leakage from preprocessing semantics.
 - **Docs and quickstart alignment** (`README.md`, `docs/GUIDE.md`): introductory examples now reflect AutoML as the default path and describe artifact metadata as the compiled train-derived feature contract used at runtime.
 
 ## [0.3.1] — 2026-03-26
 
 ### Added
 
-- **Training preflight config validation** (`src/contracts.ts`, `src/commands/train.ts`): `prisml train` now rejects unsupported algorithms, unsupported hyperparameters, invalid hyperparameter constraints, and AutoML hyperparameter usage before Prisma extraction and Python handoff.
+- **Training preflight config validation** (`src/contracts.ts`, `src/commands/train.ts`): `scheml train` now rejects unsupported algorithms, unsupported hyperparameters, invalid hyperparameter constraints, and AutoML hyperparameter usage before Prisma extraction and Python handoff.
 - **Contract tests for preflight and hash semantics** (`src/contracts.test.ts`, `src/prediction.test.ts`): added coverage for training preflight validation and for model-subset hashing with `metadataSchemaVersion` `1.2.x`.
 
 ### Changed
 
-- **`prisml check` schema-hash comparison now matches runtime semantics** (`src/commands/check.ts`): metadata using schema contract `1.2.0+` is now compared with `hashPrismaModelSubset()` instead of the full-schema hash, avoiding false hash-mismatch warnings when unrelated Prisma models change.
+- **`scheml check` schema-hash comparison now matches runtime semantics** (`src/commands/check.ts`): metadata using schema contract `1.2.0+` is now compared with `hashPrismaModelSubset()` instead of the full-schema hash, avoiding false hash-mismatch warnings when unrelated Prisma models change.
 - **`PredictionSession.load()` now treats all `1.2.x+` metadata as model-subset hashed** (`src/prediction.ts`): hash selection no longer relies on an exact `1.2.0` string match.
 
 ## [0.3.0] — 2026-03-21
@@ -104,7 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Schema normalization order invariance** (`schema.ts`): `normalizePrismaSchema()` was sensitive to declaration order — running `prisma format` (which reorders fields and models) produced a different SHA-256 hash for semantically identical schemas, causing false `SchemaDriftError` on `session.load()`. The function now sorts field lines alphabetically within each `model`/`enum` block (with `@@` directives after fields), and sorts `model`/`enum`/`type` blocks by name. `datasource`/`generator` blocks are preserved first in original order.
 
-  **Migration:** Existing `.onnx` + `.metadata.json` artifacts must be regenerated with `prisml train`. The stored `prismaSchemaHash` will differ from the hash produced by this version. Tests pinning `KNOWN_SCHEMA_HASH` must be updated to the new value (run `hashPrismaSchema()` against your schema to obtain it).
+  **Migration:** Existing `.onnx` + `.metadata.json` artifacts must be regenerated with `scheml train`. The stored `prismaSchemaHash` will differ from the hash produced by this version. Tests pinning `KNOWN_SCHEMA_HASH` must be updated to the new value (run `hashPrismaSchema()` against your schema to obtain it).
 
 - **ONNX orphan on quality gate failure** (`commands/train.ts`): When a quality gate failed, the Python backend had already written the `.onnx` file before the gate was evaluated. The gate threw `QualityGateError` and the `.metadata.json` was never written, leaving a dangling `.onnx` with no corresponding metadata. The artifact is now deleted before rethrowing, ensuring no artifact exists without its metadata counterpart.
 
@@ -129,53 +129,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Consolidated `@vncsleal/prisml-core`, `@vncsleal/prisml-runtime`, `@vncsleal/prisml-cli`, and `@vncsleal/prisml-generator` into a single `@vncsleal/prisml` package. All sub-packages are retired.
-- New `session.load(model, opts?)` API — resolves `.prisml/` artifacts and `prisma/schema.prisma` automatically from the model definition.
+- Consolidated `@vncsleal/scheml-core`, `@vncsleal/scheml-runtime`, `@vncsleal/scheml-cli`, and `@vncsleal/scheml-generator` into a single `@vncsleal/scheml` package. All sub-packages are retired.
+- New `session.load(model, opts?)` API — resolves `.scheml/` artifacts and `prisma/schema.prisma` automatically from the model definition.
 - New `session.predict(model, entity)` overload — resolvers are colocated in `model.features`, no longer passed as a separate argument.
 - New `session.predictBatch(model, entities)` overload.
-- `prisml check` command included in the single package.
-- Python training backend (`python/train.py`) included in `packages/prisml/python/`.
+- `scheml check` command included in the single package.
+- Python training backend (`python/train.py`) included in `packages/scheml/python/`.
 - Package version reset to `0.1.0`.
 
 ### Removed
 
-- `@vncsleal/prisml-core` (retired)
-- `@vncsleal/prisml-runtime` (retired)
-- `@vncsleal/prisml-cli` (retired)
-- `@vncsleal/prisml-generator` (retired)
+- `@vncsleal/scheml-core` (retired)
+- `@vncsleal/scheml-runtime` (retired)
+- `@vncsleal/scheml-cli` (retired)
+- `@vncsleal/scheml-generator` (retired)
 
 ---
 
 ## Legacy (Multi-Package Era)
 
-> The entries below document the development history of the multi-package era (`@vncsleal/prisml-core`, `-runtime`, `-cli`). They are preserved for historical context.
+> The entries below document the development history of the multi-package era (`@vncsleal/scheml-core`, `-runtime`, `-cli`). They are preserved for historical context.
 
 ## [0.2.3] - 2026-03-08
 
 ### Changed
 
-- **`@vncsleal/prisml-runtime`**: `onnxruntime-node` moved from `dependencies` to `peerDependencies`. Consumers must install it explicitly. This prevents npm from nesting `onnxruntime-node` inside `@vncsleal/prisml-runtime/node_modules/`, which blocked Vercel builds by triggering a redundant 101 MB binary download on every cold install.
+- **`@vncsleal/scheml-runtime`**: `onnxruntime-node` moved from `dependencies` to `peerDependencies`. Consumers must install it explicitly. This prevents npm from nesting `onnxruntime-node` inside `@vncsleal/scheml-runtime/node_modules/`, which blocked Vercel builds by triggering a redundant 101 MB binary download on every cold install.
 
 ## [0.2.2] - 2026-03-08
 
 ### Added
 
-- **Live demo page** (`/demo`): interactive prediction UI with real ONNX inference running in-process via `@vncsleal/prisml-runtime`; includes latency display, schema drift trigger, and Carbon-inspired dark UI
+- **Live demo page** (`/demo`): interactive prediction UI with real ONNX inference running in-process via `@vncsleal/scheml-runtime`; includes latency display, schema drift trigger, and Carbon-inspired dark UI
 - **Example Prisma setup**: `examples/basic/prisma/schema.prisma` and `prisma/seed.ts` with `setup-demo` and `train:demo` scripts for reproducible demo artifact generation
 
 ### Fixed
 
-- **Classification ONNX export**: `train.py` in `@vncsleal/prisml-cli` now passes `zipmap: False` when exporting classification models. Previously the default `zipmap=True` caused skl2onnx to return a list-of-dicts output tensor instead of a float array, breaking runtime inference for all classification tasks.
-- **CLI version**: `prisml --version` now reads the version dynamically from `package.json` at runtime instead of returning a hardcoded `0.1.0`
+- **Classification ONNX export**: `train.py` in `@vncsleal/scheml-cli` now passes `zipmap: False` when exporting classification models. Previously the default `zipmap=True` caused skl2onnx to return a list-of-dicts output tensor instead of a float array, breaking runtime inference for all classification tasks.
+- **CLI version**: `scheml --version` now reads the version dynamically from `package.json` at runtime instead of returning a hardcoded `0.1.0`
 - **ESLint**: Lint scripts updated with `--ext .ts` flag explicitly, ensuring TypeScript files are linted in all packages
-- **Build isolation**: `tsconfig.json` in `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime` now excludes test files from compilation (`src/**/*.test.ts`); `files` arrays in both `package.json`s exclude `dist/**/*.test.*` from npm tarballs
-- **CI**: Added `workflow_dispatch` trigger for on-demand manual CI runs; removed stale `packages/python/` (Python backend is bundled inside `@vncsleal/prisml-cli`)
+- **Build isolation**: `tsconfig.json` in `@vncsleal/scheml-core` and `@vncsleal/scheml-runtime` now excludes test files from compilation (`src/**/*.test.ts`); `files` arrays in both `package.json`s exclude `dist/**/*.test.*` from npm tarballs
+- **CI**: Added `workflow_dispatch` trigger for on-demand manual CI runs; removed stale `packages/python/` (Python backend is bundled inside `@vncsleal/scheml-cli`)
 
 ## [0.2.1] - 2026-03-05
 
 ### Added
 
-- **Test Coverage**: 95 integration tests across `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`
+- **Test Coverage**: 95 integration tests across `@vncsleal/scheml-core` and `@vncsleal/scheml-runtime`
   - `schema.test.ts`: schema normalization, SHA256 hashing, hash validation, model parsing (19 tests)
   - `encoding.test.ts`: scalar normalization for all types, category mapping, feature vector ordering (29 tests)
   - `errors.test.ts`: all 10 error classes, correct codes, context fields, `instanceof` chain (32 tests)
@@ -189,11 +189,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `vitest` added to `devDependencies` in `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime` (was only hoisted from root workspace, causing resolution issues when packages are used standalone)
+- `vitest` added to `devDependencies` in `@vncsleal/scheml-core` and `@vncsleal/scheml-runtime` (was only hoisted from root workspace, causing resolution issues when packages are used standalone)
 
 ### Changed
 
-- **Publishing model**: `@vncsleal/prisml` now depends only on `@vncsleal/prisml-core` and `@vncsleal/prisml-runtime`. The CLI (`@vncsleal/prisml-cli`) is removed from the umbrella's runtime `dependencies` — it must be installed explicitly as a `devDependency`. This prevents build-time tools (yargs, chalk, ora, ts-node, onnxruntime-node) from being pulled into application bundles. Sub-packages remain individually published for granular control.
+- **Publishing model**: `@vncsleal/scheml` now depends only on `@vncsleal/scheml-core` and `@vncsleal/scheml-runtime`. The CLI (`@vncsleal/scheml-cli`) is removed from the umbrella's runtime `dependencies` — it must be installed explicitly as a `devDependency`. This prevents build-time tools (yargs, chalk, ora, ts-node, onnxruntime-node) from being pulled into application bundles. Sub-packages remain individually published for granular control.
 
 ## [0.2.0] - 2026-02-20
 
@@ -204,16 +204,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tensorSpec`: ONNX tensor metadata (name, shape, type)
   - Backward compatible with v1.0.0 metadata
 
-- **Schema-Only Contract Validation**: New `prisml check` command
+- **Schema-Only Contract Validation**: New `scheml check` command
   - Validates feature dependencies against Prisma schema without training
   - Detects type mismatches (String vs Float, etc.)
   - Detects nullability mismatches (required field used as nullable)
   - Warns on dynamic features (runtime-only resolution)
   - Fast CI-friendly validation (no Python/training required)
 
-- **Prisma Generator Package**: `prisml-generator` for schema annotations
-  - Parses `@prisml` annotations from Prisma schema docstrings
-  - Generates type-safe TypeScript constants (`PrisMLAnnotations`)
+- **Prisma Generator Package**: `scheml-generator` for schema annotations
+  - Parses `@scheml` annotations from Prisma schema docstrings
+  - Generates type-safe TypeScript constants (`ScheMLAnnotations`)
   - Supports `model`, `threshold`, `fallback` configuration
   - Full `as const` type inference for autocomplete
   - Application-level ML configuration co-located with schema
@@ -222,7 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Training Command**: Now emits v1.1.0 metadata with feature dependencies
 - **ESM Configuration Loading**: Fixed dynamic import handling for "type": "module" packages
-- **Default Output Directory**: Changed from `./prisml-artifacts` to `./.prisml` (follows industry standard dotfile pattern like `.next/`, `.nuxt/`)
+- **Default Output Directory**: Changed from `./scheml-artifacts` to `./.scheml` (follows industry standard dotfile pattern like `.next/`, `.nuxt/`)
 
 ## [0.1.0-legacy] - 2026-02-04
 
@@ -245,7 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Imputation rules: constant, mean, median, mode
   - Unseen category detection with `UnseenCategoryError`
 
-- **Compilation/Training Phase**: Build-time model training via `prisml train`
+- **Compilation/Training Phase**: Build-time model training via `scheml train`
   - Prisma data extraction via ORM
   - Deterministic feature vector generation
   - Fixed-seed train/test split (80/20, seed=42)
@@ -263,12 +263,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Synchronous, in-process inference
 
 - **Error Handling**: Comprehensive, typed error taxonomy
-  - `PrisMLError` base class with structured context
+  - `ScheMLError` base class with structured context
   - Specific error types: SchemaDriftError, HydrationError, UnseenCategoryError, etc.
   - Batch index tracking for debugging
 
 - **CLI**: Compiler driver for model training
-  - `prisml train` command with configurable options
+  - `scheml train` command with configurable options
   - Status output with spinners and colored logging
   - Quality gate enforcement with non-zero exit on failure
   - Support for config, schema, output, and python backend options
@@ -326,7 +326,7 @@ None (initial release)
 
 ### Contributors
 
-- PrisML Team
+- ScheML Team
 
 ---
 
@@ -343,9 +343,9 @@ None (initial release)
 
 ---
 
-[0.1.0]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0
-[0.2.3]: https://github.com/vncsleal/prisml/releases/tag/v0.2.3
-[0.2.2]: https://github.com/vncsleal/prisml/releases/tag/v0.2.2
-[0.2.1]: https://github.com/vncsleal/prisml/releases/tag/v0.2.1
-[0.2.0]: https://github.com/vncsleal/prisml/releases/tag/v0.2.0
-[0.1.0-legacy]: https://github.com/vncsleal/prisml/releases/tag/v0.1.0-legacy
+[0.1.0]: https://github.com/vncsleal/scheml/releases/tag/v0.1.0
+[0.2.3]: https://github.com/vncsleal/scheml/releases/tag/v0.2.3
+[0.2.2]: https://github.com/vncsleal/scheml/releases/tag/v0.2.2
+[0.2.1]: https://github.com/vncsleal/scheml/releases/tag/v0.2.1
+[0.2.0]: https://github.com/vncsleal/scheml/releases/tag/v0.2.0
+[0.1.0-legacy]: https://github.com/vncsleal/scheml/releases/tag/v0.1.0-legacy

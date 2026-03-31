@@ -1,12 +1,12 @@
 /**
- * PrisML Error Taxonomy
+ * ScheML Error Taxonomy
  * Structured error handling with typed context
  */
 
 /**
- * Base PrisML error class
+ * Base ScheML error class
  */
-export class PrisMLError extends Error {
+export class ScheMLError extends Error {
   public readonly code: string;
   public readonly context: Record<string, unknown>;
 
@@ -18,8 +18,8 @@ export class PrisMLError extends Error {
     super(message);
     this.code = code;
     this.context = context;
-    this.name = 'PrisMLError';
-    Object.setPrototypeOf(this, PrisMLError.prototype);
+    this.name = 'ScheMLError';
+    Object.setPrototypeOf(this, ScheMLError.prototype);
   }
 
   toJSON() {
@@ -35,7 +35,7 @@ export class PrisMLError extends Error {
 /**
  * Schema validation error
  */
-export class SchemaValidationError extends PrisMLError {
+export class SchemaValidationError extends ScheMLError {
   constructor(message: string, context?: Record<string, unknown>) {
     super('SCHEMA_VALIDATION_ERROR', message, context);
     this.name = 'SchemaValidationError';
@@ -46,7 +46,7 @@ export class SchemaValidationError extends PrisMLError {
 /**
  * Schema hash mismatch at runtime
  */
-export class SchemaDriftError extends PrisMLError {
+export class SchemaDriftError extends ScheMLError {
   constructor(expected: string, actual: string) {
     super(
       'SCHEMA_DRIFT_ERROR',
@@ -61,7 +61,7 @@ export class SchemaDriftError extends PrisMLError {
 /**
  * Model definition validation error
  */
-export class ModelDefinitionError extends PrisMLError {
+export class ModelDefinitionError extends ScheMLError {
   constructor(modelName: string, message: string, context?: Record<string, unknown>) {
     super(
       'MODEL_DEFINITION_ERROR',
@@ -76,7 +76,7 @@ export class ModelDefinitionError extends PrisMLError {
 /**
  * Feature extraction failure
  */
-export class FeatureExtractionError extends PrisMLError {
+export class FeatureExtractionError extends ScheMLError {
   constructor(
     modelName: string,
     featureName: string,
@@ -104,7 +104,7 @@ export class FeatureExtractionError extends PrisMLError {
 /**
  * Hydration failure: entity missing required fields
  */
-export class HydrationError extends PrisMLError {
+export class HydrationError extends ScheMLError {
   constructor(
     modelName: string,
     entityPath: string,
@@ -130,7 +130,7 @@ export class HydrationError extends PrisMLError {
 /**
  * Unseen categorical value at runtime
  */
-export class UnseenCategoryError extends PrisMLError {
+export class UnseenCategoryError extends ScheMLError {
   constructor(
     modelName: string,
     featureName: string,
@@ -156,7 +156,7 @@ export class UnseenCategoryError extends PrisMLError {
 /**
  * Artifact not found or invalid
  */
-export class ArtifactError extends PrisMLError {
+export class ArtifactError extends ScheMLError {
   constructor(modelName: string, message: string, context?: Record<string, unknown>) {
     super('ARTIFACT_ERROR', `Model "${modelName}": ${message}`, {
       modelName,
@@ -170,7 +170,7 @@ export class ArtifactError extends PrisMLError {
 /**
  * Quality gate failure during compilation
  */
-export class QualityGateError extends PrisMLError {
+export class QualityGateError extends ScheMLError {
   constructor(
     modelName: string,
     metric: string,
@@ -194,7 +194,7 @@ export class QualityGateError extends PrisMLError {
 /**
  * ONNX Runtime error
  */
-export class ONNXRuntimeError extends PrisMLError {
+export class ONNXRuntimeError extends ScheMLError {
   constructor(modelName: string, message: string, originalError?: Error) {
     super('ONNX_RUNTIME_ERROR', `Model "${modelName}": ${message}`, {
       modelName,
@@ -208,7 +208,7 @@ export class ONNXRuntimeError extends PrisMLError {
 /**
  * Encoding/normalization error
  */
-export class EncodingError extends PrisMLError {
+export class EncodingError extends ScheMLError {
   constructor(modelName: string, featureName: string, reason: string) {
     super('ENCODING_ERROR', `Model "${modelName}", feature "${featureName}": ${reason}`, {
       modelName,
@@ -223,7 +223,7 @@ export class EncodingError extends PrisMLError {
 /**
  * Configuration or environment error
  */
-export class ConfigurationError extends PrisMLError {
+export class ConfigurationError extends ScheMLError {
   constructor(message: string, context?: Record<string, unknown>) {
     super('CONFIGURATION_ERROR', message, context);
     this.name = 'ConfigurationError';

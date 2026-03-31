@@ -1,16 +1,16 @@
 {
-  "name": "@vncsleal/prisml",
+  "name": "@vncsleal/scheml",
   "version": "0.3.1",
-  "description": "PrisML: compiler-first ML for TypeScript + Prisma",
+  "description": "ScheML: compiler-first ML for TypeScript + Prisma",
   "license": "MIT",
   "author": "Vinicius Leal <oi@iamvini.co> (https://github.com/vncsleal)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vncsleal/prisml",
-    "directory": "packages/prisml"
+    "url": "https://github.com/vncsleal/scheml",
+    "directory": "packages/scheml"
   },
   "bugs": {
-    "url": "https://github.com/vncsleal/prisml/issues"
+    "url": "https://github.com/vncsleal/scheml/issues"
   },
   "keywords": [
     "machine-learning",
@@ -30,7 +30,7 @@
     "README.md"
   ],
   "bin": {
-    "prisml": "./dist/bin.js"
+    "scheml": "./dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

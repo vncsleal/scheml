@@ -8,7 +8,7 @@
 
 ## The Problem
 
-PrisML's core guarantee is compile-first determinism: what is validated at train time is what runs in production. The quality gate system (`qualityGates: [{ metric: 'rmse', threshold: 300, comparison: 'lte' }]`) is the operational enforcement of that guarantee — training refuses to emit an artifact if the model doesn't meet specified thresholds.
+ScheML's core guarantee is compile-first determinism: what is validated at train time is what runs in production. The quality gate system (`qualityGates: [{ metric: 'rmse', threshold: 300, comparison: 'lte' }]`) is the operational enforcement of that guarantee — training refuses to emit an artifact if the model doesn't meet specified thresholds.
 
 That guarantee is only meaningful if the runtime used to evaluate quality gates is the same runtime used in production inference. Currently it is not.
 
@@ -43,7 +43,7 @@ IEEE 754 defines float32 semantics but leaves room for implementation variation:
 
 ### The quality gate gap — the critical consequence
 
-`prisml train` evaluates RMSE (or other metrics) using Python `onnxruntime`. The artifact is stamped "passes gate" in `ModelMetadata`. But the gate was evaluated against a runtime that is never used in production.
+`scheml train` evaluates RMSE (or other metrics) using Python `onnxruntime`. The artifact is stamped "passes gate" in `ModelMetadata`. But the gate was evaluated against a runtime that is never used in production.
 
 A model at the threshold boundary — RMSE = 299.8, gate is ≤ 300 — may produce predictions that average to RMSE = 300.3 under `onnxruntime-web` WASM. The artifact passes build time validation yet fails the condition it was validated against, on every production inference call. The audit trail (if implemented per V1 roadmap) records `prismaSchemaHash` and `artifactHash` but cannot record "this artifact was validated against a different execution backend than production."
 
@@ -111,8 +111,8 @@ The runtime selection should be opt-in and explicit, not the default:
 
 ```ts
 // Option A: separate entrypoints
-import { PredictionSession } from '@vncsleal/prisml';         // onnxruntime-node (default)
-import { PredictionSession } from '@vncsleal/prisml/edge';    // onnxruntime-web (opt-in)
+import { PredictionSession } from '@vncsleal/scheml';         // onnxruntime-node (default)
+import { PredictionSession } from '@vncsleal/scheml/edge';    // onnxruntime-web (opt-in)
 
 // Option B: env-based selection at load time
 const session = new PredictionSession({ runtime: 'web' }); // explicit override
@@ -154,11 +154,11 @@ Version alignment matters: Python's `onnxruntime` and `onnxruntime-node` should 
 
 `prediction.test.ts` currently runs fine against `onnxruntime-web` in a Node.js Vitest environment because WASM runs in Node.js. After the switch to `onnxruntime-node`, tests run against the native binding — this is strictly better but requires `onnxruntime-node` to resolve in the test environment. No behavioral changes to tests are expected.
 
-`prisml-test` integration tests (`pipeline.test.ts`, `cli.test.ts`) run against the full stack. These should continue to pass unchanged — `onnxruntime-node` outputs numerically equivalent results to `onnxruntime-web` for `TreeEnsembleRegressor` (forest model used in prisml-test). The `KNOWN_SCHEMA_HASH` constant is unaffected.
+`scheml-test` integration tests (`pipeline.test.ts`, `cli.test.ts`) run against the full stack. These should continue to pass unchanged — `onnxruntime-node` outputs numerically equivalent results to `onnxruntime-web` for `TreeEnsembleRegressor` (forest model used in scheml-test). The `KNOWN_SCHEMA_HASH` constant is unaffected.
 
 ### Artifacts
 
-No artifact changes. ONNX files are runtime-agnostic binary format. Existing `.prisml/*.onnx` files work with both runtimes.
+No artifact changes. ONNX files are runtime-agnostic binary format. Existing `.scheml/*.onnx` files work with both runtimes.
 
 ---
 
@@ -168,7 +168,7 @@ The audit & provenance section is the centerpiece of V1 differentiation. The pla
 
 - Prediction receipts with `{ schemaHash, artifactHash, timestamp }`
 - Training provenance (query shape, row count, seed)
-- `prisml inspect` showing training metrics
+- `scheml inspect` showing training metrics
 
 All three are only meaningful if the runtime that produced the metrics during training is the same runtime used in production. Without parity, the `artifactHash` proves the binary matches, but says nothing about whether the computation in that binary reproduces what was validated.
 

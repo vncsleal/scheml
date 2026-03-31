@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  PrisMLError,
+  ScheMLError,
   SchemaDriftError,
   ModelDefinitionError,
   FeatureExtractionError,
@@ -13,20 +13,20 @@ import {
   ConfigurationError,
 } from './errors';
 
-describe('PrisMLError (base)', () => {
+describe('ScheMLError (base)', () => {
   it('is instanceof Error', () => {
-    const e = new PrisMLError('TEST', 'msg');
+    const e = new ScheMLError('TEST', 'msg');
     expect(e).toBeInstanceOf(Error);
   });
 
   it('exposes code and message', () => {
-    const e = new PrisMLError('MY_CODE', 'my message');
+    const e = new ScheMLError('MY_CODE', 'my message');
     expect(e.code).toBe('MY_CODE');
     expect(e.message).toBe('my message');
   });
 
   it('serializes via toJSON', () => {
-    const e = new PrisMLError('CODE', 'msg', { key: 'val' });
+    const e = new ScheMLError('CODE', 'msg', { key: 'val' });
     const json = e.toJSON();
     expect(json.code).toBe('CODE');
     expect(json.message).toBe('msg');
@@ -46,9 +46,9 @@ describe('SchemaDriftError', () => {
     expect(err.context['actualHash']).toBe('def456');
   });
 
-  it('is instanceof SchemaDriftError and PrisMLError', () => {
+  it('is instanceof SchemaDriftError and ScheMLError', () => {
     expect(err).toBeInstanceOf(SchemaDriftError);
-    expect(err).toBeInstanceOf(PrisMLError);
+    expect(err).toBeInstanceOf(ScheMLError);
   });
 
   it('message references both hashes', () => {
@@ -202,7 +202,7 @@ describe('ConfigurationError', () => {
 });
 
 describe('Error instanceof chain', () => {
-  it('all PrisML errors are instanceof PrisMLError', () => {
+  it('all ScheML errors are instanceof ScheMLError', () => {
     const errors = [
       new SchemaDriftError('a', 'b'),
       new ModelDefinitionError('m', 'msg'),
@@ -216,7 +216,7 @@ describe('Error instanceof chain', () => {
       new ConfigurationError('msg'),
     ];
     for (const e of errors) {
-      expect(e).toBeInstanceOf(PrisMLError);
+      expect(e).toBeInstanceOf(ScheMLError);
       expect(e).toBeInstanceOf(Error);
     }
   });

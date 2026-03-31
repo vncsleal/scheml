@@ -1,4 +1,4 @@
-# PrisML Documentation Index
+# ScheML Documentation Index
 
 ## Start Here
 

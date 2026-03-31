@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * PrisML CLI entry point
+ * ScheML CLI entry point
  */
 
 import yargs from 'yargs';
@@ -29,7 +29,7 @@ async function main() {
   await yargs(hideBin(process.argv))
     .version('version', 'Show version', VERSION)
     .help()
-    .command('train', 'Train PrisML models from definitions', trainCommand)
+    .command('train', 'Train ScheML models from definitions', trainCommand)
     .command('check', 'Validate schema-only contract compatibility', checkCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()

@@ -1,4 +1,4 @@
-# PrisML User Guide
+# ScheML User Guide
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ Node.js **18 or higher** is required.
 
 ### Python (build-time only)
 
-`prisml train` shells out to a Python backend to produce ONNX artifacts. Python is **not** required at runtime \u2014 only during the training/compilation step.
+`scheml train` shells out to a Python backend to produce ONNX artifacts. Python is **not** required at runtime \u2014 only during the training/compilation step.
 
 | Requirement | Version |
 |---|---|
@@ -18,10 +18,10 @@ Node.js **18 or higher** is required.
 | skl2onnx | 1.16.0 |
 | onnx | 1.16.0 |
 
-Install the Python dependencies once, before your first `prisml train`:
+Install the Python dependencies once, before your first `scheml train`:
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
+pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 ```
 
 You can confirm everything is available by running:
@@ -43,10 +43,10 @@ This same check runs automatically in CI on every push via the [`ci.yml`](../.gi
 ## Installation
 
 ```bash
-npm install @vncsleal/prisml
+npm install @vncsleal/scheml
 ```
 
-`@vncsleal/prisml` is the only package — it includes the runtime prediction engine, CLI (`prisml train`, `prisml check`), and Python training backend.
+`@vncsleal/scheml` is the only package — it includes the runtime prediction engine, CLI (`scheml train`, `scheml check`), and Python training backend.
 
 ---
 
@@ -54,10 +54,10 @@ npm install @vncsleal/prisml
 
 ### 1. Define Models
 
-Create `prisml.config.ts` with your model definitions:
+Create `scheml.config.ts` with your model definitions:
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/scheml';
 
 export const userLTVModel = defineModel<User>({
   name: 'userLTV',
@@ -106,7 +106,7 @@ This:
 4. Fits the feature contract from the training split
 5. Invokes Python backend
 6. Evaluates quality gates
-7. Exports `<modelName>.onnx` + `<modelName>.metadata.json` into `.prisml/`
+7. Exports `<modelName>.onnx` + `<modelName>.metadata.json` into `.scheml/`
 
 Artifacts are **immutable** and intended to be **committed to git**.
 
@@ -117,7 +117,7 @@ Encoding categories, imputation values, and numeric scaling statistics are part 
 Run a schema-only validation in CI or locally:
 
 ```bash
-prisml check --schema ./prisma/schema.prisma --output ./.prisml
+scheml check --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
 This fails on field type or nullability mismatches and warns on dynamic feature paths.
@@ -127,12 +127,12 @@ This fails on field type or nullability mismatches and warns on dynamic feature 
 Use trained models in your application:
 
 ```typescript
-import { PredictionSession } from '@vncsleal/prisml';
-import { userLTVModel } from './prisml.config';
+import { PredictionSession } from '@vncsleal/scheml';
+import { userLTVModel } from './scheml.config';
 
 const session = new PredictionSession();
 await session.load(userLTVModel);
-// Automatically resolves .prisml/userLTV.{onnx,metadata.json} and hashes prisma/schema.prisma
+// Automatically resolves .scheml/userLTV.{onnx,metadata.json} and hashes prisma/schema.prisma
 
 // Single prediction
 const result = await session.predict(userLTVModel, user);
@@ -293,7 +293,7 @@ qualityGates: [
 
 If any gate fails during training:
 - Artifact generation **aborts**
-- `prisml train` exits with **non-zero code**
+- `scheml train` exits with **non-zero code**
 - No model is exported
 - You must fix the model and retrain
 
@@ -338,7 +338,7 @@ import {
   FeatureExtractionError,
   UnseenCategoryError,
   QualityGateError,
-} from '@vncsleal/prisml';
+} from '@vncsleal/scheml';
 
 try {
   const result = await session.predict('userLTV', user, resolvers);
@@ -363,7 +363,7 @@ try {
 Artifacts are immutable and versioned:
 
 ```
-.prisml/
+.scheml/
   userLTV.metadata.json  ← Semantic contract
   userLTV.onnx           ← Binary model (binary diff may be large)
   userChurn.metadata.json
@@ -381,7 +381,7 @@ Artifacts are immutable and versioned:
 
 To change a model:
 
-1. Edit `prisml.config.ts`
+1. Edit `scheml.config.ts`
 2. Run `npm run train`
 3. Commit new artifacts
 4. Deploy
@@ -418,7 +418,7 @@ jobs:
           node-version: 20
       - run: pnpm install --frozen-lockfile
       - run: pnpm run train
-      - run: git add .prisml/
+      - run: git add .scheml/
       - run: git commit -m "Update ML artifacts" || true
       - run: git push
 ```

@@ -60,7 +60,7 @@ async function main() {
 
     return {
       id: `user-${index + 1}`,
-      email: `demo-user-${index + 1}@prisml.dev`,
+      email: `demo-user-${index + 1}@scheml.dev`,
       createdAt: new Date(now.getTime() - accountAgeDays * 86_400_000),
       source,
       monthlySpend,

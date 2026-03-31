@@ -1,4 +1,4 @@
-# Product Roadmap: PrisML
+# Product Roadmap: ScheML
 **Product Vision:** Compiler-first machine learning for TypeScript + Prisma teams who want deterministic training, immutable artifacts, and local schema-safe inference without a separate ML platform.
 **Last Updated:** March 11, 2026 | **Next Review:** April 8, 2026
 
@@ -6,7 +6,7 @@
 
 ## Product Language Rule
 
-PrisML follows two naming systems on purpose:
+ScheML follows two naming systems on purpose:
 - Prisma- and TypeScript-native naming for schema, entities, and model-definition concepts
 - Python-ML-aligned naming and syntax for training, evaluation, metrics, preprocessing, and other ML-layer features
 
@@ -28,7 +28,7 @@ This is a design rule for all future ML-facing features.
 ### Theme: Core Trust And Reliability
 
 **Initiative:** ONNX Runtime Parity
-- **Problem:** `prisml train` validates models under Python `onnxruntime`, while Node inference currently uses `onnxruntime-web`, which weakens the compile-first determinism guarantee.
+- **Problem:** `scheml train` validates models under Python `onnxruntime`, while Node inference currently uses `onnxruntime-web`, which weakens the compile-first determinism guarantee.
 - **Hypothesis:** If default Node inference moves to `onnxruntime-node`, train-time validation and runtime inference will align more closely because they will use the same ONNX execution family.
 - **Target Outcomes:**
   - Default runtime inference matches the same ONNX runtime family used during training.
@@ -36,16 +36,16 @@ This is a design rule for all future ML-facing features.
 - **Owner:** Vinicius Leal | **Status:** In Design
 
 **Initiative:** Compiler Output And Error UX
-- **Problem:** `prisml train` still exposes too much implementation detail through raw-looking success and failure output, which makes the package harder to use and trust.
+- **Problem:** `scheml train` still exposes too much implementation detail through raw-looking success and failure output, which makes the package harder to use and trust.
 - **Hypothesis:** If compiler output becomes structured and failures become actionable, users will reach successful training faster because the tool will explain what happened and what to fix.
 - **Target Outcomes:**
-  - Successful `prisml train` runs end with a short structured summary.
+  - Successful `scheml train` runs end with a short structured summary.
   - Common failures map to stable error messages with clear remediation.
 - **Owner:** Vinicius Leal | **Status:** In Design
 
 **Initiative:** Preflight Training Validation
 - **Problem:** Today, many training failures are discovered too late, after dataset materialization and Python handoff, even when the configuration or environment was already invalid.
-- **Hypothesis:** If `prisml train` performs a preflight validation pass before spawning the real training run, failures will become earlier and clearer because config issues and backend readiness problems will be caught before execution crosses the Python boundary.
+- **Hypothesis:** If `scheml train` performs a preflight validation pass before spawning the real training run, failures will become earlier and clearer because config issues and backend readiness problems will be caught before execution crosses the Python boundary.
 - **Target Outcomes:**
   - Unsupported algorithms and invalid task/algorithm combinations fail before Python training starts.
   - A curated set of supported hyperparameters and important parameter constraints are validated before handoff.
@@ -62,7 +62,7 @@ This is a design rule for all future ML-facing features.
 
 **Initiative:** Public Contract Freeze
 - **Problem:** Later roadmap steps become harder to execute if the current narrow public surface is not explicitly stabilized first.
-- **Hypothesis:** If the package contract is frozen around `defineModel()`, `PredictionSession`, `prisml train`, `prisml check`, and the artifact pair, future work will move faster because the base will stop shifting.
+- **Hypothesis:** If the package contract is frozen around `defineModel()`, `PredictionSession`, `scheml train`, `scheml check`, and the artifact pair, future work will move faster because the base will stop shifting.
 - **Target Outcomes:**
   - Core docs stop contradicting package behavior.
   - The current public package surface is treated as stable and intentionally narrow.
@@ -81,7 +81,7 @@ This is a design rule for all future ML-facing features.
 
 **Initiative:** Artifact Inspect And Diff Tooling
 - **Problem:** Today, understanding what changed between two artifacts or what exactly was trained still requires reading source code or raw metadata directly.
-- **Hypothesis:** If PrisML ships `inspect` and `diff` tooling, reviewability will become a real product feature because artifacts will be inspectable in a stable, human-readable way.
+- **Hypothesis:** If ScheML ships `inspect` and `diff` tooling, reviewability will become a real product feature because artifacts will be inspectable in a stable, human-readable way.
 - **Dependency / Unlock:** Requires the NOW reliability work so the artifact contract and runtime behavior are trustworthy.
 - **Target Outcomes:**
   - A user can inspect one artifact and compare two artifacts without opening implementation code.
@@ -89,20 +89,20 @@ This is a design rule for all future ML-facing features.
 
 **Initiative:** Artifact Identity In Metadata
 - **Problem:** Today an artifact is identified mostly by file name, model name, timestamp, and hashes. That is enough for exact verification, but weak for human workflows like review, promotion, and comparison across builds.
-- **Hypothesis:** If PrisML adds a human-readable artifact version or build ID alongside immutable machine identity like artifact hash and schema hash, model workflows will become easier to manage because users will have both exact technical identity and clear operational identity.
+- **Hypothesis:** If ScheML adds a human-readable artifact version or build ID alongside immutable machine identity like artifact hash and schema hash, model workflows will become easier to manage because users will have both exact technical identity and clear operational identity.
 - **Dependency / Unlock:** Builds on the same hardened artifact contract required for inspect and diff tooling.
 - **Target Outcomes:**
   - Every artifact has both a human-usable identity and an immutable machine identity.
   - Inspect, diff, and future team workflows can refer to a specific artifact cleanly without relying on file names alone.
 
-**Initiative:** `prisml init`
+**Initiative:** `scheml init`
 - **Problem:** New users still need to understand too much before they can reach first success.
-- **Hypothesis:** If PrisML generates a minimal working setup, adoption will improve because the path from install to first trained artifact will become shorter and more consistent.
+- **Hypothesis:** If ScheML generates a minimal working setup, adoption will improve because the path from install to first trained artifact will become shorter and more consistent.
 - **Dependency / Unlock:** Builds on the NOW contract freeze and compiler UX improvements.
 - **Target Outcomes:**
-  - A new user can initialize a project with a minimal `prisml.config.ts` and clear next steps.
+  - A new user can initialize a project with a minimal `scheml.config.ts` and clear next steps.
 
-**Initiative:** `prisml check --strict`
+**Initiative:** `scheml check --strict`
 - **Problem:** Schema-only validation exists, but the package still allows too many problems to survive until the training step.
 - **Hypothesis:** If validation becomes stricter before training, users will catch bad resolvers and config problems earlier because the compiler path will fail sooner and more precisely.
 - **Dependency / Unlock:** Builds on the NOW work around error UX and contract clarity.
@@ -110,7 +110,7 @@ This is a design rule for all future ML-facing features.
   - More invalid model configurations fail during validation instead of during training.
 
 **Initiative:** Configurable Training Split And Seed
-- **Problem:** PrisML currently hardcodes split behavior in training, which is simple but too rigid for all datasets and tasks.
+- **Problem:** ScheML currently hardcodes split behavior in training, which is simple but too rigid for all datasets and tasks.
 - **Hypothesis:** If split policy and seed become part of the declared training contract, users will get better control and clearer reproducibility because evaluation behavior will be explicit instead of hidden in implementation defaults.
 - **Dependency / Unlock:** Builds on the product language rule: the user-facing design should bridge to established Python ML concepts while remaining simple for TypeScript developers.
 - **Target Outcomes:**
@@ -119,30 +119,30 @@ This is a design rule for all future ML-facing features.
 
 **Initiative:** Compatibility Matrix
 - **Problem:** Users cannot easily tell which combinations of Node, Prisma, Python, OS, and runtime are officially supported versus merely expected to work.
-- **Hypothesis:** If PrisML publishes a small, explicit compatibility matrix with support tiers, OSS trust will improve because users will know what is tested, what is expected, and what is unsupported.
+- **Hypothesis:** If ScheML publishes a small, explicit compatibility matrix with support tiers, OSS trust will improve because users will know what is tested, what is expected, and what is unsupported.
 - **Dependency / Unlock:** Builds on the NOW contract freeze so support claims reflect a stable package surface.
 - **Target Outcomes:**
-  - PrisML publishes a clear support policy for Node, Prisma, Python, OS, and runtime environments.
+  - ScheML publishes a clear support policy for Node, Prisma, Python, OS, and runtime environments.
   - Supported, expected, untested, and unsupported environments are distinguished explicitly.
 
 **Initiative:** Example Library Of Real Use Cases
-- **Problem:** One example exists, but users still have limited reference points for how PrisML should look in different practical product scenarios.
-- **Hypothesis:** If PrisML ships a small set of strong, realistic examples, adoption will improve because users will see how the package applies to familiar problems instead of only abstract API usage.
+- **Problem:** One example exists, but users still have limited reference points for how ScheML should look in different practical product scenarios.
+- **Hypothesis:** If ScheML ships a small set of strong, realistic examples, adoption will improve because users will see how the package applies to familiar problems instead of only abstract API usage.
 - **Dependency / Unlock:** Builds on the improved quickstart and clearer package contract so examples reinforce the intended workflow instead of compensating for unclear docs.
 - **Target Outcomes:**
-  - PrisML maintains a small example library covering a few strong use cases such as churn, LTV, lead scoring, or fraud/risk.
+  - ScheML maintains a small example library covering a few strong use cases such as churn, LTV, lead scoring, or fraud/risk.
   - Examples demonstrate the real define -> train -> commit -> predict workflow in credible application contexts.
 
 **Initiative:** Multi-Model Workflow
 - **Problem:** The package can partially support multiple exported models, but this is not yet a deliberate, explicit workflow for real projects.
-- **Hypothesis:** If multi-model training, artifact isolation, and loading become first-class, PrisML will fit repeated usage better because one project will be able to manage several models coherently.
+- **Hypothesis:** If multi-model training, artifact isolation, and loading become first-class, ScheML will fit repeated usage better because one project will be able to manage several models coherently.
 - **Dependency / Unlock:** Depends on hardened artifacts and better inspection, so model growth does not create confusion.
 - **Target Outcomes:**
   - One project can train and manage multiple models with predictable artifact layout and runtime loading.
 
 **Initiative:** True Batch Inference
 - **Problem:** `predictBatch()` exists, but it is still conceptually weaker than it should be if it relies on repeated single-row inference calls instead of one batched tensor execution path.
-- **Hypothesis:** If PrisML executes batch predictions as one matrix-shaped ONNX input instead of a loop of single-row calls, repeated scoring workflows will become more efficient because inference overhead will drop and the API will better match the concept of a real batch.
+- **Hypothesis:** If ScheML executes batch predictions as one matrix-shaped ONNX input instead of a loop of single-row calls, repeated scoring workflows will become more efficient because inference overhead will drop and the API will better match the concept of a real batch.
 - **Dependency / Unlock:** Builds on the runtime hardening work in NOW and fits naturally with repeated-usage workflows alongside multi-model support.
 - **Target Outcomes:**
   - `predictBatch()` is implemented as a real batched tensor execution path.
@@ -160,7 +160,7 @@ This is a design rule for all future ML-facing features.
 ### Theme: Commercialization And Scope Expansion
 
 **Initiative:** Managed Artifact Governance Layer
-- **Problem:** Once teams use PrisML seriously, local artifacts alone do not solve review, approval, provenance visibility, or promotion across environments.
+- **Problem:** Once teams use ScheML seriously, local artifacts alone do not solve review, approval, provenance visibility, or promotion across environments.
 - **Strategic Bet:** This will matter more later because team workflow and governance become painful only after the core package is trusted and used repeatedly.
 - **Target Outcomes:**
   - A clear paid workflow exists around artifact registry, provenance, comparison, review, and promotion.
@@ -182,14 +182,14 @@ This is a design rule for all future ML-facing features.
 - **Problem:** Real models sometimes need a deliberate subset of rows for training rather than the full Prisma model table, but this changes the training contract in a meaningful way.
 - **Strategic Bet:** This may matter later because larger or more mature workflows often need explicit training subsets, but the current package should not rush this into the public API before the design is settled.
 - **Target Outcomes:**
-  - PrisML captures this as a future design topic, not an approved implementation.
+  - ScheML captures this as a future design topic, not an approved implementation.
   - Any later design records the selected training subset as part of the artifact contract.
 
 **Initiative:** Development Sampling / Row Limit
 - **Problem:** Local iteration may eventually become slow on much larger datasets, but this is not a pressing product problem yet.
 - **Strategic Bet:** This may matter later because larger databases will make local iteration more expensive, but it should only be designed once the real bottlenecks are clearer.
 - **Target Outcomes:**
-  - PrisML keeps this as a future consideration instead of committing to an immediate implementation.
+  - ScheML keeps this as a future consideration instead of committing to an immediate implementation.
   - Any later design distinguishes development-only sampling from the real training path used for trusted artifacts.
 
 ---
@@ -201,11 +201,11 @@ This is a design rule for all future ML-facing features.
 |---|---|---|
 | Online learning | Conflicts with immutable artifacts and the compile-first model | March 11, 2026 |
 | Background retraining in core | Introduces runtime state and orchestration that do not belong in the package | March 11, 2026 |
-| Feature store | Low alignment with the core package thesis; turns PrisML into infrastructure | March 11, 2026 |
-| AutoML as a core product concern | Low leverage versus cost; pushes PrisML toward generic ML platform behavior | March 11, 2026 |
+| Feature store | Low alignment with the core package thesis; turns ScheML into infrastructure | March 11, 2026 |
+| AutoML as a core product concern | Low leverage versus cost; pushes ScheML toward generic ML platform behavior | March 11, 2026 |
 | A/B testing and traffic routing | Requires control-plane behavior outside the package thesis | March 11, 2026 |
 | Runtime model mutation | Breaks determinism and artifact trust | March 11, 2026 |
-| Active-model control plane | Better solved by systems outside PrisML core | March 11, 2026 |
+| Active-model control plane | Better solved by systems outside ScheML core | March 11, 2026 |
 | Generic model serving infrastructure | Misaligned with the local, artifact-centric product shape | March 11, 2026 |
 
 ---

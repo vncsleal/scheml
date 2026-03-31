@@ -1,11 +1,11 @@
-# PrisML Contributing Guide
+# ScheML Contributing Guide
 
 ## Development Setup
 
 ```bash
 # Clone and install
-git clone https://github.com/vncsleal/prisml
-cd prisml
+git clone https://github.com/vncsleal/scheml
+cd scheml
 pnpm install
 
 # Build all packages
@@ -15,16 +15,16 @@ pnpm -r build
 pnpm test
 
 # Watch mode
-pnpm -r --filter @vncsleal/prisml test -- --watch
+pnpm -r --filter @vncsleal/scheml test -- --watch
 ```
 
 ## Project Structure
 
 ```
 packages/
-  prisml/    @vncsleal/prisml (types, errors, CLI, runtime, Python backend)
+  scheml/    @vncsleal/scheml (types, errors, CLI, runtime, Python backend)
 apps/
-  website/   getprisml.vercel.app — Astro + Vercel
+  website/   getscheml.vercel.app — Astro + Vercel
 examples/
   basic/     Working example
 docs/
@@ -47,7 +47,7 @@ docs/
 
 ### Errors
 
-- Use typed PrisMLError subclasses
+- Use typed ScheMLError subclasses
 - Include structured context
 - Never silently fail
 
@@ -80,7 +80,7 @@ docs/
 
 - [ ] Feature described in FEATURES.md or ROADMAP.md
 - [ ] Types updated
-- [ ] Error cases handled with PrisMLError
+- [ ] Error cases handled with ScheMLError
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Documentation updated (API.md, GUIDE.md, etc.)
@@ -92,7 +92,7 @@ docs/
 Reviewers look for:
 - Correctness (no silent failures)
 - Type safety (strict TypeScript)
-- Error handling (clear PrisMLErrors)
+- Error handling (clear ScheMLErrors)
 - Testing coverage (edge cases)
 - Documentation clarity
 - Performance impact
@@ -118,7 +118,7 @@ Reviewers look for:
 ## Environment
 - Node: [version]
 - TypeScript: [version]
-- PrisML: [version]
+- ScheML: [version]
 ```
 
 ### Feature Request
@@ -200,7 +200,7 @@ pnpm -r build
 pnpm test
 
 # Publish
-npm publish ./packages/prisml
+npm publish ./packages/scheml
 
 # Tag release
 git push origin v0.1.0

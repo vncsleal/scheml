@@ -1,12 +1,12 @@
-# PrisML Feature Surface
+# ScheML Feature Surface
 
-This document describes the current feature surface of PrisML.
+This document describes the current feature surface of ScheML.
 
 For future direction and sequencing, see [ROADMAP.md](../ROADMAP.md).
 
 ## Model Definition
 
-PrisML exposes `defineModel<TModel>()` for declarative model definitions.
+ScheML exposes `defineModel<TModel>()` for declarative model definitions.
 
 A model definition includes:
 - model name
@@ -18,7 +18,7 @@ A model definition includes:
 
 ## Schema Binding
 
-PrisML binds trained artifacts to a normalized Prisma schema hash.
+ScheML binds trained artifacts to a normalized Prisma schema hash.
 
 Current behavior:
 - schema is normalized before hashing
@@ -27,7 +27,7 @@ Current behavior:
 
 ## Training
 
-`prisml train` drives the build-time flow:
+`scheml train` drives the build-time flow:
 - load model definitions
 - load Prisma schema
 - extract rows through Prisma
@@ -38,7 +38,7 @@ Current behavior:
 
 ## Schema-Only Validation
 
-`prisml check` validates the schema contract without training.
+`scheml check` validates the schema contract without training.
 
 It is intended for fast feedback in CI or local validation before running the full training path.
 
@@ -59,7 +59,7 @@ Current normalization behavior:
 
 ## Feature Analysis
 
-PrisML includes a feature-analysis module, but the AST analysis path is currently conservative and limited.
+ScheML includes a feature-analysis module, but the AST analysis path is currently conservative and limited.
 
 Practical consequence:
 - some guarantees are enforced by runtime behavior and contract validation rather than deep static extraction
@@ -89,7 +89,7 @@ These artifacts are intended to be committed and treated as immutable outputs of
 
 ## Error Model
 
-PrisML uses typed errors to fail loudly when contracts break.
+ScheML uses typed errors to fail loudly when contracts break.
 
 Key failure categories include:
 - schema drift
@@ -102,13 +102,13 @@ Key failure categories include:
 
 ## Constraints
 
-PrisML currently prioritizes:
+ScheML currently prioritizes:
 - determinism
 - explicit contracts
 - schema safety
 - in-process inference
 
-PrisML does not currently aim to provide:
+ScheML does not currently aim to provide:
 - online learning
 - runtime model orchestration
 - broad platform behavior

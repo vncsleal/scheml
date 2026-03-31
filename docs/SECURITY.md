@@ -1,4 +1,4 @@
-# PrisML Security & Safety
+# ScheML Security & Safety
 
 ## Core Safety Guarantees
 
@@ -72,7 +72,7 @@ Models compile to immutable artifacts:
 
 ### No Data Storage
 
-PrisML does **not**:
+ScheML does **not**:
 - Store user data
 - Log sensitive information
 - Transmit data to external services
@@ -84,7 +84,7 @@ Data flows:
 
 ### Training Data
 
-During `prisml train`:
+During `scheml train`:
 - Data is extracted via your Prisma instance
 - Processed locally via Python backend
 - Not sent to external services
@@ -203,7 +203,7 @@ Dependencies should be:
 
 ### Data Protection
 
-If using PrisML in GDPR/CCPA jurisdiction:
+If using ScheML in GDPR/CCPA jurisdiction:
 - Models don't store personal data
 - Feature extraction is transient
 - Artifacts are not PII
@@ -211,7 +211,7 @@ If using PrisML in GDPR/CCPA jurisdiction:
 
 ### Model Governance
 
-PrisML enforces:
+ScheML enforces:
 - Reproducible training (git artifacts)
 - Version tracking (metadata)
 - Quality gates (automatic checks)
@@ -221,7 +221,7 @@ This supports audit trails and compliance requirements.
 
 ### Fairness & Bias
 
-PrisML does **not** provide:
+ScheML does **not** provide:
 - Bias detection
 - Fairness metrics
 - Protected group testing
@@ -292,7 +292,7 @@ We will:
 
 ## Security Audit
 
-PrisML has **not** undergone formal security audit.
+ScheML has **not** undergone formal security audit.
 
 Before using in production:
 - Review this document
@@ -305,7 +305,7 @@ Before using in production:
 
 ## Third-Party Security
 
-PrisML depends on:
+ScheML depends on:
 - `@prisma/client` — database ORM
 - `onnxruntime-node` — model predictions
 - `yargs` — CLI parsing

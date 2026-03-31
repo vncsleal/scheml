@@ -156,7 +156,7 @@ export class PredictionSession {
   /**
    * Load a model from disk using default artifact paths.
    *
-   * Auto-resolves `.prisml/<name>.{onnx,metadata.json}` relative to process.cwd()
+   * Auto-resolves `.scheml/<name>.{onnx,metadata.json}` relative to process.cwd()
    * and reads + hashes `prisma/schema.prisma` automatically.
    *
    * @example
@@ -169,7 +169,7 @@ export class PredictionSession {
     model: ModelDefinition,
     opts?: { artifactsDir?: string; schemaPath?: string }
   ): Promise<void> {
-    const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.prisml');
+    const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
     const schemaFilePath =
       opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
     const metadataPath = path.resolve(dir, `${model.name}.metadata.json`);

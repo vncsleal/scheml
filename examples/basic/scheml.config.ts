@@ -1,7 +1,7 @@
-// This file is used by PrisML at compile time to discover models
+// This file is used by ScheML at compile time to discover models
 // Models are discovered via AST analysis and should use defineModel()
 
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/scheml';
 
 type User = {
   id: string;

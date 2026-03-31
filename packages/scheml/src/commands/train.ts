@@ -1,5 +1,5 @@
 /**
- * prisml train command
+ * scheml train command
  * Acts as compiler driver:
  * 1. Load model definitions
  * 2. Validate Prisma schemas and feature declarations
@@ -84,7 +84,7 @@ function checkPythonEnvironment(): void {
   );
   if (importCheck.status !== 0) {
     throw new ConfigurationError(
-      'Required Python packages not found. Run:\n  pip install -r packages/prisml/python/requirements.txt\n\n' +
+      'Required Python packages not found. Run:\n  pip install -r packages/scheml/python/requirements.txt\n\n' +
         (importCheck.stderr || importCheck.stdout || '').trim()
     );
   }
@@ -92,14 +92,14 @@ function checkPythonEnvironment(): void {
 
 export const trainCommand = {
   command: 'train',
-  description: 'Train PrisML models',
+  description: 'Train ScheML models',
   builder: (yargs: Argv) => {
     return yargs
       .option('config', {
         alias: 'c',
-        description: 'Path to prisml.config.ts',
+        description: 'Path to scheml.config.ts',
         type: 'string',
-        default: './prisml.config.ts',
+        default: './scheml.config.ts',
       })
       .option('schema', {
         alias: 's',
@@ -111,7 +111,7 @@ export const trainCommand = {
         alias: 'o',
         description: 'Output directory for models',
         type: 'string',
-        default: './.prisml',
+        default: './.scheml',
       })
       .option('python', {
         description: 'Python backend: "local"',

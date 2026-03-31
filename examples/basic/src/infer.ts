@@ -3,7 +3,7 @@
  * Demonstrates how to use trained models in an application
  */
 
-import { PredictionSession, hashPrismaSchema } from '@vncsleal/prisml';
+import { PredictionSession, hashPrismaSchema } from '@vncsleal/scheml';
 import * as fs from 'fs';
 
 type SampleUser = {
@@ -46,8 +46,8 @@ async function main() {
 
     // Initialize model (in real app, paths point to compiled artifacts)
     const schemaHash = hashPrismaSchema(sampleSchema);
-    const metadataPath = './.prisml/userLTV.metadata.json';
-    const onnxPath = './.prisml/userLTV.onnx';
+    const metadataPath = './.scheml/userLTV.metadata.json';
+    const onnxPath = './.scheml/userLTV.onnx';
 
     console.log('Initializing model...');
     if (fs.existsSync(metadataPath) && fs.existsSync(onnxPath)) {
@@ -55,7 +55,7 @@ async function main() {
       console.log('[OK] Model initialized');
     } else {
       console.log(
-        '⚠ Artifacts not found. Run: prisml train --config ./prisml.config.ts'
+        '⚠ Artifacts not found. Run: scheml train --config ./scheml.config.ts'
       );
       return;
     }

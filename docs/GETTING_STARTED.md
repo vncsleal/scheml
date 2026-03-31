@@ -1,19 +1,19 @@
-# Getting Started with PrisML
+# Getting Started with ScheML
 
 ## Installation
 
 ```bash
 # Runtime + CLI + Python backend (single package)
-npm install @vncsleal/prisml
+npm install @vncsleal/scheml
 ```
 
 Install Python training dependencies (Python 3.9+ required):
 
 ```bash
-pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
+pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 ```
 
-> **Note:** Python is only needed at build time for `prisml train`. The runtime prediction engine (`PredictionSession`) is pure Node.js.
+> **Note:** Python is only needed at build time for `scheml train`. The runtime prediction engine (`PredictionSession`) is pure Node.js.
 
 
 ## Prerequisites
@@ -41,8 +41,8 @@ model User {
 ### 2. Define Models
 
 ```typescript
-// prisml.config.ts
-import { defineModel } from '@vncsleal/prisml';
+// scheml.config.ts
+import { defineModel } from '@vncsleal/scheml';
 
 export const userPredictionsModel = defineModel<{
   id: string;
@@ -79,18 +79,18 @@ npm run train
 ```
 
 This generates:
-- `.prisml/userValue.metadata.json`
-- `.prisml/userValue.onnx`
+- `.scheml/userValue.metadata.json`
+- `.scheml/userValue.onnx`
 
 ### 4. Run Predictions
 
 ```typescript
-import { PredictionSession } from '@vncsleal/prisml';
-import { userPredictionsModel } from './prisml.config';
+import { PredictionSession } from '@vncsleal/scheml';
+import { userPredictionsModel } from './scheml.config';
 
 const session = new PredictionSession();
 await session.load(userPredictionsModel);
-// Automatically resolves .prisml/userValue.{onnx,metadata.json} and hashes prisma/schema.prisma
+// Automatically resolves .scheml/userValue.{onnx,metadata.json} and hashes prisma/schema.prisma
 
 const prediction = await session.predict(userPredictionsModel, user);
 console.log(prediction.prediction); // e.g., 1500
@@ -107,7 +107,7 @@ console.log(prediction.prediction); // e.g., 1500
 
 ### Models not discovered
 
-Ensure your models use `defineModel()` and are exported from `prisml.config.ts`.
+Ensure your models use `defineModel()` and are exported from `scheml.config.ts`.
 
 ### Schema hash mismatch
 
@@ -126,5 +126,5 @@ python --version
 
 Ensure Python dependencies are installed:
 ```bash
-pip install -r node_modules/@vncsleal/prisml/python/requirements.txt
+pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 ```

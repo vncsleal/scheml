@@ -1,5 +1,5 @@
 /**
- * PrisML public API
+ * ScheML public API
  */
 
 // Types

@@ -1,8 +1,8 @@
-# PrisML Architecture
+# ScheML Architecture
 
 ## Purpose
 
-This document defines the technical boundaries of PrisML.
+This document defines the technical boundaries of ScheML.
 
 It explains:
 - what the system does
@@ -14,14 +14,14 @@ It does not define roadmap sequencing or business strategy.
 
 ## System Model
 
-PrisML is a compiler-first ML workflow for TypeScript + Prisma applications.
+ScheML is a compiler-first ML workflow for TypeScript + Prisma applications.
 
 The high-level flow is:
 
 ```text
 defineModel() declarations
         ->
-prisml train
+scheml train
         ->
 model.onnx + model.metadata.json
         ->
@@ -47,11 +47,11 @@ Build-time work is responsible for:
 - evaluating quality gates
 - writing immutable artifacts
 
-The build-time path is entered through `prisml train`.
+The build-time path is entered through `scheml train`.
 
 ### Build-Time Inputs
 
-- `prisml.config.ts`
+- `scheml.config.ts`
 - `prisma/schema.prisma`
 - a reachable Prisma-backed dataset
 - Python dependencies required by the training backend
@@ -85,7 +85,7 @@ Runtime is not responsible for:
 
 ## 1. Training And Inference Are Separate Phases
 
-PrisML is designed around a hard split between compilation and execution.
+ScheML is designed around a hard split between compilation and execution.
 
 Training may use Python and external ML libraries.
 Runtime should consume the compiled result, not recreate training behavior ad hoc.
@@ -204,12 +204,12 @@ If multi-model workflows become central, artifact organization and API boundarie
 
 ### 4. Source Specificity
 
-PrisML is currently built around Prisma.
+ScheML is currently built around Prisma.
 Any future generalization would need to preserve the same level of schema clarity and build-time contract discipline.
 
 ## Architectural Limits
 
-PrisML intentionally does not optimize for:
+ScheML intentionally does not optimize for:
 - online learning
 - dynamic experimentation platforms
 - runtime model control planes
@@ -222,7 +222,7 @@ Those directions introduce state and operational complexity that conflict with t
 The main implementation lives in:
 
 ```text
-packages/prisml/src
+packages/scheml/src
 ```
 
 The main build and runtime surfaces are:

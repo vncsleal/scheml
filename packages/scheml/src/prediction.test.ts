@@ -40,7 +40,7 @@ function makeMetadata(overrides: Partial<ModelMetadata> = {}): ModelMetadata {
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prisml-test-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-test-'));
 });
 
 afterAll(() => {

@@ -1,7 +1,7 @@
 # Architecture Overhaul — Implementation Spec
 
 **Branch:** `architecture/flaml-automl-overhaul`  
-**Goal:** Make prisml deliver on its promise — a Prisma developer with no ML expertise declares *what* to predict, the library handles *how*.
+**Goal:** Make scheml deliver on its promise — a Prisma developer with no ML expertise declares *what* to predict, the library handles *how*.
 
 ---
 
@@ -25,8 +25,8 @@
 **Problem:** `prediction.ts` imports `onnxruntime-web`, the browser/WASM package. In Node.js this runs on the WASM backend — slow, no hardware acceleration, different numeric behaviour than native.
 
 **Fix:**
-- `packages/prisml/package.json`: replace `"onnxruntime-web"` dependency with `"onnxruntime-node"`
-- `packages/prisml/src/prediction.ts`: change `import * as ort from 'onnxruntime-web'` → `import * as ort from 'onnxruntime-node'`
+- `packages/scheml/package.json`: replace `"onnxruntime-web"` dependency with `"onnxruntime-node"`
+- `packages/scheml/src/prediction.ts`: change `import * as ort from 'onnxruntime-web'` → `import * as ort from 'onnxruntime-node'`
 
 ---
 
@@ -36,25 +36,25 @@
 
 **Fix:**
 
-### `packages/prisml/src/types.ts`
+### `packages/scheml/src/types.ts`
 - Make `algorithm?: AlgorithmConfig` optional on `ModelDefinition`.
 - Remove the `version` field from `AlgorithmConfig` (it was declared but never read by the Python backend). Keep `name` and `hyperparameters` for power users who want manual override.
 - The type of `name` stays as `string` (not a union), since the backend now accepts `'automl'` as the implicit default plus legacy `'linear'|'tree'|'forest'|'gbm'` for explicit override.
 
-### `packages/prisml/python/train.py`
+### `packages/scheml/python/train.py`
 - Replace the current `build_model()` switch with a FLAML-first path:
   - If `algorithm` is absent or `'automl'`, run `flaml.AutoML` with `time_budget=60` and `task` derived from `taskType`.
   - If `algorithm` is an explicit sklearn name (`linear`, `tree`, `forest`, `gbm`), fall back to the existing sklearn constructors (kept for power users).
 - FLAML's best model is exported to ONNX via `skl2onnx` using the same `export_onnx()` helper.
 - FLAML records the best estimator name in the metrics output under a `"bestEstimator"` key so the user can see what was chosen.
 
-### `packages/prisml/python/requirements.txt`
+### `packages/scheml/python/requirements.txt`
 Add:
 ```
 flaml==2.3.0
 ```
 
-### `packages/prisml/src/commands/train.ts`
+### `packages/scheml/src/commands/train.ts`
 - Remove the `algorithm` required-field guard — if absent, pass `algorithm: 'automl'` to the Python dataset JSON.
 - Log the `bestEstimator` returned from Python in the spinner success message.
 
@@ -66,18 +66,18 @@ flaml==2.3.0
 
 **Fix:**
 
-### `packages/prisml/src/types.ts`
+### `packages/scheml/src/types.ts`
 - Add `'onehot'` to `CategoryEncoding.type`.
 - Add a `OneHotEncoding` metadata type that carries `categories: string[]` and the resulting `columnNames: string[]` (for bookkeeping in metadata).
 - Add `ScalingSpec` interface: `{ strategy: 'standard' | 'minmax' | 'none'; mean?: number; std?: number; min?: number; max?: number }` — computed at train time, stored in metadata, applied at inference.
 
-### `packages/prisml/src/encoding.ts`
+### `packages/scheml/src/encoding.ts`
 - `normalizeScalarValue`: when `encoding.type === 'onehot'`, this function now returns an array of numbers (one per category) rather than a single number. The function signature becomes `normalizeValue(...)` returning `number | number[]` — callers (`normalizeFeatureVector`) flatten the result.
 - `normalizeFeatureVector`: update to flatten one-hot arrays into the final vector.
 - Add `applyScaling(value: number, spec: ScalingSpec): number`.
 - Remove the `hash` encoding branch (or keep only as explicit opt-in). Default category encoding is now `onehot`.
 
-### `packages/prisml/src/commands/train.ts`
+### `packages/scheml/src/commands/train.ts`
 - In the per-feature stats loop, change the default encoding for `string` features from `label` to `onehot`.
 - After building the dataset, apply standard scaling stats (mean, std) for numeric features when the algorithm is linear. Store scaling specs in the feature schema passed to metadata.
 - The Python backend does **not** need to scale — scaling is already applied to the vector before it is passed to Python training.
@@ -88,7 +88,7 @@ flaml==2.3.0
 
 **Problem:** Hash encoding uses `sum of char codes % 1000` — trivially collides (`"ab" === "ba"`), flagged in source as a known issue.
 
-**Fix:** `packages/prisml/src/encoding.ts`
+**Fix:** `packages/scheml/src/encoding.ts`
 - Replace with FNV-1a 32-bit hash, which is fast, zero-dependency, and collision-resistant enough for this use case.
 - FNV-1a is a well-known non-cryptographic hash function: `hash = (hash ^ charCode) * FNV_PRIME` per character.
 - Keep `hash` encoding as an explicit opt-in (for high-cardinality categoricals), but the default changes to `onehot` per Change 3.
@@ -99,12 +99,12 @@ flaml==2.3.0
 
 **Problem:** The entire `prisma/schema.prisma` is hashed. Adding an unrelated model (e.g., a new `BlogPost`) causes `SchemaDriftError` at runtime even though the `User` model the prediction depends on is unchanged.
 
-**Fix:** `packages/prisml/src/schema.ts`
+**Fix:** `packages/scheml/src/schema.ts`
 - Add `hashPrismaModelSubset(schema: string, modelName: string): string`:
   - Extract only the `model <modelName> { … }` block and any enums it references.
   - Normalize and hash only that subset.
-- `packages/prisml/src/commands/train.ts`: use `hashPrismaModelSubset` instead of `hashPrismaSchema` when writing `metadata.prismaSchemaHash`.
-- `packages/prisml/src/prediction.ts` (`PredictionSession.load`): use `hashPrismaModelSubset(schema, model.modelName)` instead of `hashPrismaSchema(schema)`.
+- `packages/scheml/src/commands/train.ts`: use `hashPrismaModelSubset` instead of `hashPrismaSchema` when writing `metadata.prismaSchemaHash`.
+- `packages/scheml/src/prediction.ts` (`PredictionSession.load`): use `hashPrismaModelSubset(schema, model.modelName)` instead of `hashPrismaSchema(schema)`.
 
 ---
 
@@ -112,11 +112,11 @@ flaml==2.3.0
 
 **Problem:** `commands/train.ts` calls `spawnSync` to the Python backend without verifying that Python or any of the required packages are installed. Failure manifests as an opaque subprocess error.
 
-**Fix:** `packages/prisml/src/commands/train.ts`
+**Fix:** `packages/scheml/src/commands/train.ts`
 - Before the training loop, add a `checkPythonEnvironment()` function that:
   1. Checks `python3` (or `python`) is on PATH (`which python3`).
   2. Runs `python3 -c "import flaml, sklearn, skl2onnx, numpy, onnx"` and catches `ModuleNotFoundError`.
-  3. On failure, throws a `ConfigurationError` with a clear message: "Required Python packages not found. Run: pip install -r packages/prisml/python/requirements.txt".
+  3. On failure, throws a `ConfigurationError` with a clear message: "Required Python packages not found. Run: pip install -r packages/scheml/python/requirements.txt".
 
 ---
 
@@ -124,7 +124,7 @@ flaml==2.3.0
 
 **Problem:** `defineModel()` sets `schemaHash: undefined` with a comment "filled at compile time", but `commands/train.ts` never sets it. The field is always `undefined` in the runtime object.
 
-**Fix:** `packages/prisml/src/commands/train.ts`
+**Fix:** `packages/scheml/src/commands/train.ts`
 - After computing `schemaHash` (now via `hashPrismaModelSubset`), set `model.schemaHash = schemaHash` on each model definition before training begins.
 - This makes the field accurate and removes the misleading `undefined`.
 

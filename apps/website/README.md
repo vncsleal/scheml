@@ -1,13 +1,13 @@
-# getprisml.vercel.app
+# getscheml.vercel.app
 
-Marketing and documentation site for [PrisML](https://getprisml.vercel.app), with a live browser-side inference demo powered by ONNX and `@vncsleal/prisml`.
+Marketing and documentation site for [ScheML](https://getscheml.vercel.app), with a live browser-side inference demo powered by ONNX and `@vncsleal/scheml`.
 
 ## Stack
 
 - **[Astro 4](https://astro.build/)** — static site with SSR pages
 - **[@astrojs/vercel](https://docs.astro.build/en/guides/integrations-guide/vercel/)** — Vercel adapter for deployment
 - **[onnxruntime-web](https://www.npmjs.com/package/onnxruntime-web)** — runs ONNX model inference in the browser
-- **`@vncsleal/prisml`** — loaded from workspace (`packages/prisml`) for the demo page
+- **`@vncsleal/scheml`** — loaded from workspace (`packages/scheml`) for the demo page
 
 ## Local Development
 
@@ -15,7 +15,7 @@ From the monorepo root:
 
 ```sh
 pnpm install
-pnpm -F prisml-website dev
+pnpm -F scheml-website dev
 ```
 
 Or from this directory:

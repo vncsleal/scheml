@@ -10,7 +10,7 @@ import { ModelDefinition, AlgorithmConfig, TaskType, FeatureResolver, OutputReso
  *
  * @example
  * ```typescript
- * import { defineModel } from '@vncsleal/prisml';
+ * import { defineModel } from '@vncsleal/scheml';
  *
  * export const userLifetimeValueModel = defineModel<User>({
  *   name: 'userLifetimeValue',
@@ -49,6 +49,6 @@ export function defineModel<TModel = any>(config: ModelDefinition<TModel>): Mode
   // Pure specification: no validation, no side effects
   return {
     ...config,
-    schemaHash: undefined, // Populated by prisml train at compile time
+    schemaHash: undefined, // Populated by scheml train at compile time
   };
 }

@@ -1,8 +1,8 @@
-# PrisML
+# ScheML
 
 Compiler-first machine learning for TypeScript + Prisma.
 
-PrisML is for developers who want a narrow, local, reviewable ML workflow:
+ScheML is for developers who want a narrow, local, reviewable ML workflow:
 - define models in TypeScript
 - train them at build time
 - commit immutable ONNX + metadata artifacts
@@ -12,7 +12,7 @@ It is not a hosted ML platform, an online learning system, or a runtime experime
 
 ## Who It Is For
 
-PrisML is aimed at TypeScript and Prisma teams that want:
+ScheML is aimed at TypeScript and Prisma teams that want:
 - deterministic builds
 - schema-aware model artifacts
 - local inference without adding a separate prediction service
@@ -22,8 +22,8 @@ PrisML is aimed at TypeScript and Prisma teams that want:
 
 The current package provides:
 - `defineModel()` for typed model definitions
-- `prisml train` for build-time training
-- `prisml check` for schema-only validation
+- `scheml train` for build-time training
+- `scheml check` for schema-only validation
 - `PredictionSession` for runtime loading and inference
 - immutable `model.onnx` + `model.metadata.json` artifacts
 
@@ -32,13 +32,13 @@ The current package provides:
 Install the package:
 
 ```bash
-npm install @vncsleal/prisml
+npm install @vncsleal/scheml
 ```
 
-Define a model in `prisml.config.ts`:
+Define a model in `scheml.config.ts`:
 
 ```ts
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/scheml';
 
 export const userChurnModel = defineModel<User>({
   name: 'userChurn',
@@ -60,18 +60,18 @@ export const userChurnModel = defineModel<User>({
 Train artifacts:
 
 ```bash
-npx prisml train --config ./prisml.config.ts --schema ./prisma/schema.prisma
+npx scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma
 ```
 
-`prisml train` performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
+`scheml train` performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
 
 The training step also compiles a train-derived feature contract into metadata: categorical encodings, imputation values, and scaling rules are fit during training and then replayed by `PredictionSession` at runtime.
 
 Run predictions:
 
 ```ts
-import { PredictionSession } from '@vncsleal/prisml';
-import { userChurnModel } from './prisml.config';
+import { PredictionSession } from '@vncsleal/scheml';
+import { userChurnModel } from './scheml.config';
 
 const session = new PredictionSession();
 await session.load(userChurnModel);
@@ -93,8 +93,8 @@ console.log(result.prediction);
 
 ```bash
 pnpm install
-pnpm --dir packages/prisml test
-pnpm --dir packages/prisml build
+pnpm --dir packages/scheml test
+pnpm --dir packages/scheml build
 ```
 
 ## License

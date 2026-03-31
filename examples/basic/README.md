@@ -1,6 +1,6 @@
 # examples/basic
 
-Demonstrates using PrisML to train and run ML models on Prisma-backed data. Two models are defined against a `User` model: one for lifetime value regression and one for churn classification.
+Demonstrates using ScheML to train and run ML models on Prisma-backed data. Two models are defined against a `User` model: one for lifetime value regression and one for churn classification.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ Demonstrates using PrisML to train and run ML models on Prisma-backed data. Two 
 Install Python dependencies (one-time, from monorepo root):
 
 ```sh
-pip install -r packages/prisml/python/requirements.txt
+pip install -r packages/scheml/python/requirements.txt
 ```
 
 ## Setup
@@ -31,10 +31,10 @@ This creates `prisma/dev.db` with synthetic user records for training.
 pnpm train
 ```
 
-Trains both models defined in `prisml.config.ts` and outputs compiled artifacts to `.prisml/`:
+Trains both models defined in `scheml.config.ts` and outputs compiled artifacts to `.scheml/`:
 
 ```
-.prisml/
+.scheml/
 ├── userLTV.onnx
 ├── userLTV.metadata.json
 ├── userChurn.onnx
@@ -73,13 +73,13 @@ Features: `daysSinceActive`, `monthlySpend`, `supportTickets`.
 
 ## Website Demo Artifacts
 
-To generate demo artifacts for the getprisml.vercel.app live demo:
+To generate demo artifacts for the getscheml.vercel.app live demo:
 
 ```sh
 pnpm train:demo
 ```
 
-This trains the models and writes artifacts to `../../apps/website/demo-artifacts/` instead of `.prisml/`.
+This trains the models and writes artifacts to `../../apps/website/demo-artifacts/` instead of `.scheml/`.
 
 ## Project Layout
 
@@ -91,5 +91,5 @@ examples/basic/
 ├── src/
 │   ├── index.ts         # Usage instructions entry point
 │   └── infer.ts         # Inference example
-└── prisml.config.ts     # Model definitions (userLTVModel, userChurnModel)
+└── scheml.config.ts     # Model definitions (userLTVModel, userChurnModel)
 ```

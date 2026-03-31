@@ -1,5 +1,5 @@
 /**
- * prisml check command
+ * scheml check command
  * Validates schema-only contract compatibility for trained models.
  */
 
@@ -67,7 +67,7 @@ export const checkCommand = {
         alias: 'o',
         description: 'Output directory for models',
         type: 'string',
-        default: './.prisml',
+        default: './.scheml',
       })
       .option('model', {
         alias: 'm',

@@ -1,11 +1,11 @@
-# PrisML API Reference
+# ScheML API Reference
 
-## @vncsleal/prisml
+## @vncsleal/scheml
 
-Single production dependency. Includes the runtime prediction engine, type system, CLI (`prisml train`, `prisml check`), and Python training backend.
+Single production dependency. Includes the runtime prediction engine, type system, CLI (`scheml train`, `scheml check`), and Python training backend.
 
 ```bash
-npm install @vncsleal/prisml
+npm install @vncsleal/scheml
 ```
 
 ### Types
@@ -138,7 +138,7 @@ interface ModelMetadata {
 Declare a predictive model. Pure specification with no side effects.
 
 ```typescript
-import { defineModel } from '@vncsleal/prisml';
+import { defineModel } from '@vncsleal/scheml';
 
 const userValue = defineModel<User>({
   name: 'userValue',
@@ -163,7 +163,7 @@ const userValue = defineModel<User>({
 Compute SHA256 hash of normalized Prisma schema.
 
 ```typescript
-import { hashPrismaSchema } from '@vncsleal/prisml';
+import { hashPrismaSchema } from '@vncsleal/scheml';
 
 const hash = hashPrismaSchema(schemaContent);
 // "abc123def456..."
@@ -185,7 +185,7 @@ if (!result.valid) {
 Analyze feature resolver for static extractability.
 
 ```typescript
-import { analyzeFeatureResolver } from '@vncsleal/prisml';
+import { analyzeFeatureResolver } from '@vncsleal/scheml';
 
 const analysis = analyzeFeatureResolver(
   'const resolver = (user) => user.profile?.name;',
@@ -202,7 +202,7 @@ if (!analysis.isExtractable) {
 Normalize feature dictionary to numeric vector.
 
 ```typescript
-import { normalizeFeatureVector } from '@vncsleal/prisml';
+import { normalizeFeatureVector } from '@vncsleal/scheml';
 
 const vector = normalizeFeatureVector(
   { age: 30, isPremium: true },
@@ -215,16 +215,16 @@ const vector = normalizeFeatureVector(
 
 ### Errors
 
-All errors extend `PrisMLError` and include structured context.
+All errors extend `ScheMLError` and include structured context.
 
 ```typescript
 import {
-  PrisMLError,
+  ScheMLError,
   SchemaDriftError,
   FeatureExtractionError,
   UnseenCategoryError,
   QualityGateError,
-} from '@vncsleal/prisml';
+} from '@vncsleal/scheml';
 
 try {
   // ...
@@ -237,34 +237,34 @@ try {
 
 ## CLI
 
-### `prisml train`
+### `scheml train`
 
 Compiler driver: loads models, trains, exports artifacts.
 
 ```bash
-prisml train \
-  --config ./prisml.config.ts \
+scheml train \
+  --config ./scheml.config.ts \
   --schema ./prisma/schema.prisma \
-  --output ./.prisml \
+  --output ./.scheml \
   --python local
 ```
 
 **Options:**
-- `--config, -c` — Path to model definitions (default: `./prisml.config.ts`)
+- `--config, -c` — Path to model definitions (default: `./scheml.config.ts`)
 - `--schema, -s` — Path to Prisma schema (default: `./prisma/schema.prisma`)
-- `--output, -o` — Output directory (default: `./.prisml`)
+- `--output, -o` — Output directory (default: `./.scheml`)
 - `--python` — Backend: `local` (default: `local`)
 
 **Output:**
 - `{output}/{modelName}.metadata.json` — Metadata contract
 - `{output}/{modelName}.onnx` — ONNX binary
 
-### `prisml check`
+### `scheml check`
 
 Schema-only validation. Validates feature dependencies against the Prisma schema without running training. Fast CI-friendly check (no Python required).
 
 ```bash
-prisml check --schema ./prisma/schema.prisma --output ./.prisml
+scheml check --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
 ## `PredictionSession`
@@ -279,15 +279,15 @@ const session = new PredictionSession();
 
 #### `session.load(model, opts?)`
 
-Load a trained model by resolving `.prisml/{name}.{onnx,metadata.json}` and hashing `prisma/schema.prisma` automatically.
+Load a trained model by resolving `.scheml/{name}.{onnx,metadata.json}` and hashing `prisma/schema.prisma` automatically.
 
 ```typescript
-import { userLTVModel } from './prisml.config';
+import { userLTVModel } from './scheml.config';
 
 await session.load(userLTVModel);
 // or with path overrides:
 await session.load(userLTVModel, {
-  artifactsDir: './.prisml',           // default
+  artifactsDir: './.scheml',           // default
   schemaPath: 'prisma/schema.prisma',  // default
 });
 ```

@@ -1,5 +1,5 @@
 /**
- * PrisML Core Types
+ * ScheML Core Types
  * Defines the type-safe model definition system
  */
 
@@ -190,7 +190,7 @@ export interface TrainingMetrics {
  * Serialized with model.onnx as immutable pair
  */
 export interface ModelMetadata {
-  version: string; // PrisML version
+  version: string; // ScheML version
   metadataSchemaVersion: string;
   
   modelName: string;

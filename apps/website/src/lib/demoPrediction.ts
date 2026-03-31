@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { PredictionSession, defineModel, type ModelMetadata } from '@vncsleal/prisml';
+import { PredictionSession, defineModel, type ModelMetadata } from '@vncsleal/scheml';
 
 export type DemoPredictionInput = {
   daysSinceActive: number;
@@ -64,7 +64,7 @@ async function getSession(): Promise<PredictionSession> {
 function toDemoEntity(input: DemoPredictionInput, accountId = 'demo-user'): User {
   return {
     id: accountId,
-    email: `${accountId}@prisml.dev`,
+    email: `${accountId}@scheml.dev`,
     createdAt: new Date(DEMO_NOW.getTime() - 365 * DAY_MS),
     lastActiveAt: new Date(DEMO_NOW.getTime() - input.daysSinceActive * DAY_MS),
     monthlySpend: input.monthlySpend,
