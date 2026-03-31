@@ -90,4 +90,24 @@ export {
 
 export { getAdapter, registerAdapter, listAdapters } from './adapters/index';
 
+// Artifact type contracts (used by train.ts writer and PredictionSession loader)
+export type {
+  ArtifactMetadataBase,
+  ArtifactMetadata,
+  PredictiveArtifactMetadata,
+  AnomalyArtifactMetadata,
+  SimilarityArtifactMetadata,
+  SequentialArtifactMetadata,
+  SimilarityStrategy,
+} from './artifacts';
+export {
+  isPredictiveArtifact,
+  isAnomalyArtifact,
+  isSimilarityArtifact,
+  isSequentialArtifact,
+  metadataFileName,
+  onnxFileName,
+  similarityIndexFileName,
+} from './artifacts';
+
 export const VERSION = '0.3.1';

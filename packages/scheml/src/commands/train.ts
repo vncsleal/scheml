@@ -40,6 +40,12 @@ import {
   splitTrainingRows,
   type TrainingRow,
 } from '../training_contract';
+import { AnyTraitDefinition } from '../traitTypes';
+import type {
+  AnomalyArtifactMetadata,
+  SimilarityArtifactMetadata,
+  SequentialArtifactMetadata,
+} from '../artifacts';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -60,6 +66,25 @@ function isModelDefinition(value: any): value is ResolvedModel {
     // algorithm is intentionally optional
   );
 }
+
+function isTraitDefinition(value: any): value is AnyTraitDefinition {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.name === 'string' &&
+    typeof value.type === 'string' &&
+    ['predictive', 'anomaly', 'similarity', 'sequential'].includes(value.type)
+  );
+}
+
+const SENSITIVITY_TO_CONTAMINATION: Record<'low' | 'medium' | 'high', number> = {
+  low: 0.05,
+  medium: 0.1,
+  high: 0.2,
+};
+
+const DEFAULT_WINDOW_SIZE = 5;
+const DEFAULT_AGGREGATIONS: string[] = ['mean', 'sum', 'min', 'max'];
 
 function toCamelCase(name: string): string {
   return name ? name[0].toLowerCase() + name.slice(1) : name;
@@ -150,12 +175,15 @@ export const trainCommand = {
       const modelDefinitions = Object.values(configExports).filter(
         isModelDefinition
       ) as ResolvedModel[];
+      const traitDefinitions = Object.values(configExports).filter(
+        isTraitDefinition
+      ) as AnyTraitDefinition[];
 
-      if (modelDefinitions.length === 0) {
-        throw new ModelDefinitionError('unknown', 'No models exported from config');
+      if (modelDefinitions.length === 0 && traitDefinitions.length === 0) {
+        throw new ModelDefinitionError('unknown', 'No models or traits exported from config');
       }
 
-      spinner.succeed(`Loaded ${modelDefinitions.length} model definition(s)`);
+      spinner.succeed(`Loaded ${modelDefinitions.length + traitDefinitions.length} definition(s)`);
 
       // 3. Preflight validate model definitions before invoking Python or instantiating PrismaClient / extracting data via Prisma.
       spinner.start('Running preflight validation...');
@@ -203,7 +231,18 @@ export const trainCommand = {
           );
         }
       }
-      spinner.succeed('Models validated');
+      for (const trait of traitDefinitions) {
+        const entityName = typeof (trait as any).entity === 'string'
+          ? (trait as any).entity
+          : String((trait as any).entity);
+        if (!prismaModels.includes(entityName)) {
+          throw new ModelDefinitionError(
+            trait.name,
+            `Prisma model "${entityName}" not found in schema`
+          );
+        }
+      }
+      spinner.succeed('Models and traits validated');
 
       // 7. Extract training data and train
       spinner.start('Extracting training data via Prisma...');
@@ -390,6 +429,197 @@ export const trainCommand = {
         );
       }
 
+      // -----------------------------------------------------------------------
+      // Trait training loop — anomaly / similarity / sequential
+      // generative traits are compiled at build time (no Python backend)
+      // -----------------------------------------------------------------------
+      const traitArtifactNames: string[] = [];
+      for (const trait of traitDefinitions) {
+        const entityName =
+          typeof (trait as any).entity === 'string'
+            ? (trait as any).entity as string
+            : String((trait as any).entity);
+        const prismaDelegate = (prisma as any)[toCamelCase(entityName)];
+        if (!prismaDelegate || typeof prismaDelegate.findMany !== 'function') {
+          throw new ConfigurationError(`PrismaClient does not expose model "${entityName}"`);
+        }
+
+        if (trait.type === 'anomaly') {
+          const features = trait.baseline;
+          const contamination = SENSITIVITY_TO_CONTAMINATION[trait.sensitivity];
+          const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
+          if (!entities.length) {
+            throw new ConfigurationError(
+              `No records found for trait "${trait.name}" (entity "${entityName}")`
+            );
+          }
+          const X_train = entities.map((e: any) => features.map((f: string) => Number(e[f] ?? 0)));
+          const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
+          fs.writeFileSync(datasetPath, JSON.stringify({ X_train, feature_names: features }));
+
+          spinner.text = `Training anomaly trait ${trait.name}...`;
+          const anomalyScript = path.resolve(__dirname, '../../python/train_anomaly.py');
+          const anomResult = spawnSync(
+            'python3',
+            [
+              anomalyScript,
+              '--dataset', datasetPath,
+              '--output', outputDir,
+              '--model-name', trait.name,
+              '--contamination', String(contamination),
+            ],
+            { stdio: 'pipe', encoding: 'utf-8' }
+          );
+          if (anomResult.error) throw anomResult.error;
+          if (anomResult.status !== 0) {
+            throw new Error(anomResult.stderr || 'Python anomaly backend failed');
+          }
+          const anomalyResponse = JSON.parse(anomResult.stdout.trim());
+          const anomalyMetadata: AnomalyArtifactMetadata = {
+            traitType: 'anomaly',
+            traitName: trait.name,
+            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            compiledAt: new Date().toISOString(),
+            version: VERSION,
+            metadataSchemaVersion: '1.0.0',
+            modelBase64: anomalyResponse.modelBase64,
+            featureCount: anomalyResponse.featureCount,
+            threshold: anomalyResponse.threshold,
+            normalization: anomalyResponse.normalization,
+            featureNames: anomalyResponse.featureNames,
+            contamination: anomalyResponse.contamination,
+          };
+          fs.writeFileSync(
+            path.join(outputDir, `${trait.name}.metadata.json`),
+            JSON.stringify(anomalyMetadata, null, 2)
+          );
+          spinner.succeed(`Trained anomaly trait ${chalk.bold(trait.name)}`);
+          traitArtifactNames.push(`${trait.name}.metadata.json`);
+
+        } else if (trait.type === 'similarity') {
+          const features = trait.on;
+          const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
+          if (!entities.length) {
+            throw new ConfigurationError(
+              `No records found for trait "${trait.name}" (entity "${entityName}")`
+            );
+          }
+          const X_train = entities.map((e: any) => features.map((f: string) => Number(e[f] ?? 0)));
+          const entityIds = entities.map((e: any) => e.id);
+          const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
+          fs.writeFileSync(
+            datasetPath,
+            JSON.stringify({ X_train, feature_names: features, entity_ids: entityIds })
+          );
+
+          spinner.text = `Training similarity trait ${trait.name}...`;
+          const simScript = path.resolve(__dirname, '../../python/train_similarity.py');
+          const simResult = spawnSync(
+            'python3',
+            [simScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
+            { stdio: 'pipe', encoding: 'utf-8' }
+          );
+          if (simResult.error) throw simResult.error;
+          if (simResult.status !== 0) {
+            throw new Error(simResult.stderr || 'Python similarity backend failed');
+          }
+          const simResponse = JSON.parse(simResult.stdout.trim());
+          const simMetadata: SimilarityArtifactMetadata = {
+            traitType: 'similarity',
+            traitName: trait.name,
+            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            compiledAt: new Date().toISOString(),
+            version: VERSION,
+            metadataSchemaVersion: '1.0.0',
+            strategy: simResponse.strategy,
+            entityCount: simResponse.entityCount,
+            embeddingDim: simResponse.embeddingDim,
+            featureNames: simResponse.featureNames,
+            normalization: simResponse.normalization,
+            indexFile: simResponse.indexFile,
+            entityIds: simResponse.strategy === 'cosine_matrix' ? simResponse.entityIds : undefined,
+            entityIdsFile: simResponse.strategy === 'faiss_ivf' ? simResponse.idsFile : undefined,
+          };
+          fs.writeFileSync(
+            path.join(outputDir, `${trait.name}.metadata.json`),
+            JSON.stringify(simMetadata, null, 2)
+          );
+          spinner.succeed(`Trained similarity trait ${chalk.bold(trait.name)}`);
+          traitArtifactNames.push(`${trait.name}.metadata.json`);
+
+        } else if (trait.type === 'sequential') {
+          const entities = await prismaDelegate.findMany({ orderBy: { [trait.orderBy]: 'asc' } });
+          if (entities.length <= DEFAULT_WINDOW_SIZE) {
+            throw new ConfigurationError(
+              `Trait "${trait.name}": need more than ${DEFAULT_WINDOW_SIZE} records (found ${entities.length})`
+            );
+          }
+          const seqValues: number[] = entities.map((e: any) => Number(e[trait.sequence] ?? 0));
+          const allLabels = entities.map((e: any) => {
+            const label = e[trait.target];
+            if (typeof label === 'boolean') return label ? 1 : 0;
+            return Number(label ?? 0);
+          });
+          const allWindows: number[][][] = [];
+          const allWindowLabels: number[] = [];
+          for (let i = 0; i + DEFAULT_WINDOW_SIZE < seqValues.length; i++) {
+            allWindows.push(seqValues.slice(i, i + DEFAULT_WINDOW_SIZE).map((v) => [v]));
+            allWindowLabels.push(allLabels[i + DEFAULT_WINDOW_SIZE]);
+          }
+          const splitIdx = Math.floor(allWindows.length * 0.8);
+          const y_train = allWindowLabels.slice(0, splitIdx);
+          const y_test = allWindowLabels.slice(splitIdx);
+          const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
+          fs.writeFileSync(
+            datasetPath,
+            JSON.stringify({
+              X_windows: allWindows,
+              y_train,
+              y_test,
+              feature_names: [trait.sequence],
+              window_size: DEFAULT_WINDOW_SIZE,
+              aggregations: DEFAULT_AGGREGATIONS,
+              task_type: trait.output.taskType,
+              algorithm: 'automl',
+              hyperparameters: {},
+            })
+          );
+
+          spinner.text = `Training sequential trait ${trait.name}...`;
+          const seqScript = path.resolve(__dirname, '../../python/train_sequential.py');
+          const seqResult = spawnSync(
+            'python3',
+            [seqScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
+            { stdio: 'pipe', encoding: 'utf-8' }
+          );
+          if (seqResult.error) throw seqResult.error;
+          if (seqResult.status !== 0) {
+            throw new Error(seqResult.stderr || 'Python sequential backend failed');
+          }
+          const seqResponse = JSON.parse(seqResult.stdout.trim());
+          const seqMetadata: SequentialArtifactMetadata = {
+            traitType: 'sequential',
+            traitName: trait.name,
+            schemaHash: hashPrismaModelSubset(schemaContent, entityName),
+            compiledAt: new Date().toISOString(),
+            version: VERSION,
+            metadataSchemaVersion: '1.0.0',
+            windowSize: seqResponse.windowSize,
+            aggregations: seqResponse.aggregations,
+            onnxFile: path.basename(seqResponse.onnxPath),
+            taskType: trait.output.taskType,
+            bestEstimator: seqResponse.bestEstimator,
+          };
+          fs.writeFileSync(
+            path.join(outputDir, `${trait.name}.metadata.json`),
+            JSON.stringify(seqMetadata, null, 2)
+          );
+          spinner.succeed(`Trained sequential trait ${chalk.bold(trait.name)}`);
+          traitArtifactNames.push(`${trait.name}.metadata.json`);
+        }
+        // generative: no Python backend — Phase 5 handles compile-time template validation
+      }
+
       spinner.start('Writing artifacts...');
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
@@ -401,6 +631,9 @@ export const trainCommand = {
           : '';
         console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}${est}`);
         console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
+      }
+      for (const name of traitArtifactNames) {
+        console.log(`  ${chalk.dim(name)}`);
       }
     } catch (error) {
       spinner.fail((error as Error).message);
