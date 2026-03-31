@@ -9,14 +9,14 @@
 
 | # | Area | File(s) | Status |
 |---|------|---------|--------|
-| 1 | Fix wrong ONNX runtime | `package.json`, `prediction.ts` | TODO |
-| 2 | Make `algorithm` optional + FLAML default | `types.ts`, `python/train.py`, `python/requirements.txt`, `commands/train.ts` | TODO |
-| 3 | One-hot encoding for nominals + standard scaling | `types.ts`, `encoding.ts`, `commands/train.ts` | TODO |
-| 4 | Fix toy hash encoding | `encoding.ts` | TODO |
-| 5 | Scope schema hash to model's Prisma block | `schema.ts`, `commands/train.ts`, `prediction.ts` | TODO |
-| 6 | Python env pre-flight check | `commands/train.ts` | TODO |
-| 7 | Populate `schemaHash` in artifact at compile time | `commands/train.ts` | TODO |
-| 8 | Remove dead code: `ModelRegistry`, `version` field | `defineModel.ts`, `types.ts`, `index.ts` | TODO |
+| 1 | Fix wrong ONNX runtime | `package.json`, `prediction.ts` | ✅ DONE |
+| 2 | Make `algorithm` optional + FLAML default | `types.ts`, `python/train.py`, `python/requirements.txt`, `commands/train.ts` | ✅ DONE |
+| 3 | One-hot encoding for nominals + standard scaling | `types.ts`, `encoding.ts`, `commands/train.ts` | ✅ DONE |
+| 4 | Fix toy hash encoding | `encoding.ts` | ✅ DONE |
+| 5 | Scope schema hash to model's Prisma block | `schema.ts`, `commands/train.ts`, `prediction.ts` | ✅ DONE |
+| 6 | Python env pre-flight check | `commands/train.ts` | ✅ DONE |
+| 7 | Populate `schemaHash` in artifact at compile time | `commands/train.ts` | ✅ DONE |
+| 8 | Remove dead code: `ModelRegistry`, `version` field | `defineModel.ts`, `types.ts`, `index.ts` | ✅ DONE |
 
 ---
 

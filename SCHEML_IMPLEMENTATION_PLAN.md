@@ -38,74 +38,74 @@ None of this gets thrown away. The transformation is architectural expansion, no
 
 ---
 
-## Phase 2 — `defineSignal()` API + signal type system
+## Phase 2 — `defineTrait()` API + trait type system
 
-**What:** Introduce `defineSignal()` alongside `defineModel()` (keep `defineModel` as a deprecated alias, don't break existing users). Define the TypeScript types for all five signal classes.
+**What:** Introduce `defineTrait()` alongside `defineModel()` (keep `defineModel` as a deprecated alias, don't break existing users). Define the TypeScript types for all five trait classes.
 
 **Types to define:**
 
 ```ts
-type SignalType = 'predictive' | 'anomaly' | 'similarity' | 'sequential' | 'generative'
+type TraitType = 'predictive' | 'anomaly' | 'similarity' | 'sequential' | 'generative'
 
-interface BaseSignalDefinition {
-  type: SignalType
+interface BaseTraitDefinition {
+  type: TraitType
   name: string
   qualityGates?: QualityGate[]
-  signals?: SignalDefinition[]  // object references, resolved at graph walk time
+  traits?: TraitDefinition[]  // object references, resolved at graph walk time
 }
 
-interface PredictiveSignal<T> extends BaseSignalDefinition {
+interface PredictiveTrait<T> extends BaseTraitDefinition {
   type: 'predictive'
   target: keyof T
   features: (keyof T)[]
   algorithm?: AlgorithmConfig
 }
 
-interface AnomalySignal<T> extends BaseSignalDefinition {
+interface AnomalyTrait<T> extends BaseTraitDefinition {
   type: 'anomaly'
   baseline: (keyof T)[]
   sensitivity: 'low' | 'medium' | 'high'
 }
 
-interface SimilaritySignal<T> extends BaseSignalDefinition {
+interface SimilarityTrait<T> extends BaseTraitDefinition {
   type: 'similarity'
   on: (keyof T)[]
 }
 
-interface SequentialSignal<T> extends BaseSignalDefinition {
+interface SequentialTrait<T> extends BaseTraitDefinition {
   type: 'sequential'
   sequence: keyof T
   orderBy: keyof T
   target: keyof T
 }
 
-interface GenerativeSignal<T> extends BaseSignalDefinition {
+interface GenerativeTrait<T> extends BaseTraitDefinition {
   type: 'generative'
   context: (keyof T)[]
   prompt: string
 }
 ```
 
-`defineSignal(entity, config)` — the first argument is **adapter-specific**:
+`defineTrait(entity, config)` — the first argument is **adapter-specific**:
 - Prisma: string entity name (`'Customer'`)
 - Drizzle: table object (`users` imported from schema)
 - Zod: `ZodObject` (`z.object({ ... })`)
 
 This gives TypeScript inference over the actual type in every adapter — features and target fields are validated at compile time against the schema type.
 
-The return value of `defineSignal` carries the feedback API directly — `churnRisk.record()` and `churnRisk.recordBatch()` are methods on the definition object itself, not a separate registration step.
+The return value of `defineTrait` carries the feedback API directly — `churnRisk.record()` and `churnRisk.recordBatch()` are methods on the definition object itself, not a separate registration step.
 
-**Signal composition:** `signals: [churnRisk]` — the field takes **object references**, not strings. The signal graph walk is a reference graph, not a name resolution. Error messages must distinguish two distinct failure modes:
-- `'signal referenced before definition'` — reference to an uninitialized symbol
+**Trait composition:** `traits: [churnRisk]` — the field takes **object references**, not strings. The trait graph walk is a reference graph, not a name resolution. Error messages must distinguish two distinct failure modes:
+- `'trait referenced before definition'` — reference to an uninitialized symbol
 - `'cycle detected'` — circular dependency in the graph
 
-A `resolveSignalGraph()` function builds the dependency DAG and runs both checks at config load time — fail loudly before any training starts.
+A `resolveTraitGraph()` function builds the dependency DAG and runs both checks at config load time — fail loudly before any training starts.
 
 **Deliverables:**
 
-- `src/defineSignal.ts`
-- `src/signalTypes.ts` (union type for all five)
-- `src/signalGraph.ts` (DAG builder + cycle detection)
+- `src/defineTrait.ts`
+- `src/traitTypes.ts` (union type for all five)
+- `src/traitGraph.ts` (DAG builder + cycle detection)
 - `defineModel` re-exported as deprecated alias
 - Full test coverage for composition and cycle detection
 
@@ -124,8 +124,8 @@ interface SchemaReader {
 }
 
 interface DataExtractor {
-  extract(signal: SignalDefinition, options: ExtractOptions): Promise<Row[]>
-  write?(signal: SignalDefinition, results: InferenceResult[]): Promise<void>  // for materialize
+  extract(trait: TraitDefinition, options: ExtractOptions): Promise<Row[]>
+  write?(trait: TraitDefinition, results: InferenceResult[]): Promise<void>  // for materialize
 }
 
 interface QueryInterceptor {  // optional per adapter
@@ -154,7 +154,7 @@ Adapter is specified in `scheml.config.ts`:
 ```ts
 export default defineConfig({
   adapter: 'prisma',  // or drizzle(db), zod, typeorm
-  signals: [churnRisk, fraudScore]
+  traits: [churnRisk, fraudScore]
 })
 ```
 
@@ -205,7 +205,7 @@ TypeScript glue in `train.ts`: route to the correct Python module based on `sign
 
 **What:** Generative signals are not ML inference — they're structured prompt execution. They don't go through Python at all.
 
-**Architecture:** A generative signal definition is compiled into a prompt template at `defineSignal` time. At inference, `PredictionSession` detects `type: 'generative'`, serializes the `context` fields from the entity into structured JSON, appends the `prompt`, and calls the configured AI provider.
+**Architecture:** A generative trait definition is compiled into a prompt template at `defineTrait` time. At inference, `PredictionSession` detects `type: 'generative'`, serializes the `context` fields from the entity into structured JSON, appends the `prompt`, and calls the configured AI provider.
 
 **Provider:** ScheML does not define its own text generation interface. `generativeProvider` accepts the `LanguageModel` type from Vercel AI SDK v6 (`ai` package) — the emerging standard for TypeScript AI providers. Any object satisfying that interface works: `openai()`, `anthropic()`, custom endpoint wrappers.
 
@@ -214,7 +214,7 @@ import { openai } from '@ai-sdk/openai'
 export default defineConfig({
   adapter: 'prisma',
   generativeProvider: openai('gpt-4o'),
-  signals: [retentionMessage]
+  traits: [retentionMessage]
 })
 ```
 
@@ -227,7 +227,7 @@ This happens inside ScheML's generative inference path — the user only provide
 
 No provider lock-in, no API key in ScheML's config.
 
-**`scheml train` for generative signals:** Template validation only — confirm all `context` fields exist in the schema, validate the `outputSchema` (must be a Zod schema), verify the provider is configured. No Python invocation. The artifact is a compiled prompt template + `outputSchema` shape + schema hash stored as a JSON file.
+**`scheml train` for generative traits:** Template validation only — confirm all `context` fields exist in the schema, validate the `outputSchema` (must be a Zod schema), verify the provider is configured. No Python invocation. The artifact is a compiled prompt template + `outputSchema` shape + schema hash stored as a JSON file.
 
 ---
 
@@ -350,7 +350,7 @@ This is the last phase because it depends on the full history + artifact system 
 
 ```
 Phase 1 (stabilize baseline)
-  └── Phase 2 (defineSignal API)
+  └── Phase 2 (defineTrait API)
         ├── Phase 3 (adapters) ──────────────── Phase 7 (CLI extensions)
         │     └── Phase 8 (runtime)                   │
         ├── Phase 4 (Python: anomaly/similarity/seq)   │
@@ -369,11 +369,11 @@ A user with a Drizzle schema and no ML background writes:
 
 ```ts
 // scheml.config.ts
-import { defineSignal, defineConfig } from '@vncsleal/scheml'
+import { defineTrait, defineConfig } from '@vncsleal/scheml'
 import { openai } from '@ai-sdk/openai'
 import { db, users } from './db/schema'
 
-const churnRisk = defineSignal(users, {
+const churnRisk = defineTrait(users, {
   type: 'predictive',
   name: 'churnRisk',
   target: 'churned',
@@ -384,7 +384,7 @@ const churnRisk = defineSignal(users, {
 export default defineConfig({
   adapter: drizzle(db),
   generativeProvider: openai('gpt-4o'),
-  signals: [churnRisk]
+  traits: [churnRisk]
 })
 ```
 

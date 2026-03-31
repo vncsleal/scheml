@@ -1,0 +1,163 @@
+/**
+ * defineTrait — declare an intelligence trait on an entity type.
+ *
+ * `defineTrait` is the primary ScheML API. It accepts a typed trait
+ * configuration and returns a resolved trait object that carries:
+ *  - All configuration fields (type, name, features, etc.)
+ *  - `record()` / `recordBatch()` feedback API methods
+ *
+ * @example Predictive trait (Prisma adapter)
+ * ```ts
+ * import { defineTrait } from '@vncsleal/scheml'
+ *
+ * const churnRisk = defineTrait('Customer', {
+ *   type: 'predictive',
+ *   name: 'churnRisk',
+ *   target: 'churned',
+ *   features: ['lastLoginAt', 'totalPurchases', 'planTier'],
+ *   output: { field: 'churnScore', taskType: 'binary_classification' },
+ *   qualityGates: [{ metric: 'f1', threshold: 0.85, comparison: 'gte' }],
+ * })
+ * ```
+ *
+ * @example Predictive trait (Drizzle adapter)
+ * ```ts
+ * import { users } from './db/schema'
+ *
+ * const churnRisk = defineTrait(users, {
+ *   type: 'predictive',
+ *   name: 'churnRisk',
+ *   target: 'churned',
+ *   features: ['lastLoginAt', 'totalPurchases'],
+ *   output: { field: 'churnScore', taskType: 'binary_classification' },
+ * })
+ * ```
+ *
+ * @example Generative trait
+ * ```ts
+ * const retentionMessage = defineTrait('Customer', {
+ *   type: 'generative',
+ *   name: 'retentionMessage',
+ *   context: ['planTier', 'lastLoginAt', 'totalPurchases'],
+ *   prompt: 'Write a short, personalized retention message for this customer.',
+ * })
+ * ```
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import {
+  AnyTraitDefinition,
+  ResolvedTrait,
+  PredictiveTrait,
+  AnomalyTrait,
+  SimilarityTrait,
+  SequentialTrait,
+  GenerativeTrait,
+} from './traitTypes';
+
+// ---------------------------------------------------------------------------
+// Feedback persistence (append-only JSONL)
+// ---------------------------------------------------------------------------
+
+function feedbackPath(traitName: string): string {
+  return path.resolve(process.cwd(), '.scheml', 'feedback', `${traitName}.jsonl`);
+}
+
+function appendFeedback(traitName: string, entry: object): Promise<void> {
+  const filePath = feedbackPath(traitName);
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return fs.promises.appendFile(
+    filePath,
+    JSON.stringify({ ...entry, recordedAt: new Date().toISOString() }) + '\n'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Generic overload: entity is adapter-specific (string | table object | ZodObject)
+// ---------------------------------------------------------------------------
+
+/**
+ * Prisma adapter: entity name as string
+ */
+export function defineTrait<TEntity = any>(
+  entity: string,
+  config: Omit<PredictiveTrait<TEntity>, 'entity'>
+): ResolvedTrait<PredictiveTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: string,
+  config: Omit<AnomalyTrait<TEntity>, 'entity'>
+): ResolvedTrait<AnomalyTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: string,
+  config: Omit<SimilarityTrait<TEntity>, 'entity'>
+): ResolvedTrait<SimilarityTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: string,
+  config: Omit<SequentialTrait<TEntity>, 'entity'>
+): ResolvedTrait<SequentialTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: string,
+  config: Omit<GenerativeTrait<TEntity>, 'entity'>
+): ResolvedTrait<GenerativeTrait<TEntity>>;
+
+/**
+ * Drizzle / Zod adapter: entity as runtime object
+ */
+export function defineTrait<TEntity = any>(
+  entity: TEntity,
+  config: Omit<PredictiveTrait<TEntity>, 'entity'>
+): ResolvedTrait<PredictiveTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: TEntity,
+  config: Omit<AnomalyTrait<TEntity>, 'entity'>
+): ResolvedTrait<AnomalyTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: TEntity,
+  config: Omit<SimilarityTrait<TEntity>, 'entity'>
+): ResolvedTrait<SimilarityTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: TEntity,
+  config: Omit<SequentialTrait<TEntity>, 'entity'>
+): ResolvedTrait<SequentialTrait<TEntity>>;
+
+export function defineTrait<TEntity = any>(
+  entity: TEntity,
+  config: Omit<GenerativeTrait<TEntity>, 'entity'>
+): ResolvedTrait<GenerativeTrait<TEntity>>;
+
+// ---------------------------------------------------------------------------
+// Implementation
+// ---------------------------------------------------------------------------
+
+export function defineTrait<TEntity = any>(
+  entity: unknown,
+  config: Omit<AnyTraitDefinition, 'entity'>
+): ResolvedTrait {
+  const definition: AnyTraitDefinition = {
+    ...config,
+    entity,
+  } as AnyTraitDefinition;
+
+  const resolved: ResolvedTrait = Object.assign(definition, {
+    record: (entityId: string | number, observation: { actual: unknown }) =>
+      appendFeedback(definition.name, { entityId, ...observation }),
+
+    recordBatch: (entries: Array<{ id: string | number; actual: unknown }>) =>
+      Promise.all(
+        entries.map((e) => appendFeedback(definition.name, { entityId: e.id, actual: e.actual }))
+      ).then(() => undefined),
+  });
+
+  return resolved;
+}

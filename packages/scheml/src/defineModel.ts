@@ -6,7 +6,8 @@
 import { ModelDefinition, AlgorithmConfig, TaskType, FeatureResolver, OutputResolver, QualityGate } from './types';
 
 /**
- * defineModel: Declare a predictive model
+ * @deprecated Use `defineTrait` from '\@vncsleal/scheml' instead.
+ * `defineModel` is a legacy alias kept for backward compatibility.
  *
  * @example
  * ```typescript
@@ -18,17 +19,16 @@ import { ModelDefinition, AlgorithmConfig, TaskType, FeatureResolver, OutputReso
  *   output: {
  *     field: 'estimatedLTV',
  *     taskType: 'regression',
- *     resolver: (user) => user.actualLifetimeValue, // For training labels
+ *     resolver: (user) => user.actualLifetimeValue,
  *   },
  *   features: {
  *     accountAge: (user) => user.createdAt ? Date.now() - user.createdAt.getTime() : null,
- *     signupSource: (user) => user.source, // 'organic', 'paid', 'referral'
+ *     signupSource: (user) => user.source,
  *     monthlySpend: (user) => user.totalSpend / user.monthsActive,
  *     isPremium: (user) => user.plan === 'premium',
  *   },
  *   algorithm: {
  *     name: 'forest',
- *     version: '1.0.0',
  *     hyperparameters: {
  *       nEstimators: 100,
  *       maxDepth: 10,

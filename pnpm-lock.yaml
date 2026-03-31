@@ -38,9 +38,9 @@ importers:
       '@prisma/client':
         specifier: ^5.7.0
         version: 5.22.0(prisma@5.22.0)
-      '@vncsleal/prisml':
+      '@vncsleal/scheml':
         specifier: workspace:*
-        version: link:../../packages/prisml
+        version: link:../../packages/scheml
       tsx:
         specifier: ^4.7.0
         version: 4.21.0
@@ -49,7 +49,7 @@ importers:
         specifier: ^5.7.0
         version: 5.22.0
 
-  packages/prisml:
+  packages/scheml:
     dependencies:
       '@prisma/client':
         specifier: '>=5.0.0'
