@@ -59,4 +59,35 @@ export {
 // Prediction engine
 export { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 
+// Adapter system
+export type {
+  SchemaGraph,
+  EntitySchema,
+  FieldSchema,
+  SchemaReader,
+  DataExtractor,
+  QueryInterceptor,
+  ScheMLAdapter,
+  ExtractOptions,
+  Row,
+  InferenceResult,
+} from './adapters/interface';
+
+export {
+  PrismaSchemaReader,
+  PrismaDataExtractor,
+  PrismaQueryInterceptor,
+  createPrismaAdapter,
+} from './adapters/prisma';
+
+export { ZodSchemaReader, createZodAdapter } from './adapters/zod';
+
+export {
+  DrizzleSchemaReader,
+  DrizzleDataExtractor,
+  createDrizzleAdapter,
+} from './adapters/drizzle';
+
+export { getAdapter, registerAdapter, listAdapters } from './adapters/index';
+
 export const VERSION = '0.3.1';

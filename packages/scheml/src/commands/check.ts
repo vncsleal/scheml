@@ -8,25 +8,10 @@ import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 import {
-  parseModelSchema,
   ModelMetadata,
-  FeatureDependency,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
-
-const PRISMA_TYPE_MAP: Record<string, FeatureDependency['scalarType']> = {
-  String: 'string',
-  Boolean: 'boolean',
-  Int: 'number',
-  BigInt: 'number',
-  Float: 'number',
-  Decimal: 'number',
-  DateTime: 'date',
-};
-
-function mapPrismaType(typeName: string): FeatureDependency['scalarType'] {
-  return PRISMA_TYPE_MAP[typeName] || 'unknown';
-}
+import { PrismaSchemaReader } from '../adapters/prisma';
 
 function loadMetadataFiles(outputDir: string, model?: string): string[] {
   if (!fs.existsSync(outputDir)) {
@@ -80,7 +65,8 @@ export const checkCommand = {
     const outputDir = path.resolve(argv.output);
     const modelFilter = argv.model as string | undefined;
 
-    const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+    const reader = new PrismaSchemaReader();
+    const graph = await reader.readSchema(schemaPath);
     const metadataPaths = loadMetadataFiles(outputDir, modelFilter);
 
     const errors: string[] = [];
@@ -99,7 +85,7 @@ export const checkCommand = {
 
       const modelNames = new Set(deps.map((dep) => dep.modelName));
       for (const modelName of modelNames) {
-        const fields = parseModelSchema(schemaContent, modelName);
+        const entity = graph.entities.get(modelName);
 
         deps
           .filter((dep) => dep.modelName === modelName)
@@ -112,9 +98,9 @@ export const checkCommand = {
             }
 
             const fieldName = dep.path.split('.').slice(1).join('.') || dep.path;
-            const field = fields[fieldName];
+            const schemaField = entity?.fields[fieldName];
 
-            if (!field) {
+            if (!schemaField) {
               errors.push(
                 `${metadata.modelName}: Missing field ${dep.path} in Prisma schema.`
               );
@@ -122,22 +108,22 @@ export const checkCommand = {
             }
 
             const expectedType = dep.scalarType;
-            const actualType = mapPrismaType(field.type);
+            const actualType = schemaField.scalarType;
             if (expectedType !== 'unknown' && actualType !== expectedType) {
               errors.push(
                 `${metadata.modelName}: ${dep.path} type mismatch (${actualType} != ${expectedType}).`
               );
             }
 
-            if (dep.nullable !== field.optional) {
+            if (dep.nullable !== schemaField.nullable) {
               errors.push(
-                `${metadata.modelName}: ${dep.path} nullability mismatch (schema optional=${field.optional}).`
+                `${metadata.modelName}: ${dep.path} nullability mismatch (schema nullable=${schemaField.nullable}).`
               );
             }
           });
       }
 
-      const expectedSchemaHash = computeSchemaHashForMetadata(schemaContent, metadata);
+      const expectedSchemaHash = computeSchemaHashForMetadata(graph.rawSource, metadata);
       if (metadata.prismaSchemaHash !== expectedSchemaHash) {
         warnings.push(
           `${metadata.modelName}: Prisma schema hash differs from metadata (hash mismatch).`
