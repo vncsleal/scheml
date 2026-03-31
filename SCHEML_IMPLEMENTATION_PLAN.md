@@ -172,9 +172,9 @@ export default defineConfig({
 
 ---
 
-## Phase 4 — Python backend: anomaly + similarity + sequential signal types
+## Phase 4 — Python backend: anomaly + similarity + sequential trait types
 
-**What:** Extend the Python backend to handle the two new trainable tabular signal types, plus sequential v1.
+**What:** Extend the Python backend to handle the two new trainable tabular trait types, plus sequential v1.
 
 **Anomaly:** Isolation Forest (scikit-learn) for dataset-level anomaly scoring. FLAML doesn't natively support unsupervised tasks, so this is a direct sklearn path. Output: a float score in `[0, 1]` (higher = more anomalous), plus a binary threshold at inference time based on the configured `sensitivity`.
 
@@ -186,7 +186,7 @@ export default defineConfig({
 - `.faiss` — FAISS index file (or a `.npy` matrix for small datasets)
 - `.metadata.json` — field list, normalization params, entity count, schema hash
 
-Artifact loading in `PredictionSession` must detect signal type and load the correct artifact format. The `src/artifacts.ts` contract defines all artifact shapes.
+Artifact loading in `PredictionSession` must detect trait type and load the correct artifact format. The `src/artifacts.ts` contract defines all artifact shapes.
 
 **Sequential v1 (fixed-window):** Not a sequence model — window-based feature aggregation over the N most recent events. This converts sequential data into a fixed-width tabular input, feeding the existing FLAML → ONNX pipeline. True sequence models (LSTM/Transformer) are explicitly out of scope for v1 and documented as such. This is technically honest.
 
@@ -197,13 +197,13 @@ Artifact loading in `PredictionSession` must detect signal type and load the cor
 - `python/train_sequential.py` (window aggregation)
 - `python/requirements.txt` additions: `faiss-cpu==1.8.0`, `umap-learn==0.5.6`
 
-TypeScript glue in `train.ts`: route to the correct Python module based on `signal.type`. Artifact format per signal type is documented in a new `src/artifacts.ts` contract.
+TypeScript glue in `train.ts`: route to the correct Python module based on `trait.type`. Artifact format per trait type is documented in a new `src/artifacts.ts` contract.
 
 ---
 
-## Phase 5 — Generative signals
+## Phase 5 — Generative traits
 
-**What:** Generative signals are not ML inference — they're structured prompt execution. They don't go through Python at all.
+**What:** Generative traits are not ML inference — they're structured prompt execution. They don't go through Python at all.
 
 **Architecture:** A generative trait definition is compiled into a prompt template at `defineTrait` time. At inference, `PredictionSession` detects `type: 'generative'`, serializes the `context` fields from the entity into structured JSON, appends the `prompt`, and calls the configured AI provider.
 
@@ -223,7 +223,7 @@ export default defineConfig({
 - `outputSchema: z.enum([...])` → `Output.choice({ options: [...] })`
 - `outputSchema: z.object({...})` → `Output.object({ schema: ... })`
 
-This happens inside ScheML's generative inference path — the user only provides the Zod `outputSchema` in their signal definition and never calls AI SDK directly.
+This happens inside ScheML's generative inference path — the user only provides the Zod `outputSchema` in their trait definition and never calls AI SDK directly.
 
 No provider lock-in, no API key in ScheML's config.
 
@@ -233,13 +233,13 @@ No provider lock-in, no API key in ScheML's config.
 
 ## Phase 6 — History, auditability, drift
 
-**What:** Every signal definition, training run, and materialization writes a structured record to `.scheml/history/<signalName>.jsonl` (append-only JSONL for cheap immutability).
+**What:** Every trait definition, training run, and materialization writes a structured record to `.scheml/history/<traitName>.jsonl` (append-only JSONL for cheap immutability).
 
 **History record schema:**
 
 ```ts
 interface HistoryRecord {
-  signal: string
+  trait: string
   model: string
   adapter: string
   schemaHash: string
@@ -273,13 +273,13 @@ interface HistoryRecord {
 
 | Command | What it does |
 |---------|-------------|
-| `scheml train --signal <name>` | Train a single signal (currently trains all) |
+| `scheml train --trait <name>` | Train a single trait (currently trains all) |
 | `scheml check` | Drift + quality gate check; `--json` returns structured diff |
-| `scheml status --json` | Complete project state: all signals, versions, drift, last metrics |
-| `scheml history --signal <name>` | Version history for one signal |
-| `scheml migrate` | Generate schema migration for materialized signal columns |
-| `scheml materialize --signal <name>` | Batch inference → write to DB column |
-| `scheml generate` | Write `scheml.d.ts` extending ORM types with signal properties |
+| `scheml status --json` | Complete project state: all traits, versions, drift, last metrics |
+| `scheml history --trait <name>` | Version history for one trait |
+| `scheml migrate` | Generate schema migration for materialized trait columns |
+| `scheml materialize --trait <name>` | Batch inference → write to DB column |
+| `scheml generate` | Write `scheml.d.ts` extending ORM types with trait properties |
 | `scheml audit` | Export full history as verifiable JSON |
 
 `--json` flag: when present, suppress all `ora` spinners and chalk output, write a single JSON object to stdout on success or `{ error: string, code: string }` on failure. Makes every command pipeable and agent-operable.
@@ -288,11 +288,11 @@ interface HistoryRecord {
 
 ---
 
-## Phase 8 — Runtime signal access + client extension
+## Phase 8 — Runtime trait access + client extension
 
-**What:** Make signals accessible as native properties on query results through the adapter's `QueryInterceptor`.
+**What:** Make traits accessible as native properties on query results through the adapter's `QueryInterceptor`.
 
-**Prisma mechanism:** The Prisma adapter's `QueryInterceptor` uses `$extends` with a `result` layer. Each signal registered in `scheml.config.ts` becomes a computed field:
+**Prisma mechanism:** The Prisma adapter's `QueryInterceptor` uses `$extends` with a `result` layer. Each trait registered in `scheml.config.ts` becomes a computed field:
 
 ```ts
 prisma.$extends({
@@ -309,19 +309,19 @@ prisma.$extends({
 })
 ```
 
-**Two modes per signal:**
+**Two modes per trait:**
 
 - **Materialized:** reads the pre-computed column directly (zero overhead)
 - **Live:** calls `PredictionSession.predict()` on access (lazy, cached with TTL)
 
-The `signal:` filter syntax (`findMany({ signal: { churnRisk: { gt: 0.75 } } })`) is implemented as a query extension that rewrites the filter into the materialized column query or a post-filter on live inference. Materialized is the intended path for production queries; live is a convenience for development.
+The `trait:` filter syntax (`findMany({ trait: { churnRisk: { gt: 0.75 } } })`) is implemented as a query extension that rewrites the filter into the materialized column query or a post-filter on live inference. Materialized is the intended path for production queries; live is a convenience for development.
 
 **Deliverables:**
 
 - `src/adapters/prisma.ts` extended with `QueryInterceptor`
-- `src/cache.ts` (TTL cache for live signal values)
+- `src/cache.ts` (TTL cache for live trait values)
 - `src/runtime.ts` (`extendClient(client, config)` helper, adapter-agnostic)
-- Type generation: `scheml generate` command writes `scheml.d.ts` that extends the ORM's generated types with signal properties
+- Type generation: `scheml generate` command writes `scheml.d.ts` that extends the ORM's generated types with trait properties
 
 ---
 
@@ -340,7 +340,7 @@ await churnRisk.recordBatch([
 ])
 ```
 
-Both persist to `.scheml/feedback/<signalName>.jsonl` (append-only JSONL). On `scheml check`, computes current accuracy against the latest artifact's predictions and reports decay. If accuracy falls below the quality gate threshold, emits a warning in check output (structured if `--json`).
+Both persist to `.scheml/feedback/<traitName>.jsonl` (append-only JSONL). On `scheml check`, computes current accuracy against the latest artifact's predictions and reports decay. If accuracy falls below the quality gate threshold, emits a warning in check output (structured if `--json`).
 
 This is the last phase because it depends on the full history + artifact system being stable, and it's the only phase that reads back its own prior output.
 

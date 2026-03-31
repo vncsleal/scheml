@@ -10,6 +10,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { trainCommand } from './commands/train';
 import { checkCommand } from './commands/check';
+import { historyCommand } from './commands/history';
+import { statusCommand } from './commands/status';
 
 function resolveCliVersion(): string {
   try {
@@ -31,6 +33,8 @@ async function main() {
     .help()
     .command('train', 'Train ScheML models from definitions', trainCommand)
     .command('check', 'Validate schema-only contract compatibility', checkCommand)
+    .command('status', 'Show project status for trained traits', statusCommand)
+    .command('history', 'Show trait history records', historyCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()
     .parse();

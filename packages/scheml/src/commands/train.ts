@@ -148,6 +148,10 @@ export const trainCommand = {
         type: 'string',
         default: './.scheml',
       })
+      .option('trait', {
+        description: 'Train a single trait by name',
+        type: 'string',
+      })
       .option('python', {
         description: 'Python backend: "local"',
         type: 'string',
@@ -182,12 +186,24 @@ export const trainCommand = {
         configModule.default && typeof configModule.default === 'object'
           ? { ...configModule, ...configModule.default }
           : configModule;
-      const modelDefinitions = Object.values(configExports).filter(
+      let modelDefinitions = Object.values(configExports).filter(
         isModelDefinition
       ) as ResolvedModel[];
-      const traitDefinitions = Object.values(configExports).filter(
+      let traitDefinitions = Object.values(configExports).filter(
         isTraitDefinition
       ) as AnyTraitDefinition[];
+
+      const traitFilter = argv.trait as string | undefined;
+      if (traitFilter) {
+        modelDefinitions = [];
+        traitDefinitions = traitDefinitions.filter((trait) => trait.name === traitFilter);
+        if (traitDefinitions.length === 0) {
+          throw new ModelDefinitionError(
+            traitFilter,
+            `Trait "${traitFilter}" not found in config`
+          );
+        }
+      }
 
       if (modelDefinitions.length === 0 && traitDefinitions.length === 0) {
         throw new ModelDefinitionError('unknown', 'No models or traits exported from config');
