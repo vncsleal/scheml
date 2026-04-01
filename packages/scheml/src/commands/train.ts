@@ -157,10 +157,16 @@ export const trainCommand = {
         type: 'string',
         default: 'local',
         choices: ['local'],
+      })
+      .option('json', {
+        description: 'Emit structured JSON',
+        type: 'boolean',
+        default: false,
       });
   },
   handler: async (argv: any) => {
-    const spinner = ora();
+    const jsonMode = argv.json as boolean;
+    const spinner = ora({ isSilent: jsonMode });
     let prisma: any = null;
 
     try {
@@ -725,21 +731,45 @@ export const trainCommand = {
       spinner.start('Writing artifacts...');
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
-      console.log(chalk.green('\n[OK] Training complete\n'));
-      console.log('Artifacts:');
-      for (const artifact of modelArtifacts) {
-        const est = artifact.metadata.bestEstimator
-          ? chalk.dim(` (${artifact.metadata.bestEstimator})`)
-          : '';
-        console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}${est}`);
-        console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
-      }
-      for (const name of traitArtifactNames) {
-        console.log(`  ${chalk.dim(name)}`);
+      if (jsonMode) {
+        process.stdout.write(
+          JSON.stringify({
+            ok: true,
+            modelCount: modelArtifacts.length,
+            traitCount: traitArtifactNames.length,
+            models: modelArtifacts.map((artifact) => ({
+              name: artifact.metadata.modelName,
+              metadataFile: `${artifact.metadata.modelName}.metadata.json`,
+              onnxFile: path.basename(artifact.onnxPath),
+              estimator: artifact.metadata.bestEstimator,
+            })),
+            traits: traitArtifactNames,
+          }) + '\n'
+        );
+      } else {
+        console.log(chalk.green('\n[OK] Training complete\n'));
+        console.log('Artifacts:');
+        for (const artifact of modelArtifacts) {
+          const est = artifact.metadata.bestEstimator
+            ? chalk.dim(` (${artifact.metadata.bestEstimator})`)
+            : '';
+          console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}${est}`);
+          console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
+        }
+        for (const name of traitArtifactNames) {
+          console.log(`  ${chalk.dim(name)}`);
+        }
       }
     } catch (error) {
-      spinner.fail((error as Error).message);
-      throw error;
+      if (jsonMode) {
+        process.stdout.write(
+          JSON.stringify({ ok: false, error: (error as Error).message, code: 'TRAIN_FAILED' }) +
+            '\n'
+        );
+      } else {
+        spinner.fail((error as Error).message);
+        throw error;
+      }
     } finally {
       if (prisma) {
         await prisma.$disconnect();

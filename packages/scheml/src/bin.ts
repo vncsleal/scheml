@@ -14,6 +14,8 @@ import { historyCommand } from './commands/history';
 import { statusCommand } from './commands/status';
 import { materializeCommand } from './commands/materialize';
 import { auditCommand } from './commands/audit';
+import { migrateCommand } from './commands/migrate';
+import { generateCommand } from './commands/generate';
 
 function resolveCliVersion(): string {
   try {
@@ -38,6 +40,8 @@ async function main() {
     .command('status', 'Show project status for trained traits', statusCommand)
     .command('history', 'Show trait history records', historyCommand)
     .command('materialize', 'Batch inference and write trait predictions to DB column', materializeCommand)
+    .command('migrate', 'Generate schema migration for materialized trait columns', migrateCommand)
+    .command('generate', 'Write scheml.d.ts extending ORM types with trait properties', generateCommand)
     .command('audit', 'Export full trait history as structured JSON', auditCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()
