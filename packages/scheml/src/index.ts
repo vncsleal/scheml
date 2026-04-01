@@ -136,4 +136,9 @@ export {
 export type { SchemaFieldSnapshot, SchemaSnapshot, SchemaDelta } from './drift';
 export { extractArtifactFeatureNames, checkArtifactDrift } from './drift';
 
+// Runtime extension helpers
+export { TTLCache } from './cache';
+export type { ExtendClientOptions } from './runtime';
+export { extendClient } from './runtime';
+
 export const VERSION = '0.3.1';

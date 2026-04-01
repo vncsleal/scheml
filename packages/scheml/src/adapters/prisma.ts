@@ -32,6 +32,8 @@ import type {
   InferenceResult,
 } from './interface';
 import type { FeatureDependency } from '../types';
+import type { PredictionSession } from '../prediction';
+import { TTLCache } from '../cache';
 
 // ---------------------------------------------------------------------------
 // Prisma → common type mapping
@@ -203,7 +205,22 @@ export class PrismaDataExtractor implements DataExtractor {
  * ```
  */
 export class PrismaQueryInterceptor implements QueryInterceptor {
-  constructor(private readonly traitNames: string[]) {}
+  constructor(
+    private readonly traits: Array<{
+      traitName: string;
+      entityName: string;
+      featureNames: string[];
+      materializedColumn?: string;
+      supportsLiveInference?: boolean;
+    }>,
+    private readonly options: {
+      mode?: 'materialized' | 'live' | 'hybrid';
+      predictionSession?: PredictionSession;
+      cache?: TTLCache<string, number | string | boolean | null>;
+      cacheTtlMs?: number;
+      materializedColumnsPresent?: boolean;
+    } = {}
+  ) {}
 
   extendClient(client: any): any {
     if (typeof client.$extends !== 'function') {
@@ -212,17 +229,82 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
       );
     }
 
-    // Build a `result` extension layer for every registered trait name.
-    // The computed field returns null by default — the actual prediction is
-    // populated at `scheml materialize` time or by a runtime inference session.
+    const mode = this.options.mode ?? 'materialized';
+    const cache = this.options.cache ?? new TTLCache<string, number | string | boolean | null>(
+      this.options.cacheTtlMs ?? 30_000
+    );
+    const predictionSession = this.options.predictionSession;
+
+    // Prisma result extension format:
+    // {
+    //   result: {
+    //     user: {
+    //       churnRisk: { needs: { ... }, compute(row) { ... } }
+    //     }
+    //   }
+    // }
     const resultExtensions: Record<string, Record<string, unknown>> = {};
-    for (const traitName of this.traitNames) {
-      // Trait names are camelCase; Prisma result extension keys must also match the model name.
-      // We cannot know the model name here so the consumer registers per-model.
-      // This interceptor is a placeholder — full per-model registration happens in Phase 8.
-      resultExtensions[traitName] = {
-        needs: {},
-        compute: () => null,
+
+    for (const trait of this.traits) {
+      const modelKey = trait.entityName.charAt(0).toLowerCase() + trait.entityName.slice(1);
+      if (!resultExtensions[modelKey]) {
+        resultExtensions[modelKey] = {};
+      }
+
+      const needs: Record<string, boolean> = { id: true };
+      if (mode === 'materialized' || mode === 'hybrid') {
+        if (this.options.materializedColumnsPresent) {
+          needs[trait.materializedColumn ?? trait.traitName] = true;
+        }
+      }
+      if (mode === 'live' || mode === 'hybrid') {
+        for (const featureName of trait.featureNames) {
+          needs[featureName] = true;
+        }
+      }
+
+      resultExtensions[modelKey][trait.traitName] = {
+        needs,
+        compute: async (row: Record<string, unknown>) => {
+          const materializedColumn = trait.materializedColumn ?? trait.traitName;
+
+          if ((mode === 'materialized' || mode === 'hybrid') && this.options.materializedColumnsPresent) {
+            const materialized = row[materializedColumn] as number | string | boolean | null | undefined;
+            if (materialized !== undefined && materialized !== null) {
+              return materialized;
+            }
+            if (mode === 'materialized') {
+              return materialized ?? null;
+            }
+          }
+
+          if (mode === 'live' || mode === 'hybrid') {
+            if (!predictionSession || !trait.supportsLiveInference) {
+              return null;
+            }
+
+            const cacheKey = `${trait.traitName}:${String(row.id)}`;
+            const cached = cache.get(cacheKey);
+            if (cached !== undefined) {
+              return cached;
+            }
+
+            const featureResolvers: Record<string, (entity: any) => any> = {};
+            for (const featureName of trait.featureNames) {
+              featureResolvers[featureName] = (entity: any) => entity[featureName];
+            }
+
+            const prediction = await predictionSession.predict(
+              trait.traitName,
+              row,
+              featureResolvers
+            );
+            cache.set(cacheKey, prediction.prediction);
+            return prediction.prediction;
+          }
+
+          return null;
+        },
       };
     }
 
