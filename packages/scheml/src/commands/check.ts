@@ -25,6 +25,7 @@ import { PrismaSchemaReader } from '../adapters/prisma';
 import type { ArtifactMetadata } from '../artifacts';
 import { checkArtifactDrift, type SchemaDelta } from '../drift';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
+import { checkFeedbackDecay, type AccuracyDecayResult } from '../feedback';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,6 +109,7 @@ export const checkCommand = {
     const errors: string[] = [];
     const warnings: string[] = [];
     const drift: SchemaDelta[] = [];
+    const feedback: AccuracyDecayResult[] = [];
 
     for (const metadataPath of metadataPaths) {
       const raw = readRawMetadata(metadataPath);
@@ -158,6 +160,20 @@ export const checkCommand = {
             driftDetectedAt: new Date().toISOString(),
             driftFields: [...(delta.removed ?? []), ...(delta.added ?? [])],
           });
+        }
+
+        // Check feedback-based accuracy decay against quality gates
+        const decayResult = checkFeedbackDecay(outputDir, metadata.traitName, metadata.qualityGates);
+        if (decayResult) {
+          feedback.push(decayResult);
+          if (decayResult.belowThreshold) {
+            warnings.push(
+              `${metadata.traitName}: Feedback accuracy decay detected — ` +
+              `${decayResult.metric} ${decayResult.rmse !== undefined ? decayResult.rmse.toFixed(4) : (decayResult.accuracy! * 100).toFixed(1) + '%'} ` +
+              `does not meet quality gate (${decayResult.metric} ${metadata.qualityGates?.find((g) => g.metric === decayResult.metric)?.comparison ?? ''} ${decayResult.threshold ?? ''}). ` +
+              `Based on ${decayResult.pairedCount} paired observations.`
+            );
+          }
         }
         continue;
       }
@@ -230,7 +246,7 @@ export const checkCommand = {
     // -----------------------------------------------------------------------
     if (jsonMode) {
       process.stdout.write(
-        JSON.stringify({ ok, errors, warnings, drift }) + '\n'
+        JSON.stringify({ ok, errors, warnings, drift, feedback }) + '\n'
       );
       if (!ok) throw new Error('Schema-only contract check failed.');
       return;

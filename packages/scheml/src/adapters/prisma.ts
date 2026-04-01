@@ -36,6 +36,28 @@ import type { PredictionSession } from '../prediction';
 import { TTLCache } from '../cache';
 
 // ---------------------------------------------------------------------------
+// trait: filter helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Test whether a scalar value satisfies a Prisma-style filter condition object.
+ * Supports: gt, gte, lt, lte, equals, eq.
+ */
+function matchesCondition(value: number, condition: Record<string, unknown>): boolean {
+  return Object.entries(condition).every(([op, threshold]) => {
+    switch (op) {
+      case 'gt':     return value > (threshold as number);
+      case 'gte':    return value >= (threshold as number);
+      case 'lt':     return value < (threshold as number);
+      case 'lte':    return value <= (threshold as number);
+      case 'equals':
+      case 'eq':     return value === threshold;
+      default:       return true;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Prisma → common type mapping
 // ---------------------------------------------------------------------------
 
@@ -308,7 +330,101 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
       };
     }
 
-    return client.$extends({ result: resultExtensions });
+    // Build query extension for `trait:` filter syntax.
+    // `findMany({ where: { trait: { churnRisk: { gt: 0.75 } } } })` rewrites
+    // the `trait` sub-object into materialized column conditions (materialized /
+    // hybrid) or a post-filter on live inference (live).
+    const traitBindings = this.traits;
+    const interceptorMode = mode;
+    const interceptorSession = predictionSession;
+    const interceptorCache = cache;
+    const materializedPresent = this.options.materializedColumnsPresent;
+
+    const applyFilter = async (
+      model: string,
+      args: any,
+      query: (a: any) => Promise<any>
+    ): Promise<any> => {
+      if (!args?.where?.trait) {
+        return query(args);
+      }
+
+      const traitFilter = args.where.trait as Record<string, unknown>;
+      const cleanArgs: any = { ...args, where: { ...args.where } };
+      delete cleanArgs.where.trait;
+      if (Object.keys(cleanArgs.where).length === 0) {
+        delete cleanArgs.where;
+      }
+
+      const relevant = traitBindings.filter(
+        (t) => t.entityName.toLowerCase() === model.toLowerCase()
+      );
+
+      if (interceptorMode === 'materialized' || interceptorMode === 'hybrid') {
+        if (materializedPresent) {
+          for (const [traitName, condition] of Object.entries(traitFilter)) {
+            const binding = relevant.find((t) => t.traitName === traitName);
+            if (binding) {
+              cleanArgs.where = cleanArgs.where ?? {};
+              cleanArgs.where[binding.materializedColumn ?? traitName] = condition;
+            }
+          }
+        }
+        return query(cleanArgs);
+      }
+
+      if (interceptorMode === 'live') {
+        const rows: any[] = await query(cleanArgs);
+        const filtered: any[] = [];
+        for (const row of rows) {
+          let passes = true;
+          for (const [traitName, condition] of Object.entries(traitFilter)) {
+            const binding = relevant.find((t) => t.traitName === traitName);
+            if (!binding || !binding.supportsLiveInference || !interceptorSession) {
+              continue;
+            }
+            const cacheKey = `${traitName}:${String(row.id)}`;
+            let val = interceptorCache.get(cacheKey);
+            if (val === undefined) {
+              const resolvers: Record<string, (e: any) => any> = {};
+              for (const fn of binding.featureNames) {
+                resolvers[fn] = (e: any) => e[fn];
+              }
+              const pred = await interceptorSession.predict(traitName, row, resolvers);
+              val = pred.prediction as number | string | boolean | null;
+              interceptorCache.set(cacheKey, val);
+            }
+            if (typeof val === 'number' && !matchesCondition(val, condition as Record<string, unknown>)) {
+              passes = false;
+              break;
+            }
+          }
+          if (passes) filtered.push(row);
+        }
+        return filtered;
+      }
+
+      return query(cleanArgs);
+    };
+
+    return client.$extends({
+      query: {
+        $allModels: {
+          findMany:          async ({ model, args, query }: any) => applyFilter(model, args, query),
+          findFirst:         async ({ model, args, query }: any) => {
+            const results = await applyFilter(model, args, query);
+            return Array.isArray(results) ? (results[0] ?? null) : results;
+          },
+          findFirstOrThrow:  async ({ model, args, query }: any) => {
+            const results = await applyFilter(model, args, query);
+            const first = Array.isArray(results) ? results[0] : results;
+            if (first == null) throw new Error(`No ${model} record found matching trait filter`);
+            return first;
+          },
+        },
+      },
+      result: resultExtensions,
+    });
   }
 }
 

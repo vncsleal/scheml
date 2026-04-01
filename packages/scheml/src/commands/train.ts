@@ -527,6 +527,7 @@ export const trainCommand = {
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
+            qualityGates: trait.qualityGates,
             modelBase64: anomalyResponse.modelBase64,
             featureCount: anomalyResponse.featureCount,
             threshold: anomalyResponse.threshold,
@@ -589,6 +590,7 @@ export const trainCommand = {
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
+            qualityGates: trait.qualityGates,
             strategy: simResponse.strategy,
             entityCount: simResponse.entityCount,
             embeddingDim: simResponse.embeddingDim,
@@ -675,6 +677,7 @@ export const trainCommand = {
             compiledAt: new Date().toISOString(),
             version: VERSION,
             metadataSchemaVersion: '1.0.0',
+            qualityGates: trait.qualityGates,
             windowSize: seqResponse.windowSize,
             aggregations: seqResponse.aggregations,
             onnxFile: path.basename(seqResponse.onnxPath),
@@ -707,6 +710,7 @@ export const trainCommand = {
           const genMetadata: GenerativeArtifactMetadata = {
             ...compileGenerativeTrait(trait, genSchemaHash, VERSION),
             entityName,
+            qualityGates: trait.qualityGates,
           };
           fs.writeFileSync(
             path.join(outputDir, `${trait.name}.metadata.json`),

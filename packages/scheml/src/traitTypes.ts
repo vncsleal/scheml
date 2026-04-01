@@ -23,15 +23,21 @@ export type TraitType =
 export interface TraitFeedbackApi {
   /**
    * Record a single ground-truth observation for accuracy decay tracking.
+   * Optionally pass `predicted` to enable paired accuracy computation in
+   * `scheml check`.
    * Persists to `.scheml/feedback/<traitName>.jsonl`.
    */
-  record(entityId: string | number, observation: { actual: unknown }): Promise<void>;
+  record(
+    entityId: string | number,
+    observation: { actual: unknown; predicted?: unknown }
+  ): Promise<void>;
 
   /**
    * Record a batch of ground-truth observations in one call.
+   * Include `predicted` on each entry to enable accuracy decay detection.
    */
   recordBatch(
-    entries: Array<{ id: string | number; actual: unknown }>
+    entries: Array<{ id: string | number; actual: unknown; predicted?: unknown }>
   ): Promise<void>;
 }
 

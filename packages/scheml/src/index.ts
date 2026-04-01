@@ -141,4 +141,12 @@ export { TTLCache } from './cache';
 export type { ExtendClientOptions } from './runtime';
 export { extendClient } from './runtime';
 
+// Feedback — accuracy decay detection from ground-truth observations
+export type { FeedbackRecord, AccuracyDecayResult } from './feedback';
+export {
+  feedbackFilePath,
+  readFeedbackRecords,
+  checkFeedbackDecay,
+} from './feedback';
+
 export const VERSION = '0.3.1';

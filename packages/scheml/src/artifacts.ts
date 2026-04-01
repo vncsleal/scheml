@@ -45,6 +45,11 @@ export interface ArtifactMetadataBase {
   /** ISO-8601 timestamp when this artifact was written */
   compiledAt: string;
   /**
+   * Quality gate constraints recorded at train time.
+   * Used by `scheml check` to detect feedback accuracy decay.
+   */
+  qualityGates?: import('./types').QualityGate[];
+  /**
    * Source entity name (e.g. `"User"`, `"Order"`) used to compute
    * `schemaHash`.  Required by `scheml check` to recompute the current hash
    * and detect schema drift.  Populated by `scheml train` for all trait types.
