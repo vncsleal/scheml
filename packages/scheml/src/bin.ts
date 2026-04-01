@@ -16,6 +16,9 @@ import { materializeCommand } from './commands/materialize';
 import { auditCommand } from './commands/audit';
 import { migrateCommand } from './commands/migrate';
 import { generateCommand } from './commands/generate';
+import { inspectCommand } from './commands/inspect';
+import { diffCommand } from './commands/diff';
+import { initCommand } from './commands/init';
 
 function resolveCliVersion(): string {
   try {
@@ -43,6 +46,9 @@ async function main() {
     .command('migrate', 'Generate schema migration for materialized trait columns', migrateCommand)
     .command('generate', 'Write scheml.d.ts extending ORM types with trait properties', generateCommand)
     .command('audit', 'Export full trait history as structured JSON', auditCommand)
+    .command('inspect', 'Show detailed information about a trained trait artifact', inspectCommand)
+    .command('diff', 'Compare two artifact history records for a trait', diffCommand)
+    .command('init', 'Scaffold a new ScheML project with a starter config', initCommand)
     .demandCommand(1, 'You must provide a command')
     .strict()
     .parse();
