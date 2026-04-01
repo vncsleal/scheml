@@ -73,7 +73,7 @@ function printInspect(traitName: string, meta: ArtifactMetadata, feedbackCount: 
       for (const m of meta.trainingMetrics) {
         const entries = Object.entries(m).filter(([k]) => k !== 'split');
         const formatted = entries.map(([k, v]) => `${k}=${typeof v === 'number' ? v.toFixed(4) : v}`).join('  ');
-        const split = (m as Record<string, unknown>).split ?? 'test';
+        const split = (m as unknown as Record<string, unknown>).split ?? 'test';
         console.log(`  ${chalk.dim(String(split).padEnd(18))} ${formatted}`);
       }
     }
@@ -85,9 +85,9 @@ function printInspect(traitName: string, meta: ArtifactMetadata, feedbackCount: 
     console.log(chalk.bold('  Quality Gates'));
     console.log(chalk.dim('  ' + '─'.repeat(48)));
     for (const gate of meta.qualityGates) {
-      const op = (gate as Record<string, unknown>).operator ?? '>=';
-      const threshold = (gate as Record<string, unknown>).threshold;
-      const metric = (gate as Record<string, unknown>).metric ?? gate;
+      const op = (gate as unknown as Record<string, unknown>).operator ?? '>=';
+      const threshold = (gate as unknown as Record<string, unknown>).threshold;
+      const metric = (gate as unknown as Record<string, unknown>).metric ?? gate;
       console.log(`  ${chalk.dim(String(metric).padEnd(18))} ${op} ${threshold}`);
     }
   }

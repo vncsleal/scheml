@@ -3,7 +3,9 @@
 > Transforming PrisML into ScheML: trait as a property of the type system.
 
 **Written:** March 31, 2026  
-**Status:** Active
+**Updated:** April 1, 2026  
+**Status:** Phases 1–9 complete — 327 tests passing across 20 test files  
+**Last commit:** `4b189b9` feat(roadmap-next): scheml inspect, diff, and init commands
 
 ---
 
@@ -22,7 +24,7 @@ None of this gets thrown away. The transformation is architectural expansion, no
 
 ---
 
-## Phase 1 — Complete the current IMPLEMENTATION_SPEC work
+## Phase 1 — Complete the current IMPLEMENTATION_SPEC work ✅
 
 **What:** The in-progress work (ONNX parity, FLAML default, one-hot encoding, schema hash scoping, preflight validation) is already partially implemented in the codebase but flagged as TODO. Finish it before anything else.
 
@@ -38,7 +40,7 @@ None of this gets thrown away. The transformation is architectural expansion, no
 
 ---
 
-## Phase 2 — `defineTrait()` API + trait type system
+## Phase 2 — `defineTrait()` API + trait type system ✅
 
 **What:** Introduce `defineTrait()` alongside `defineModel()` (keep `defineModel` as a deprecated alias, don't break existing users). Define the TypeScript types for all five trait classes.
 
@@ -111,7 +113,7 @@ A `resolveTraitGraph()` function builds the dependency DAG and runs both checks 
 
 ---
 
-## Phase 3 — Adapter architecture
+## Phase 3 — Adapter architecture ✅
 
 **What:** Extract everything Prisma-specific from `train.ts`, `check.ts`, and `schema.ts` into a Prisma adapter. Define the abstract adapter interface. Implement Zod and Drizzle adapters.
 
@@ -172,7 +174,7 @@ export default defineConfig({
 
 ---
 
-## Phase 4 — Python backend: anomaly + similarity + sequential trait types
+## Phase 4 — Python backend: anomaly + similarity + sequential trait types ✅
 
 **What:** Extend the Python backend to handle the two new trainable tabular trait types, plus sequential v1.
 
@@ -201,7 +203,7 @@ TypeScript glue in `train.ts`: route to the correct Python module based on `trai
 
 ---
 
-## Phase 5 — Generative traits
+## Phase 5 — Generative traits ✅
 
 **What:** Generative traits are not ML inference — they're structured prompt execution. They don't go through Python at all.
 
@@ -231,7 +233,7 @@ No provider lock-in, no API key in ScheML's config.
 
 ---
 
-## Phase 6 — History, auditability, drift
+## Phase 6 — History, auditability, drift ✅
 
 **What:** Every trait definition, training run, and materialization writes a structured record to `.scheml/history/<traitName>.jsonl` (append-only JSONL for cheap immutability).
 
@@ -267,7 +269,7 @@ interface HistoryRecord {
 
 ---
 
-## Phase 7 — Extended CLI
+## Phase 7 — Extended CLI ✅
 
 **What:** Complete the CLI surface from the spec, with `--json` on everything.
 
@@ -288,7 +290,7 @@ interface HistoryRecord {
 
 ---
 
-## Phase 8 — Runtime trait access + client extension
+## Phase 8 — Runtime trait access + client extension ✅
 
 **What:** Make traits accessible as native properties on query results through the adapter's `QueryInterceptor`.
 
@@ -325,7 +327,7 @@ The `trait:` filter syntax (`findMany({ trait: { churnRisk: { gt: 0.75 } } })`) 
 
 ---
 
-## Phase 9 — Feedback loop
+## Phase 9 — Feedback loop ✅
 
 **What:** `record()` and `recordBatch()` APIs on the definition object itself for collecting ground truth and measuring accuracy decay.
 

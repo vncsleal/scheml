@@ -233,23 +233,23 @@ export type ArtifactMetadata =
 // ---------------------------------------------------------------------------
 
 export function isPredictiveArtifact(m: ArtifactMetadata): m is PredictiveArtifactMetadata {
-  return m.traitType === 'predictive';
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'predictive';
 }
 
 export function isAnomalyArtifact(m: ArtifactMetadata): m is AnomalyArtifactMetadata {
-  return m.traitType === 'anomaly';
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'anomaly';
 }
 
 export function isSimilarityArtifact(m: ArtifactMetadata): m is SimilarityArtifactMetadata {
-  return m.traitType === 'similarity';
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'similarity';
 }
 
 export function isSequentialArtifact(m: ArtifactMetadata): m is SequentialArtifactMetadata {
-  return m.traitType === 'sequential';
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'sequential';
 }
 
 export function isGenerativeArtifact(m: ArtifactMetadata): m is GenerativeArtifactMetadata {
-  return m.traitType === 'generative';
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'generative';
 }
 
 // ---------------------------------------------------------------------------

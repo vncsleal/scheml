@@ -11,10 +11,10 @@ import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 import {
-  hashPrismaModelSubset,
   type ModelDefinition,
   PredictionSession,
 } from '..';
+import { computeSchemaHashForMetadata } from '../contracts';
 import { PrismaDataExtractor } from '../adapters/prisma';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
 import type { AnyTraitDefinition } from '../traitTypes';
@@ -132,11 +132,12 @@ export const materializeCommand = {
       }
 
       const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
       const entityName =
         typeof (trait as any).entity === 'string'
           ? (trait as any).entity
           : String((trait as any).entity);
-      const schemaHash = hashPrismaModelSubset(schemaContent, entityName);
+      const schemaHash = computeSchemaHashForMetadata(schemaContent, metadata);
 
       if (!jsonMode) spinner.start('Initializing inference session...');
       const session = new PredictionSession();
@@ -153,11 +154,12 @@ export const materializeCommand = {
 
       if (!jsonMode) spinner.start('Running inference + writing batches...');
       const resolvers = buildFeatureResolvers(trait.features as string[]);
+      const outputField = trait.output.field;
       const modelDef: ModelDefinition<any> = {
         name: trait.name,
         modelName: entityName,
         output: {
-          field: trait.name,
+          field: outputField,
           taskType: 'regression',
           resolver: () => 0,
         },
@@ -172,7 +174,7 @@ export const materializeCommand = {
           entityId: (batch[index] as any).id,
           prediction: prediction.prediction,
         }));
-        await extractor.write?.(entityName, results, trait.name);
+        await extractor.write?.(entityName, results, outputField);
         written += results.length;
       }
 
@@ -197,7 +199,7 @@ export const materializeCommand = {
             entity: entityName,
             rowsProcessed: rows.length,
             rowsWritten: written,
-            column: trait.name,
+            column: outputField,
           }) + '\n'
         );
         return;
@@ -209,6 +211,7 @@ export const materializeCommand = {
       console.log(chalk.dim(`Rows written: ${written}`));
     } catch (error) {
       if (jsonMode) {
+        process.exitCode = 1;
         process.stdout.write(
           JSON.stringify({ ok: false, error: (error as Error).message, code: 'MATERIALIZE_FAILED' }) +
             '\n'

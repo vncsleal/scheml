@@ -89,14 +89,23 @@ export function validateHydration(
       }
 
       if (typeof current === 'object' && current !== null) {
+        if (!(segment in (current as Record<string, unknown>))) {
+          if (!path.isOptional) {
+            errors.push(`Required path ${fullPath} is missing`);
+          }
+          current = undefined;
+          break;
+        }
         current = (current as any)[segment];
       } else {
-        errors.push(`Cannot access ${segment} on non-object at ${fullPath}`);
+        if (!path.isOptional) {
+          errors.push(`Cannot access ${segment} on non-object at ${fullPath}`);
+        }
         break;
       }
     }
 
-    if (path.isArrayLength && !Array.isArray(current)) {
+    if (path.isArrayLength && current !== undefined && !Array.isArray(current)) {
       errors.push(`Path ${fullPath} is not an array, cannot access .length`);
     }
   }

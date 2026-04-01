@@ -99,6 +99,7 @@ export const migrateCommand = {
     if (traitFilter && traits.length === 0) {
       const message = `Trait "${traitFilter}" not found in config`;
       if (jsonMode) {
+        process.exitCode = 1;
         process.stdout.write(JSON.stringify({ ok: false, error: message, code: 'TRAIT_NOT_FOUND' }) + '\n');
         return;
       }
@@ -153,6 +154,7 @@ export const migrateCommand = {
 
     const payload = {
       ok: true,
+      migrationId,
       written,
       migrationPath: written ? migrationPath : null,
       statementCount: statements.length,
