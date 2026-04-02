@@ -99,12 +99,57 @@ function computeRMSE(pairs: Pair[]): number {
   return Math.sqrt(sumSq / pairs.length);
 }
 
+/** Compute mean absolute error. */
+function computeMAE(pairs: Pair[]): number {
+  if (!pairs.length) return 0;
+  const sum = pairs.reduce((acc, r) => acc + Math.abs(Number(r.actual) - Number(r.predicted)), 0);
+  return sum / pairs.length;
+}
+
+/** Compute mean squared error. */
+function computeMSE(pairs: Pair[]): number {
+  if (!pairs.length) return 0;
+  const sum = pairs.reduce((acc, r) => acc + (Number(r.actual) - Number(r.predicted)) ** 2, 0);
+  return sum / pairs.length;
+}
+
+/** Compute R-squared (coefficient of determination). */
+function computeR2(pairs: Pair[]): number {
+  if (!pairs.length) return 0;
+  const actualMean = pairs.reduce((s, r) => s + Number(r.actual), 0) / pairs.length;
+  const ssTot = pairs.reduce((s, r) => s + (Number(r.actual) - actualMean) ** 2, 0);
+  if (ssTot === 0) return 1;
+  const ssRes = pairs.reduce((s, r) => s + (Number(r.actual) - Number(r.predicted)) ** 2, 0);
+  return 1 - ssRes / ssTot;
+}
+
+/** Compute precision, recall, and F1 for binary classification (positive threshold: 0.5). */
+function computePrecisionRecallF1(pairs: Pair[]): { precision: number; recall: number; f1: number } {
+  let tp = 0, fp = 0, fn = 0;
+  for (const r of pairs) {
+    const actual = r.actual === true || r.actual === 1 || r.actual === '1';
+    const predicted =
+      typeof r.predicted === 'number'
+        ? r.predicted >= 0.5
+        : r.predicted === true || r.predicted === 1 || r.predicted === '1';
+    if (actual && predicted) tp++;
+    else if (!actual && predicted) fp++;
+    else if (actual && !predicted) fn++;
+  }
+  const precision = tp + fp === 0 ? 0 : tp / (tp + fp);
+  const recall = tp + fn === 0 ? 0 : tp / (tp + fn);
+  const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
+  return { precision, recall, f1 };
+}
+
 // ---------------------------------------------------------------------------
 // Gate helpers
 // ---------------------------------------------------------------------------
 
-const CLASSIFICATION_METRICS = new Set(['accuracy', 'f1', 'precision', 'recall', 'auc']);
-const REGRESSION_METRICS = new Set(['rmse', 'mse', 'mae', 'r2']);
+const SUPPORTED_METRICS = new Set([
+  'accuracy', 'f1', 'precision', 'recall',
+  'rmse', 'mse', 'mae', 'r2',
+]);
 
 /**
  * Returns `true` when `value` satisfies the quality gate (i.e., the model
@@ -149,16 +194,54 @@ export function checkFeedbackDecay(
   if (paired.length < MIN_PAIRED_SAMPLES) return null;
 
   const gates = qualityGates ?? [];
-  const regressionGate = gates.find((g) => REGRESSION_METRICS.has(g.metric));
-  const classificationGate = gates.find((g) => CLASSIFICATION_METRICS.has(g.metric));
-  const relevantGate = regressionGate ?? classificationGate;
+  const relevantGate = gates.find((g) => SUPPORTED_METRICS.has(g.metric)) ?? null;
 
   if (!relevantGate) return null;
 
-  const isRegression = !!regressionGate;
-  const accuracy = isRegression ? undefined : computeBinaryAccuracy(paired);
-  const rmse = isRegression ? computeRMSE(paired) : undefined;
-  const metricValue = isRegression ? rmse! : accuracy!;
+  let accuracy: number | undefined;
+  let rmse: number | undefined;
+  let metricValue: number;
+
+  switch (relevantGate.metric) {
+    case 'accuracy':
+      accuracy = computeBinaryAccuracy(paired);
+      metricValue = accuracy;
+      break;
+    case 'precision': {
+      accuracy = computePrecisionRecallF1(paired).precision;
+      metricValue = accuracy;
+      break;
+    }
+    case 'recall': {
+      accuracy = computePrecisionRecallF1(paired).recall;
+      metricValue = accuracy;
+      break;
+    }
+    case 'f1': {
+      accuracy = computePrecisionRecallF1(paired).f1;
+      metricValue = accuracy;
+      break;
+    }
+    case 'rmse':
+      rmse = computeRMSE(paired);
+      metricValue = rmse;
+      break;
+    case 'mse':
+      rmse = computeMSE(paired);
+      metricValue = rmse;
+      break;
+    case 'mae':
+      rmse = computeMAE(paired);
+      metricValue = rmse;
+      break;
+    case 'r2':
+      accuracy = computeR2(paired);
+      metricValue = accuracy;
+      break;
+    default:
+      return null;
+  }
+
   const belowThreshold = !gatePasses(relevantGate, metricValue);
 
   return {

@@ -61,7 +61,9 @@ import {
 // ---------------------------------------------------------------------------
 
 function feedbackPath(traitName: string): string {
-  return path.resolve(process.cwd(), '.scheml', 'feedback', `${traitName}.jsonl`);
+  // Sanitize trait name to prevent path traversal.
+  const safeName = path.basename(traitName).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.resolve(process.cwd(), '.scheml', 'feedback', `${safeName}.jsonl`);
 }
 
 function appendFeedback(traitName: string, entry: object): Promise<void> {
@@ -153,9 +155,15 @@ export function defineTrait<TEntity = any>(
     record: (entityId: string | number, observation: { actual: unknown }) =>
       appendFeedback(definition.name, { entityId, ...observation }),
 
-    recordBatch: (entries: Array<{ id: string | number; actual: unknown }>) =>
+    recordBatch: (entries: Array<{ id: string | number; actual: unknown; predicted?: unknown }>) =>
       Promise.all(
-        entries.map((e) => appendFeedback(definition.name, { entityId: e.id, actual: e.actual }))
+        entries.map((e) =>
+          appendFeedback(definition.name, {
+            entityId: e.id,
+            actual: e.actual,
+            ...(e.predicted !== undefined ? { predicted: e.predicted } : {}),
+          })
+        )
       ).then(() => undefined),
   });
 

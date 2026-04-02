@@ -104,14 +104,21 @@ function visit(
  * ```
  */
 export function resolveTraitGraph(traits: AnyTraitDefinition[]): void {
-  const knownNames = new Set(traits.map((t) => t.name));
-
   // Detect null/undefined entries first — these indicate a trait was passed
   // before its `defineTrait` call completed (e.g., used before declaration).
   for (const trait of traits) {
     if (trait === null || trait === undefined || typeof trait !== 'object') {
       throw new TraitGraphError('TRAIT_REFERENCED_BEFORE_DEFINITION', '(unknown)');
     }
+  }
+
+  // Detect duplicate names — each trait must have a unique name in the graph.
+  const knownNames = new Set<string>();
+  for (const trait of traits) {
+    if (knownNames.has(trait.name)) {
+      throw new Error(`Duplicate trait name: "${trait.name}". Each trait must have a unique name.`);
+    }
+    knownNames.add(trait.name);
   }
 
   const visited = new Set<string>();

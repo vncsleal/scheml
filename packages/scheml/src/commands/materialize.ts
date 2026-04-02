@@ -160,7 +160,7 @@ export const materializeCommand = {
         modelName: entityName,
         output: {
           field: outputField,
-          taskType: 'regression',
+          taskType: (metadata as any).taskType ?? 'regression',
           resolver: () => 0,
         },
         features: resolvers,

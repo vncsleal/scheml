@@ -43,10 +43,9 @@ type User = {
  * Example: user churn prediction.
  * Replace this with your own entity and output field.
  */
-export const churnRisk = defineTrait<User>({
+export const churnRisk = defineTrait<User>('User', {
   name: 'churnRisk',
   type: 'predictive',
-  entity: 'User',
 
   output: {
     field: 'predictedChurn',

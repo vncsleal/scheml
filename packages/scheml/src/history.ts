@@ -67,7 +67,8 @@ export interface HistoryRecord {
  */
 export function detectAuthor(): string {
   if (process.env.SCHEML_AUTHOR) {
-    return process.env.SCHEML_AUTHOR;
+    // Strip control characters and quotes to prevent JSONL injection.
+    return process.env.SCHEML_AUTHOR.replace(/[\r\n"]/g, '').slice(0, 200) || 'unknown';
   }
   if (process.env.GITHUB_WORKFLOW) {
     return `agent:${process.env.GITHUB_WORKFLOW}`;

@@ -4,6 +4,7 @@
   "description": "ScheML: compiler-first ML for TypeScript + Prisma",
   "license": "MIT",
   "author": "Vinicius Leal <oi@iamvini.co> (https://github.com/vncsleal)",
+  "homepage": "https://github.com/vncsleal/scheml#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/vncsleal/scheml",
@@ -11,6 +12,9 @@
   },
   "bugs": {
     "url": "https://github.com/vncsleal/scheml/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "machine-learning",
@@ -21,6 +25,7 @@
     "runtime",
     "cli"
   ],
+  "sideEffects": false,
   "publishConfig": {
     "access": "public"
   },
@@ -34,11 +39,19 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
+    "clean": "rm -rf dist",
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint --ext .ts src",
     "format": "prettier --write src",
+    "prepublishOnly": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

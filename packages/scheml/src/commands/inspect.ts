@@ -63,7 +63,7 @@ function printInspect(traitName: string, meta: ArtifactMetadata, feedbackCount: 
     console.log(`  ${chalk.dim('Task type'.padEnd(18))} ${meta.taskType}`);
     console.log(`  ${chalk.dim('Output field'.padEnd(18))} ${meta.output.field}`);
 
-    const features = Object.keys(meta.features);
+    const features = meta.features.order ?? [];
     console.log(`  ${chalk.dim('Features'.padEnd(18))} ${features.length} (${features.slice(0, 5).join(', ')}${features.length > 5 ? `, +${features.length - 5} more` : ''})`);
 
     if (meta.trainingMetrics && meta.trainingMetrics.length > 0) {

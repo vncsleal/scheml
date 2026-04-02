@@ -91,7 +91,8 @@ export function validateHydration(
       if (typeof current === 'object' && current !== null) {
         if (!(segment in (current as Record<string, unknown>))) {
           if (!path.isOptional) {
-            errors.push(`Required path ${fullPath} is missing`);
+            // Report the full access path so callers know which path was being resolved.
+            errors.push(`Required path ${path.segments.join('.')} is missing`);
           }
           current = undefined;
           break;

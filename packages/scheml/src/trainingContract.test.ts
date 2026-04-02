@@ -4,7 +4,7 @@ import {
   inferFeatureType,
   splitTrainingRows,
   type TrainingRow,
-} from './training_contract';
+} from './trainingContract';
 
 describe('splitTrainingRows', () => {
   it('splits deterministically with a fixed seed', () => {

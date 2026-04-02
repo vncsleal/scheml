@@ -39,7 +39,7 @@ import {
   fitTrainingContract,
   splitTrainingRows,
   type TrainingRow,
-} from '../training_contract';
+} from '../trainingContract';
 import { AnyTraitDefinition } from '../traitTypes';
 import type {
   AnomalyArtifactMetadata,
@@ -513,6 +513,7 @@ export const trainCommand = {
             ],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
+          try { fs.unlinkSync(datasetPath); } catch {}
           if (anomResult.error) throw anomResult.error;
           if (anomResult.status !== 0) {
             throw new Error(anomResult.stderr || 'Python anomaly backend failed');
@@ -576,6 +577,7 @@ export const trainCommand = {
             [simScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
+          try { fs.unlinkSync(datasetPath); } catch {}
           if (simResult.error) throw simResult.error;
           if (simResult.status !== 0) {
             throw new Error(simResult.stderr || 'Python similarity backend failed');
@@ -663,6 +665,7 @@ export const trainCommand = {
             [seqScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
+          try { fs.unlinkSync(datasetPath); } catch {}
           if (seqResult.error) throw seqResult.error;
           if (seqResult.status !== 0) {
             throw new Error(seqResult.stderr || 'Python sequential backend failed');

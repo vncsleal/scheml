@@ -27,16 +27,29 @@ async function loadConfigModule(configPath: string): Promise<Record<string, unkn
   return (await jiti.import(configPath)) as Record<string, unknown>;
 }
 
-function columnTypeForTraitType(type: AnyTraitDefinition['type']): string {
+function extractDatasourceProvider(schemaContent: string): string {
+  const match = /datasource\s+\w+\s*\{[^}]*provider\s*=\s*"([^"]+)"/s.exec(schemaContent);
+  return match ? match[1].toLowerCase() : 'postgresql';
+}
+
+function escapeSqlId(name: string): string {
+  return name.replace(/"/g, '""');
+}
+
+function columnTypeForTraitType(type: AnyTraitDefinition['type'], provider: string): string {
   switch (type) {
     case 'generative':
       return 'TEXT';
     case 'similarity':
+      if (provider === 'sqlite') return 'TEXT';
+      if (provider === 'mysql') return 'JSON';
       return 'JSONB';
     case 'predictive':
     case 'anomaly':
     case 'sequential':
     default:
+      if (provider === 'sqlite') return 'REAL';
+      if (provider === 'mysql') return 'DOUBLE';
       return 'DOUBLE PRECISION';
   }
 }
@@ -108,6 +121,7 @@ export const migrateCommand = {
 
     const statements: string[] = [];
     const skipped: Array<{ trait: string; reason: string }> = [];
+    const provider = extractDatasourceProvider(schemaContent);
 
     for (const trait of traits) {
       const entityName =
@@ -131,9 +145,9 @@ export const migrateCommand = {
         continue;
       }
 
-      const sqlType = columnTypeForTraitType(trait.type);
+      const sqlType = columnTypeForTraitType(trait.type, provider);
       statements.push(
-        `ALTER TABLE "${entityName}" ADD COLUMN "${trait.name}" ${sqlType} NULL;`
+        `ALTER TABLE "${escapeSqlId(entityName)}" ADD COLUMN "${escapeSqlId(trait.name)}" ${sqlType} NULL;`
       );
     }
 

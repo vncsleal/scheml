@@ -137,6 +137,7 @@ function encodeCategoryValue(
  */
 export function applyScaling(value: number, spec: ScalingSpec): number {
   if (spec.strategy === 'standard' && spec.mean !== undefined && spec.std !== undefined) {
+    if (spec.std === 0) return 0;
     return (value - spec.mean) / spec.std;
   }
   return value;

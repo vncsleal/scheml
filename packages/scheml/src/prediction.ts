@@ -71,16 +71,10 @@ export class ModelMetadataLoader {
       );
     }
 
-    if (!metadata.features || Object.keys(metadata.features).length === 0) {
+    if (!metadata.features || !metadata.features.order || metadata.features.order.length === 0) {
       throw new ArtifactError(
         metadata.modelName,
         'Metadata has no features defined'
-      );
-    }
-    if (!metadata.features || !metadata.features.order) {
-      throw new ArtifactError(
-        metadata.modelName,
-        'Metadata missing feature schema'
       );
     }
   }
