@@ -5,47 +5,45 @@ import { Code } from 'astro:components';
 const title = 'PrisML — Compiler-First ML for TypeScript';
 const description = 'Define predictive models in TypeScript. Compile to ONNX at build time. Run inference in-process — no Python sidecars, no HTTP latency.';
 
-const defineCode = `import { defineModel } from '@vncsleal/prisml';
+const defineCode = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-export const churnModel = defineModel<User>({
+const churnRisk = defineTrait('User', {
+  type: 'predictive',
   name: 'churnRisk',
-  modelName: 'User',
+  target: 'cancelledAt',
+  features: ['logins', 'subscription', 'totalSpend', 'monthsActive'],
   output: {
     field: 'willChurn',
     taskType: 'binary_classification',
-    resolver: (user) => user.cancelledAt !== null,
-  },
-  features: {
-    daysActive: (u) =>
-      (Date.now() - u.createdAt.getTime()) / 86_400_000,
-    loginFrequency: (u) => u.logins.length,
-    planTier: (u) => u.subscription.tier,
-    monthlySpend: (u) => u.totalSpend / u.monthsActive,
   },
   // algorithm is optional — omit it and FLAML AutoML
   // selects the best estimator for you automatically.
   qualityGates: [
     { metric: 'f1', threshold: 0.85, comparison: 'gte' },
   ],
+});
+
+export default defineConfig({
+  traits: [churnRisk],
 });`;
 
-const trainCode = `$ prisml train
+const trainCode = `$ scheml train
 
 ◉ Loading Prisma schema...
 ✔ Schema loaded
-◉ Loading model definitions...
-✔ Loaded 1 model definition(s)
+◉ Loading trait definitions...
+✔ Loaded 1 trait definition(s)
 ◉ Running preflight validation...
 ✔ Preflight validation passed
 ◉ Checking Python environment...
 ✔ Python environment OK (flaml, sklearn, skl2onnx)
-◉ Validating models...
-✔ Models validated
+◉ Validating traits...
+✔ Traits validated
 ◉ Extracting training data via Prisma...
 ◉ Training churnRisk (FLAML AutoML, 60s budget)...
 ✔ Best estimator: LGBMClassifier
 ◉ Writing artifacts...
-✔ Artifacts written to ./.prisml
+✔ Artifacts written to ./.scheml
 
 [OK] Training complete
 
@@ -53,19 +51,18 @@ Artifacts:
   churnRisk.metadata.json
   churnRisk.onnx`;
 
-const predictCode = `import { PredictionSession } from '@vncsleal/prisml';
-import { churnModel } from './models/churn';
+const predictCode = `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
 
-const session = new PredictionSession();
+const db = extendClient(new PrismaClient(), config);
 
-await session.load(churnModel);
-
-const result = await session.predict(churnModel, user);
+const result = await db.scheml.predict('churnRisk', user);
 
 console.log(result.prediction);
 // → "1" (will churn)
 console.log(result.timestamp);
-// → "2026-02-20T16:00:00.000Z"`;
+// → "2026-04-02T16:00:00.000Z"`;
 ---
 
 <BaseLayout title={title} description={description}>
@@ -95,7 +92,7 @@ console.log(result.timestamp);
               <path d="M10 1h5v5l-1.7-1.7-4.6 4.6-1.4-1.4 4.6-4.6L10 1zM3 3h4v2H3v8h8V9h2v4a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z"/>
             </svg>
           </a>
-          <a href="https://www.npmjs.com/package/@vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__npm-badge header__nav-link">
+          <a href="https://www.npmjs.com/package/@vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="header__npm-badge header__nav-link">
             <span class="npm-version">v0.3.1</span>
           </a>
         </nav>
@@ -135,7 +132,7 @@ console.log(result.timestamp);
         <div class="hero__actions anim-fade-up anim-delay-2">
           <div class="install-cmd" id="installCmd">
             <span class="install-cmd__prompt">$</span>
-            <code class="install-cmd__text">npm install @vncsleal/prisml</code>
+            <code class="install-cmd__text">npm install @vncsleal/scheml</code>
             <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -340,7 +337,7 @@ console.log(result.timestamp);
               </svg>
             </div>
             <h3 class="feature-card__title">Schema validation</h3>
-            <p class="feature-card__desc">Run <code>prisml check</code> to validate trained model contracts against your current Prisma schema and detect incompatibilities quickly.</p>
+            <p class="feature-card__desc">Run <code>scheml check</code> to validate trained trait contracts against your current Prisma schema and detect incompatibilities quickly.</p>
           </div>
 
           <div class="feature-card">
@@ -375,11 +372,11 @@ console.log(result.timestamp);
               <h3 class="arch-card__title">Declaration</h3>
             </div>
             <p class="arch-card__body">
-              Use <code>defineModel()</code> to specify your model: target Prisma model, feature resolvers as pure functions,
+              Use <code>defineTrait()</code> to declare an intelligence trait: target Prisma model, feature field names,
               algorithm choice, and quality constraints. No data access — purely declarative.
             </p>
             <div class="arch-card__tags">
-              <span class="tag">defineModel()</span>
+              <span class="tag">defineTrait()</span>
               <span class="tag">TypeScript</span>
               <span class="tag">Type-safe</span>
             </div>
@@ -391,7 +388,7 @@ console.log(result.timestamp);
               <h3 class="arch-card__title">Compilation</h3>
             </div>
             <p class="arch-card__body">
-              The CLI loads model definitions, extracts training data via Prisma, and materializes a training dataset.
+              The CLI loads trait definitions, extracts training data via Prisma, and materializes a training dataset.
               A Python backend trains the model and exports a versioned ONNX artifact + metadata pair.
             </p>
             <div class="arch-card__tags">
@@ -524,7 +521,7 @@ console.log(result.timestamp);
       const installCmd = document.getElementById('installCmd');
       if (copyBtn && installCmd) {
         copyBtn.addEventListener('click', async () => {
-          await navigator.clipboard.writeText('npm install @vncsleal/prisml');
+          await navigator.clipboard.writeText('npm install @vncsleal/scheml');
           installCmd.classList.add('copied');
           setTimeout(() => installCmd.classList.remove('copied'), 2000);
         });

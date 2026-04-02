@@ -12,42 +12,41 @@ const demoInfo = await getDemoModelInfo();
 const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
 const initialPrediction = await predictDemoChurn(initialInputs, 'demo-default');
 
-const defineCode = `import { defineModel } from '@vncsleal/prisml';
+const defineCode = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-export const churnModel = defineModel<User>({
+const userChurn = defineTrait('User', {
+  type: 'predictive',
   name: 'userChurn',
-  modelName: 'User',
+  target: 'willChurn',
+  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
   output: {
     field: 'willChurn',
     taskType: 'binary_classification',
-    resolver: (u) => u.willChurn,
-  },
-  features: {
-    daysSinceActive: (u) =>
-      Math.floor((Date.now() - u.lastActiveAt.getTime()) / 86_400_000),
-    monthlySpend: (u) => u.monthlySpend,
-    supportTickets: (u) => u.supportTickets,
   },
   algorithm: { name: 'gbm' },
   qualityGates: [
     { metric: 'f1', threshold: 0.80, comparison: 'gte' },
     { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
   ],
+});
+
+export default defineConfig({
+  traits: [userChurn],
 });`;
 
-const trainCode = `$ prisml train
+const trainCode = `$ scheml train
 
 ◉ Loading Prisma schema...
 ✔ Schema loaded (hash: a3f8c1b2)
-◉ Loading model definitions...
-✔ Loaded 1 model definition(s)
-◉ Validating models...
-✔ Models validated
+◉ Loading trait definitions...
+✔ Loaded 1 trait definition(s)
+◉ Validating traits...
+✔ Traits validated
 ◉ Extracting training data via Prisma...
 ◉ Training userChurn (gbm)...
 ✔ Training complete
 ◉ Writing artifacts...
-✔ Artifacts written to ./.prisml
+✔ Artifacts written to ./.scheml
 
 [OK] Training complete
 
@@ -55,13 +54,13 @@ Artifacts:
   userChurn.metadata.json
   userChurn.onnx`;
 
-const predictCode = `import { PredictionSession } from '@vncsleal/prisml';
-import { churnModel } from './models/churn';
+const predictCode = `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
 
-const session = new PredictionSession();
-await session.load(churnModel); // resolves .prisml/ and prisma/schema.prisma
+const db = extendClient(new PrismaClient(), config);
 
-const result = await session.predict(churnModel, user);
+const result = await db.scheml.predict('userChurn', user);
 
 console.log(result.prediction);  // "1" or "0"
 console.log(result.timestamp);   // "2026-03-08T12:00:00.000Z"
@@ -73,13 +72,13 @@ const driftCode = `// After adding a new field to schema.prisma:
 //   subscriptionTier String   // ← new field
 // }
 
-// session.load() re-hashes the current schema file before loading.
-await session.load(churnModel); // schema now hashes to 7d2e9f1a
+// extendClient validates the schema hash on every predict() call.
+const result = await db.scheml.predict('userChurn', user); // schema now hashes to 7d2e9f1a
 
 // ✖ Throws:
-// SchemaDriftError: Model 'userChurn' was trained on schema
+// SchemaDriftError: Trait 'userChurn' was trained on schema
 // hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
-// Run \`prisml train\` to rebuild the artifact.`;
+// Run \`scheml train\` to rebuild the artifact.`;
 
 const initialIsChurn = String(initialPrediction.prediction) === '1';
 ---
@@ -332,7 +331,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
           </p>
           <div class="artifact-ls drift-ls">
-            <p class="artifact-ls__prompt"><span class="prompt">$</span> ls -lh .prisml/</p>
+            <p class="artifact-ls__prompt"><span class="prompt">$</span> ls -lh .scheml/</p>
             <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size">52K</span><span class="ls-name">userChurn.onnx</span></p>
             <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size"> 4K</span><span class="ls-name">userChurn.metadata.json</span></p>
             <p class="artifact-ls__hint"># both files are bound to schema hash a3f8c1b2</p>
@@ -387,14 +386,14 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             </div>
             <pre class="drift-output" id="driftOutput"><code id="driftOutputCode">// Schema hash matches — inference proceeds normally.
 
-const result = await session.predict(churnModel, user);
+const result = await db.scheml.predict('userChurn', user);
 // result.prediction → "0"
 // result.timestamp  → "2026-03-08T12:00:00.000Z"</code></pre>
             <div class="drift-explanation" id="driftExplanation">
               <p>
                 The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-                When calling <code>session.load()</code>, PrisML re-hashes the current schema file and compares.
-                A match means the feature resolvers are still valid against the live data shape.
+                When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares.
+                A match means the feature definitions are still valid against the live data shape.
               </p>
             </div>
           </div>
@@ -460,7 +459,7 @@ const result = await session.predict(churnModel, user);
         <div class="cta-strip">
           <div class="install-cmd" id="installCmd">
             <span class="install-cmd__prompt">$</span>
-            <code class="install-cmd__text">npm install @vncsleal/prisml</code>
+            <code class="install-cmd__text">npm install @vncsleal/scheml</code>
             <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -617,18 +616,18 @@ const result = await session.predict(churnModel, user);
 
       const normalCode = `// Schema hash matches — inference proceeds normally.
 
-const result = await session.predict(churnModel, user);
+const result = await db.scheml.predict('userChurn', user);
 // result.prediction → "0"
 // result.timestamp  → "2026-03-08T12:00:00.000Z"`;
 
-      const errorCode = `// session.load() re-hashes the schema file on every call.
+      const errorCode = `// extendClient validates the schema hash on predict().
 
-await session.load(churnModel); // schema now hashes to 7d2e9f1a
+const result = await db.scheml.predict('userChurn', user); // schema now hashes to 7d2e9f1a
 
 // ✖ Throws before any inference:
-// SchemaDriftError: Model 'userChurn' was trained on schema
+// SchemaDriftError: Trait 'userChurn' was trained on schema
 // hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
-// Run \`prisml train\` to rebuild the artifact.`;
+// Run \`scheml train\` to rebuild the artifact.`;
 
       driftToggle?.addEventListener('click', () => {
         driftActive = !driftActive;
@@ -676,7 +675,7 @@ A match means the feature resolvers are still valid against the live data shape.
       const copyBtn    = document.getElementById('copyBtn');
       const installCmd = document.getElementById('installCmd');
       copyBtn?.addEventListener('click', async () => {
-        await navigator.clipboard.writeText('npm install @vncsleal/prisml');
+        await navigator.clipboard.writeText('npm install @vncsleal/scheml');
         installCmd?.classList.add('copied');
         setTimeout(() => installCmd?.classList.remove('copied'), 2000);
       });
