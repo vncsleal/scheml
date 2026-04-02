@@ -52,3 +52,9 @@
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-01T13:40:33.726Z"}
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-01T13:40:33.727Z"}
 {"entityId":"cust_2","actual":false,"recordedAt":"2026-04-01T13:40:33.727Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-02T18:22:29.782Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-02T18:22:29.783Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-02T18:22:29.783Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-02T19:30:09.314Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-02T19:30:09.320Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-02T19:30:09.320Z"}
