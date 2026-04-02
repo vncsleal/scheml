@@ -53,13 +53,13 @@ type TaskType = 'regression' | 'binary_classification' | 'multiclass_classificat
 
 ```typescript
 interface AlgorithmConfig {
-  // Algorithm name: 'linear', 'tree', 'forest', 'gbm'
+  /**
+   * Algorithm name. Use 'automl' (default) to let FLAML choose automatically.
+   * Explicit options: 'linear', 'tree', 'forest', 'gbm'.
+   */
   name: string;
-  
-  // Pinned version for determinism
-  version: string;
-  
-  // Hyperparameters
+
+  // Optional hyperparameter overrides (not valid for 'automl')
   hyperparameters?: Record<string, unknown>;
 }
 ```
@@ -68,7 +68,7 @@ interface AlgorithmConfig {
 
 ```typescript
 interface QualityGate {
-  metric: 'mse' | 'rmse' | 'mae' | 'accuracy' | 'precision' | 'recall' | 'f1';
+  metric: 'mse' | 'rmse' | 'mae' | 'r2' | 'accuracy' | 'precision' | 'recall' | 'f1';
   threshold: number;
   comparison: 'gte' | 'lte';
   description?: string;
@@ -133,30 +133,36 @@ interface ModelMetadata {
 
 ### Functions
 
-#### `defineModel(config: ModelDefinition): ModelDefinition`
+#### `defineTrait(entity, config)`
 
-Declare a predictive model. Pure specification with no side effects.
+Declares an intelligence trait on an entity type. Returns a `ResolvedTrait` with the config plus `record()` / `recordBatch()` feedback methods. Supports five trait types: `predictive`, `anomaly`, `similarity`, `sequential`, `generative`.
 
 ```typescript
-import { defineModel } from '@vncsleal/scheml';
+import { defineTrait } from '@vncsleal/scheml';
 
-const userValue = defineModel<User>({
+const userValue = defineTrait('User', {
+  type: 'predictive',
   name: 'userValue',
-  modelName: 'User',
+  target: 'estimatedLTV',
+  features: ['createdAt', 'plan', 'totalSpend'],
   output: {
-    field: 'predictedValue',
+    field: 'estimatedLTV',
     taskType: 'regression',
   },
-  features: {
-    accountAge: (user) => Date.now() - user.createdAt.getTime(),
-    isPremium: (user) => user.plan === 'premium',
-  },
-  algorithm: {
-    name: 'forest',
-    version: '1.0.0',
-  },
+  qualityGates: [
+    {
+      metric: 'rmse',
+      threshold: 500,
+      comparison: 'lte',
+      description: 'Must predict within $500 RMSE',
+    },
+  ],
 });
 ```
+
+#### `defineModel(config: ModelDefinition): ModelDefinition`
+
+> **Deprecated.** Use `defineTrait` for new code. `defineModel` is kept for backward compatibility.
 
 #### `hashPrismaSchema(schema: string): string`
 

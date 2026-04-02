@@ -88,7 +88,7 @@ During `scheml train`:
 - Data is extracted via your Prisma instance
 - Processed locally via Python backend
 - Not sent to external services
-- Deleted after training completes
+- Temporary `*.dataset.json` files are written to `.scheml/` for the Python backend. These files are deleted immediately after the Python process completes (whether it succeeds or fails).
 
 ### In Production
 
@@ -161,7 +161,7 @@ No predictions happen if schema drifts.
 
 ### Code Injection
 
-Feature resolvers are analyzed via TypeScript AST:
+Feature resolvers are pure TypeScript functions compiled at build time. TypeScript's type system prevents most injection vectors:
 
 ```typescript
 // SAFE: static property access
@@ -171,7 +171,9 @@ revenue: (user) => user.revenue
 value: (user) => eval(user.expression) // Type error! [CAUGHT]
 ```
 
-TypeScript's type system prevents this.
+TypeScript's type system prevents this at compile time.
+
+> **Note:** Static AST analysis of feature resolvers is not yet implemented. TypeScript provides compile-time safety, but callers are responsible for avoiding patterns like `eval` or dynamic `require` within feature resolvers.
 
 ### Model Artifacts
 
@@ -179,7 +181,9 @@ ONNX models are:
 - Binary format (not executable code)
 - Serialized numerical weights
 - No dynamic code generation
-- Safe to load from untrusted sources (within reason)
+- Safe to load from trusted sources
+
+> **Important:** Anomaly trait artifacts (`*.metadata.json` for `type: 'anomaly'` traits) embed a base64-encoded `joblib` pickle, **not** an ONNX model. Python `pickle`/`joblib` deserialization can execute arbitrary code if the artifact has been tampered with. **Anomaly artifacts must only be loaded from trusted, integrity-verified sources.**
 
 ### Training Backend
 

@@ -21,11 +21,13 @@ ScheML is aimed at TypeScript and Prisma teams that want:
 ## Current Promise
 
 The current package provides:
-- `defineModel()` for typed model definitions
+- `defineTrait()` for typed trait definitions (predictive, anomaly, similarity, sequential, generative)
+- `defineConfig()` for project configuration
 - `scheml train` for build-time training
 - `scheml check` for schema-only validation
-- `PredictionSession` for runtime loading and inference
-- immutable `model.onnx` + `model.metadata.json` artifacts
+- `extendClient()` for runtime Prisma integration with trait fields
+- `PredictionSession` for low-level ONNX inference
+- immutable `<trait>.onnx` + `<trait>.metadata.json` artifacts
 
 ## Quick Start
 
@@ -35,29 +37,27 @@ Install the package:
 npm install @vncsleal/scheml
 ```
 
-Define a model in `scheml.config.ts`:
+Define a trait in `scheml.config.ts`:
 
 ```ts
-import { defineModel } from '@vncsleal/scheml';
+import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-export const userChurnModel = defineModel<User>({
-  name: 'userChurn',
-  modelName: 'User',
-  output: {
-    field: 'churned',
-    taskType: 'binary_classification',
-    resolver: (user) => user.churned,
-  },
-  features: {
-    loginCount: (user) => user.loginCount,
-    plan: (user) => user.plan,
-    daysSinceSignup: (user) =>
-      Math.floor((Date.now() - user.createdAt.getTime()) / 86400000),
-  },
+const churnRisk = defineTrait('User', {
+  type: 'predictive',
+  name: 'churnRisk',
+  target: 'churned',
+  features: ['loginCount', 'plan', 'daysSinceSignup'],
+  output: { field: 'churnScore', taskType: 'binary_classification' },
+  qualityGates: [{ metric: 'f1', threshold: 0.85, comparison: 'gte' }],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  traits: [churnRisk],
 });
 ```
 
-Train artifacts:
+Train artifacts at build time:
 
 ```bash
 npx scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma
@@ -65,25 +65,45 @@ npx scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma
 
 `scheml train` performs a preflight pass before dataset materialization and Python handoff. Unsupported algorithms, unsupported hyperparameters, and missing Python dependencies fail early with actionable errors.
 
-The training step also compiles a train-derived feature contract into metadata: categorical encodings, imputation values, and scaling rules are fit during training and then replayed by `PredictionSession` at runtime.
+The training step compiles a feature contract into metadata: categorical encodings, imputation values, and scaling rules are fit during training and replayed at inference time.
 
-Run predictions:
+Run predictions at runtime via the Prisma extension:
+
+```ts
+import { extendClient } from '@vncsleal/scheml';
+import { prisma } from './lib/prisma';
+import config from './scheml.config';
+
+const client = await extendClient(prisma, config);
+
+// Trait fields are available on query results
+const user = await client.user.findFirst({ where: { id: userId } });
+console.log(user.churnScore); // predicted probability
+```
+
+For direct ONNX inference without the ORM layer:
 
 ```ts
 import { PredictionSession } from '@vncsleal/scheml';
-import { userChurnModel } from './scheml.config';
 
 const session = new PredictionSession();
-await session.load(userChurnModel);
+await session.initializeModel(
+  '.scheml/churnRisk.metadata.json',
+  '.scheml/churnRisk.onnx',
+  schemaHash
+);
 
-const result = await session.predict(userChurnModel, user);
+const result = await session.predict('churnRisk', user, {
+  loginCount: (u) => u.loginCount,
+  plan: (u) => u.plan,
+  daysSinceSignup: (u) => Math.floor((Date.now() - u.createdAt.getTime()) / 86400000),
+});
 console.log(result.prediction);
 ```
 
 ## Docs
 
 - [ROADMAP.md](ROADMAP.md) - direction, milestones, OSS path, monetization path
-- [MANIFEST.md](MANIFEST.md) - project stance and values
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - technical boundaries and invariants
 - [docs/GUIDE.md](docs/GUIDE.md) - usage guide
 - [docs/API.md](docs/API.md) - API reference

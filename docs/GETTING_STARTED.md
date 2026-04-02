@@ -38,37 +38,30 @@ model User {
 }
 ```
 
-### 2. Define Models
+### 2. Define Traits
 
 ```typescript
 // scheml.config.ts
-import { defineModel } from '@vncsleal/scheml';
+import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-export const userPredictionsModel = defineModel<{
-  id: string;
-  email: string;
-  createdAt: Date;
-  plan: string;
-  spent: number;
-}>({
+const userValue = defineTrait('User', {
+  type: 'predictive',
   name: 'userValue',
-  modelName: 'User',
+  target: 'estimatedValue',
+  features: ['createdAt', 'plan', 'spent'],
   output: {
     field: 'estimatedValue',
     taskType: 'regression',
   },
-  features: {
-    accountAge: (user) => {
-      const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      return Math.floor(days);
-    },
-    plan: (user) => user.plan,
-    spent: (user) => Math.max(0, user.spent),
-  },
-  algorithm: {
-    name: 'forest',
-    version: '1.0.0',
-  },
+  // algorithm is optional — omit to let FLAML AutoML choose automatically
+  qualityGates: [
+    { metric: 'r2', threshold: 0.80, comparison: 'gte' },
+  ],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  traits: [userValue],
 });
 ```
 
@@ -84,16 +77,38 @@ This generates:
 
 ### 4. Run Predictions
 
+**Via Prisma extension (recommended):**
+
+```typescript
+import { extendClient } from '@vncsleal/scheml';
+import { prisma } from './lib/prisma';
+import config from './scheml.config';
+
+const client = await extendClient(prisma, config);
+
+// Trait fields are available on query results
+const user = await client.user.findFirst({ where: { id } });
+console.log(user.estimatedValue); // predicted value
+```
+
+**Via direct ONNX session (advanced):**
+
 ```typescript
 import { PredictionSession } from '@vncsleal/scheml';
-import { userPredictionsModel } from './scheml.config';
 
 const session = new PredictionSession();
-await session.load(userPredictionsModel);
-// Automatically resolves .scheml/userValue.{onnx,metadata.json} and hashes prisma/schema.prisma
+await session.initializeModel(
+  '.scheml/userValue.metadata.json',
+  '.scheml/userValue.onnx',
+  schemaHash
+);
 
-const prediction = await session.predict(userPredictionsModel, user);
-console.log(prediction.prediction); // e.g., 1500
+const result = await session.predict('userValue', user, {
+  createdAt: (u) => u.createdAt.getTime(),
+  plan: (u) => u.plan,
+  spent: (u) => Math.max(0, u.spent),
+});
+console.log(result.prediction); // e.g., 1500
 ```
 
 ## Next Steps
@@ -105,9 +120,9 @@ console.log(prediction.prediction); // e.g., 1500
 
 ## Troubleshooting
 
-### Models not discovered
+### Traits not discovered
 
-Ensure your models use `defineModel()` and are exported from `scheml.config.ts`.
+Ensure your traits are defined with `defineTrait()` and included in the `traits` array of `defineConfig()` exported from `scheml.config.ts`.
 
 ### Schema hash mismatch
 

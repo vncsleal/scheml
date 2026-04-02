@@ -25,24 +25,26 @@ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 
 ## Quick Start
 
-### 1. Define your model (`scheml.config.ts`)
+### 1. Define your trait (`scheml.config.ts`)
 
 ```typescript
-import { defineModel } from '@vncsleal/scheml';
+import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-export const salesModel = defineModel<Product>({
+const productSales = defineTrait('Product', {
+  type: 'predictive',
   name: 'productSales',
-  modelName: 'Product',
-  output: { field: 'sales', taskType: 'regression' },
-  features: {
-    price: (p) => p.price,
-    stock: (p) => p.stock,
-    category: (p) => p.category, // string → one-hot encoded automatically
-  },
+  target: 'sales',
+  features: ['price', 'stock', 'category'],
+  output: { field: 'predictedSales', taskType: 'regression' },
   // algorithm is optional — omit it and FLAML AutoML selects the best estimator
   qualityGates: [
     { metric: 'r2', threshold: 0.85, comparison: 'gte' },
   ],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  traits: [productSales],
 });
 ```
 
@@ -58,43 +60,106 @@ Outputs to `.scheml/`:
 
 ### 3. Predict (runtime)
 
+**Option A — Prisma extension (recommended):**
+
+```typescript
+import { extendClient } from '@vncsleal/scheml';
+import { prisma } from './lib/prisma';
+import config from './scheml.config';
+
+const client = await extendClient(prisma, config);
+
+const product = await client.product.findFirst({ where: { id } });
+console.log(product.predictedSales); // live or materialized prediction
+```
+
+**Option B — direct ONNX session:**
+
 ```typescript
 import { PredictionSession } from '@vncsleal/scheml';
-import { salesModel } from './scheml.config';
 
 const session = new PredictionSession();
-await session.load(salesModel); // resolves .scheml/ and prisma/schema.prisma automatically
+await session.initializeModel(
+  '.scheml/productSales.metadata.json',
+  '.scheml/productSales.onnx',
+  schemaHash
+);
 
-const result = await session.predict(salesModel, product);
+const result = await session.predict('productSales', product, {
+  price: (p) => p.price,
+  stock: (p) => p.stock,
+  category: (p) => p.category,
+});
 // { modelName: 'productSales', prediction: 42.3, timestamp: '...' }
 ```
 
 ## API
 
-### `defineModel<T>(definition)`
+### `defineTrait(entity, config)`
 
-Declares a model. Pure config — no side effects.
+Declares an intelligence trait on an entity type. Returns a `ResolvedTrait` with
+the full config plus `record()` / `recordBatch()` feedback methods.
+
+```typescript
+import { defineTrait } from '@vncsleal/scheml';
+
+const churnRisk = defineTrait('User', {
+  type: 'predictive',
+  name: 'churnRisk',
+  target: 'churned',
+  features: ['loginCount', 'plan', 'totalSpend'],
+  output: { field: 'churnScore', taskType: 'binary_classification' },
+  qualityGates: [{ metric: 'f1', threshold: 0.85, comparison: 'gte' }],
+});
+
+// Record ground-truth observations for accuracy decay tracking
+await churnRisk.record(userId, { actual: true, predicted: 0.9 });
+```
+
+Supported trait types: `'predictive'` | `'anomaly'` | `'similarity'` | `'sequential'` | `'generative'`
+
+### `defineConfig(config)`
+
+Typed configuration factory for `scheml.config.ts`.
+
+```typescript
+import { defineConfig } from '@vncsleal/scheml';
+
+export default defineConfig({
+  adapter: 'prisma',       // 'prisma' | 'drizzle' | 'zod' | custom
+  traits: [churnRisk],
+});
+```
+
+### `extendClient(prisma, config, opts?)`
+
+Extends a Prisma client with trait fields. Returns the extended client.
+
+```typescript
+import { extendClient } from '@vncsleal/scheml';
+
+const client = await extendClient(prisma, config, {
+  mode: 'hybrid',         // 'materialized' | 'live' | 'hybrid' (default: 'materialized')
+  cacheTtlMs: 30_000,
+});
+```
 
 ### `new PredictionSession()`
 
-#### `session.load(model, opts?)`
-
-Loads a trained model from `.scheml/<name>.{onnx,metadata.json}` and hashes `prisma/schema.prisma` automatically.
-
-- `opts.artifactsDir` — override artifacts directory (default: `.scheml/`)
-- `opts.schemaPath` — override schema path (default: `prisma/schema.prisma`)
-
-#### `session.predict(model, entity)`
-
-Runs inference on a single entity using the resolvers declared in `model.features`.
-
-#### `session.predictBatch(model, entities)`
-
-Runs inference over an array of entities. Preflight is atomic — any validation failure aborts the entire batch with no partial execution.
+Low-level ONNX inference session.
 
 #### `session.initializeModel(metadataPath, onnxPath, schemaHash)`
 
-Low-level path-based initializer. Prefer `session.load()`.
+Path-based model initializer.
+
+#### `session.predict(traitName, entity, resolvers)`
+
+Runs inference on a single entity.
+
+#### `session.predictBatch(traitName, entities, resolvers)`
+
+Runs inference over an array of entities. Preflight validation is atomic — any
+failure aborts the entire batch with no partial execution.
 
 ### `hashPrismaSchema(schema: string): string`
 
