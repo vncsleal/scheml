@@ -45,12 +45,12 @@ const trainCode = `$ scheml train
 ◉ Extracting training data via Prisma...
 ◉ Training userChurn (gbm)...
 ✔ Training complete
-◉ Writing artifacts...
-✔ Artifacts written to ./.scheml
+◉ Writing artefacts...
+✔ Artefacts written to ./.scheml
 
 [OK] Training complete
 
-Artifacts:
+Artefacts:
   userChurn.metadata.json
   userChurn.onnx`;
 
@@ -129,7 +129,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <span>demo</span>
         </div>
         <h1 class="hero__title anim-fade-up anim-delay-1">
-          Predictions that<br/>ship with your code.
+          Intelligence that<br/>ships with your code.
         </h1>
         <p class="hero__lead anim-fade-up anim-delay-2">
           Five trait types. One API. Each runs in-process — no serialisation, no network hop.
@@ -239,7 +239,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                     <dd id="resultHash" class="mono">a3f8c1b2</dd>
                   </div>
                   <div>
-                    <dt>Artifact</dt>
+                    <dt>Artefact</dt>
                     <dd class="mono">userChurn.onnx</dd>
                   </div>
                 </dl>
@@ -349,7 +349,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <div><dt>Anomaly score</dt><dd id="anomalyScore" class="mono">—</dd></div>
                   <div><dt>Inference latency</dt><dd id="anomalyLatency">—</dd></div>
                   <div><dt>Algorithm</dt><dd class="mono">isolation_forest</dd></div>
-                  <div><dt>Artifact</dt><dd class="mono">serverMetrics.onnx</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">serverMetrics.onnx</dd></div>
                 </dl>
                 <p id="anomalyStatus" class="result-status" aria-live="polite">Hit "Run inference" to see the result.</p>
               </div>
@@ -428,13 +428,13 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               <div class="panel" id="simResultPanel">
                 <div class="panel__header">
                   <div>
-                    <p class="eyebrow">Nearest neighbors</p>
+                    <p class="eyebrow">Nearest neighbours</p>
                     <h3 id="simResultTitle">—</h3>
                   </div>
                   <span class="status-pill status-pill--healthy" id="simLatencyPill">—</span>
                 </div>
                 <div id="simResultList" class="result-list"></div>
-                <p id="simStatus" class="result-status" aria-live="polite">Hit "Find similar" to retrieve nearest neighbors.</p>
+                <p id="simStatus" class="result-status" aria-live="polite">Hit "Find similar" to retrieve nearest neighbours.</p>
               </div>
 
               <div class="panel latency-panel">
@@ -543,7 +543,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                 <div class="prob-bars" id="seqProbBars"></div>
                 <dl class="output-stats" style="margin-top: 16px;">
                   <div><dt>Algorithm</dt><dd class="mono">lstm</dd></div>
-                  <div><dt>Artifact</dt><dd class="mono">userSession.onnx</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">userSession.onnx</dd></div>
                 </dl>
                 <p id="seqStatus" class="result-status" aria-live="polite">Hit "Predict next action" to see the result.</p>
               </div>
@@ -585,7 +585,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Input text</p>
-                  <h3>Content classifier model</h3>
+                  <h3>Content classifier <span style="font-weight:400;color:var(--text-secondary)">(generative stand-in)</span></h3>
                 </div>
               </div>
 
@@ -599,6 +599,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                 <div class="field">
                   <div class="field__header">
                     <label for="genText">Text to classify</label>
+                  <p class="field__hint" style="font-size:11px;color:var(--text-secondary);margin-top:2px">A real generative trait would stream structured text from an AI SDK provider instead.</p>
                   </div>
                   <textarea id="genText" name="genText" rows="4" class="text-input"
                     placeholder="Enter text to classify...">The shipping was fast but the product quality didn't match the description at all. Very disappointed with the value.</textarea>
@@ -620,9 +621,9 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                 <div class="prob-bars" id="genProbBars"></div>
                 <dl class="output-stats" style="margin-top: 16px;">
                   <div><dt>Algorithm</dt><dd class="mono">multinomial_nb</dd></div>
-                  <div><dt>Artifact</dt><dd class="mono">contentClass.onnx</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">contentClass.onnx</dd></div>
                 </dl>
-                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution.</p>
+                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution. In production, a generative trait returns <code>&#123; description: "..." &#125;</code> from your configured AI provider.</p>
               </div>
 
               <div class="panel latency-panel">
@@ -665,7 +666,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <p class="section-tag">Schema drift guard</p>
           <h2 class="section-title">The model knows what schema it was trained on.</h2>
           <p class="section-desc">
-            Every artifact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
+            Every artefact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
             and you call <code>db.scheml.predict()</code>, ScheML throws a typed
             <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
           </p>
@@ -686,7 +687,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               </div>
             </div>
             <p class="drift-desc">
-              This artifact was compiled against schema hash <code>a3f8c1b2</code>.
+              This artefact was compiled against schema hash <code>a3f8c1b2</code>.
               Simulate adding a field to the <code>User</code> model and watch the session refuse to proceed.
             </p>
             <div class="drift-toggle-row">
@@ -694,7 +695,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                 <span class="drift-toggle__track">
                   <span class="drift-toggle__thumb"></span>
                 </span>
-                <span class="drift-toggle__label" id="driftToggleLabel">Schema matches artifact</span>
+                <span class="drift-toggle__label" id="driftToggleLabel">Schema matches artefact</span>
               </button>
             </div>
             <div class="schema-diff" id="schemaDiff" aria-hidden="true">
@@ -759,7 +760,7 @@ const result = await db.scheml.predict('userChurn', user);
           <p class="section-tag">Integration</p>
           <h2 class="section-title">Three files. Zero infrastructure.</h2>
           <p class="section-desc">
-            Define a model in TypeScript, compile once at build time, predict in-process at runtime.
+            Define a trait in TypeScript, compile once at build time, run in-process at runtime.
             The same feature resolvers run during training and inference — the behaviour cannot drift.
           </p>
         </div>
@@ -872,18 +873,18 @@ const result = await db.scheml.predict('userChurn', user);
         },
         similarity: {
           tag: 'Live inference · similarity',
-          title: 'Retrieve the nearest neighbors.',
+          title: 'Retrieve the nearest neighbours.',
           desc: `Type a search query and retrieve the most similar items from the embedded product space. Cosine similarity runs in-process over the compiled embedding index.`,
         },
         sequential: {
           tag: 'Live inference · sequential',
           title: 'Predict the next event in the sequence.',
-          desc: `Select the recent event chain and the LSTM predicts the next user action. Runs in-process against the compiled userSession artifact — no subprocess, no network.`,
+          desc: `Select the recent event chain and the LSTM predicts the next user action. Runs in-process against the compiled userSession artefact — no subprocess, no network.`,
         },
         generative: {
-          tag: 'Live inference · generative',
-          title: 'Generate a structured label distribution.',
-          desc: `Enter any text and get a multi-label classification score across five categories. The multinomial classifier runs in-process with zero infrastructure.`,
+          tag: 'Live inference · generative (stand-in)',
+          title: 'Text classification as a generative proxy.',
+          desc: `The real <code>generative</code> trait calls an AI SDK provider (e.g. <code>openai:gpt-4o-mini</code>) in-process and returns structured text. This demo substitutes a multinomial Naive Bayes classifier — same in-process execution model, no API key required.`,
         },
       };
 
@@ -1268,7 +1269,7 @@ const result = await db.scheml.predict('userChurn', user);
           return [label, hits / (pats.length || 1) + Math.random() * 0.06] as [string, number];
         });
         const total = rawScores.reduce((s, [, v]) => s + v, 0) || 1;
-        return rawScores.map(([l, v]) => [l, parseFloat((v / total).toFixed(3))]).sort((a, b) => b[1] - a[1]);
+        return rawScores.map(([l, v]) => [l, parseFloat((v / total).toFixed(3))] as [string, number]).sort((a, b) => b[1] - a[1]);
       }
 
       const genForm = document.getElementById('genForm');

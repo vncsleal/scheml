@@ -3,7 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { Code } from 'astro:components';
 
 const title = 'ScheML — Compiler-First ML for TypeScript';
-const description = 'Define intelligence traits in TypeScript. ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure.';
+const description = 'ScheML is to machine learning what Prisma is to databases. Define intelligence traits in TypeScript — compile once, run in-process.';
 
 // ── Trait define snippets ─────────────────────────────────
 const defineCodePredictive = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
@@ -88,12 +88,12 @@ const trainCode = `$ scheml train
 ◉ Extracting training data...
 ◉ Training churnRisk (FLAML AutoML, 60s budget)...
 ✔ Best estimator: LGBMClassifier
-◉ Writing artifacts...
-✔ Artifacts written to ./.scheml
+◉ Writing artefacts...
+✔ Artefacts written to ./.scheml
 
 [OK] Training complete
 
-Artifacts:
+Artefacts:
   churnRisk.metadata.json
   churnRisk.onnx`;
 
@@ -183,7 +183,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
 
           <p class="hero__lead">
             Define intelligence traits — predictive, anomaly, similarity, sequential, or generative — in TypeScript.
-            ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure.
+            ScheML compiles them to versioned build artefacts and runs each one in-process — no model registry, no microservices.
           </p>
 
           <div class="hero__actions">
@@ -365,10 +365,10 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Compiler-first</h3>
-            <p class="feature-card__desc">Trait definitions compile to versioned build artifacts. No model registry, no train/inference drift. Artifacts are deterministic across machines.</p>
+            <p class="feature-card__desc">Trait definitions compile to versioned build artefacts. No model registry, no train/inference drift. Artefacts are deterministic across machines.</p>
           </div>
 
-          <div class="feature-card feature-card--amber">
+          <div class="feature-card">
             <div class="feature-card__icon">
               <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="10" cy="16" r="4"/>
@@ -378,10 +378,10 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Five trait types</h3>
-            <p class="feature-card__desc">Predictive, anomaly, similarity, sequential, generative — one <code>defineTrait()</code> API. Each compiles to the right artifact format for its inference strategy.</p>
+            <p class="feature-card__desc">Predictive, anomaly, similarity, sequential, generative — one <code>defineTrait()</code> API. Each compiles to the right artefact format for its inference strategy.</p>
           </div>
 
-          <div class="feature-card feature-card--amber">
+          <div class="feature-card">
             <div class="feature-card__icon">
               <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="2" y="10" width="8" height="12" rx="1"/>
@@ -412,10 +412,10 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Schema drift guard</h3>
-            <p class="feature-card__desc">Every artifact carries a SHA-256 hash of the schema at compile time. <code>db.scheml.predict()</code> re-hashes on every call — <code>SchemaDriftError</code> before a single inference runs.</p>
+            <p class="feature-card__desc">Every artefact carries a SHA-256 hash of the schema at compile time. <code>db.scheml.predict()</code> re-hashes on every call — <code>SchemaDriftError</code> before a single inference runs.</p>
           </div>
 
-          <div class="feature-card feature-card--amber">
+          <div class="feature-card">
             <div class="feature-card__icon">
               <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="8" cy="8" r="4"/>
@@ -459,10 +459,10 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
       <div class="how-it-works__container">
         <div class="section-header">
           <p class="section-tag">Architecture</p>
-          <h2 class="section-title">Traits as build artifacts.</h2>
+          <h2 class="section-title">Traits as build artefacts.</h2>
           <p class="section-desc">
             ScheML treats intelligence traits the same way a compiler treats source code —
-            as deterministic transformations from declaration to artifact.
+            as deterministic transformations from declaration to artefact.
           </p>
         </div>
 
@@ -490,7 +490,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             </div>
             <p class="arch-card__body">
               The CLI loads trait definitions, extracts training data via your adapter, and materialises a training dataset.
-              A Python backend trains the model and exports a versioned artifact — ONNX, FAISS, embedded pickle, or JSON config — plus a schema hash.
+              A Python backend trains the model and exports a versioned artefact — ONNX, FAISS, embedded pickle, or JSON config — plus a schema hash.
             </p>
             <div class="arch-card__tags">
               <span class="tag">scheml train</span>
