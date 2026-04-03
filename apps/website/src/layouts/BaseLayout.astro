@@ -3,12 +3,12 @@ import Analytics from '@vercel/analytics/astro';
 import { ViewTransitions } from 'astro:transitions';
 // Derive the canonical site origin from Astro.site, which is set from
 // VERCEL_URL at build time (see astro.config.mjs). Falls back gracefully.
-const siteOrigin = Astro.site?.origin ?? 'https://getprisml.vercel.app';
+const siteOrigin = Astro.site?.origin ?? 'https://getscheml.vercel.app';
 
 const {
-  title = 'PrisML',
-  description = 'Compiler-first ML for TypeScript + Prisma with ONNX Runtime.',
-  siteName = 'PrisML',
+  title = 'ScheML',
+  description = 'Define intelligence traits in TypeScript. ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure.',
+  siteName = 'ScheML',
   twitterHandle = '@vncsleal',
 } = Astro.props;
 
@@ -43,7 +43,7 @@ const image = `${siteOrigin}/og.png`;
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:alt" content="PrisML — Compiler-first ML for TypeScript" />
+    <meta property="og:image:alt" content="ScheML — Compiler-first ML for TypeScript" />
     <meta property="og:site_name" content={siteName} />
     <meta property="og:locale" content="en_US" />
 
@@ -54,17 +54,17 @@ const image = `${siteOrigin}/og.png`;
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={image} />
-    <meta name="twitter:image:alt" content="PrisML — Compiler-first ML for TypeScript" />
+    <meta name="twitter:image:alt" content="ScheML — Compiler-first ML for TypeScript" />
 
     <!-- AI / LLM discoverability -->
-    <meta name="application-name" content="PrisML" />
-    <meta name="keywords" content="machine learning, TypeScript, ONNX, Prisma, ML compiler, predictive models, inference, npm package, random forest, binary classification, multiclass classification, regression" />
+    <meta name="application-name" content="ScheML" />
+    <meta name="keywords" content="machine learning, TypeScript, ONNX, Prisma, Drizzle, Zod, ML compiler, intelligence traits, predictive, anomaly detection, similarity search, sequential prediction, generative AI, in-process inference, npm package" />
 
     <!-- JSON-LD structured data -->
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      "name": "PrisML",
+      "name": "ScheML",
       "description": description,
       "url": siteOrigin,
       "applicationCategory": "DeveloperApplication",
@@ -81,18 +81,19 @@ const image = `${siteOrigin}/og.png`;
         "url": "https://github.com/vncsleal"
       },
       "license": "https://opensource.org/licenses/MIT",
-      "codeRepository": "https://github.com/vncsleal/prisml",
-      "softwareVersion": "0.1.2",
-      "downloadUrl": "https://www.npmjs.com/package/@vncsleal/prisml",
+      "codeRepository": "https://github.com/vncsleal/scheml",
+      "softwareVersion": "0.3.1",
+      "downloadUrl": "https://www.npmjs.com/package/@vncsleal/scheml",
       "isAccessibleForFree": true,
       "featureList": [
-        "Define ML models in TypeScript",
-        "Compile to ONNX at build time",
-        "In-process inference via ONNX Runtime",
-        "Schema-bound to Prisma models",
-        "Deterministic feature encoding",
+        "Five intelligence trait types: predictive, anomaly, similarity, sequential, generative",
+        "Prisma, Drizzle, and Zod adapters",
+        "Compile traits to versioned ONNX / FAISS / JSON artifacts",
+        "In-process inference — no Python sidecars",
+        "Schema drift guard via SHA-256 hash",
         "Quality gates with threshold checks",
-        "Typed error hierarchy"
+        "TraitGraph for composable trait pipelines",
+        "Feedback loop via db.scheml.record()"
       ]
     })} />
 
@@ -105,10 +106,10 @@ const image = `${siteOrigin}/og.png`;
     <style is:global>
       /* ── Page transition ── */
       ::view-transition-old(root) {
-        animation: 180ms ease both vt-out;
+        animation: 220ms cubic-bezier(0.4,0,0.7,1) both vt-out;
       }
       ::view-transition-new(root) {
-        animation: 280ms ease both vt-in;
+        animation: 380ms cubic-bezier(0.22,1,0.36,1) both vt-in;
       }
       /* Site-header morphs in-place, so skip fade */
       ::view-transition-old(site-header),
@@ -117,11 +118,15 @@ const image = `${siteOrigin}/og.png`;
       }
       @keyframes vt-out {
         from { opacity: 1; transform: translateY(0); }
-        to   { opacity: 0; transform: translateY(-5px); }
+        to   { opacity: 0; transform: translateY(-8px); }
       }
       @keyframes vt-in {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(18px); }
         to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes cursor-blink {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0; }
       }
     </style>
   </head>

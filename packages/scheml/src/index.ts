@@ -149,6 +149,4 @@ export {
   checkFeedbackDecay,
 } from './feedback';
 
-// Reads version from package.json at runtime so it stays in sync automatically.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-export const VERSION: string = (require('../package.json') as { version: string }).version;
+export const VERSION = '0.3.1';

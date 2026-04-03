@@ -2,10 +2,11 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { Code } from 'astro:components';
 
-const title = 'PrisML — Compiler-First ML for TypeScript';
-const description = 'Define predictive models in TypeScript. Compile to ONNX at build time. Run inference in-process — no Python sidecars, no HTTP latency.';
+const title = 'ScheML — Compiler-First ML for TypeScript';
+const description = 'Define intelligence traits in TypeScript. ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure.';
 
-const defineCode = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+// ── Trait define snippets ─────────────────────────────────
+const defineCodePredictive = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
 const churnRisk = defineTrait('User', {
   type: 'predictive',
@@ -16,30 +17,75 @@ const churnRisk = defineTrait('User', {
     field: 'willChurn',
     taskType: 'binary_classification',
   },
-  // algorithm is optional — omit it and FLAML AutoML
-  // selects the best estimator for you automatically.
   qualityGates: [
     { metric: 'f1', threshold: 0.85, comparison: 'gte' },
   ],
 });
 
-export default defineConfig({
-  traits: [churnRisk],
-});`;
+export default defineConfig({ traits: [churnRisk] });`;
 
+const defineCodeAnomaly = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+const orderFraud = defineTrait('Order', {
+  type: 'anomaly',
+  name: 'orderFraud',
+  features: ['amount', 'itemCount', 'shippingCountry', 'accountAgeDays'],
+  algorithm: { name: 'iforest' },
+  qualityGates: [
+    { metric: 'roc_auc', threshold: 0.90, comparison: 'gte' },
+  ],
+});
+
+export default defineConfig({ traits: [orderFraud] });`;
+
+const defineCodeSimilarity = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+const productRecommend = defineTrait('Product', {
+  type: 'similarity',
+  name: 'productRecommend',
+  features: ['category', 'price', 'brand', 'avgRating'],
+  algorithm: { name: 'cosine' },
+});
+
+export default defineConfig({ traits: [productRecommend] });`;
+
+const defineCodeSequential = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+const sessionNext = defineTrait('SessionEvent', {
+  type: 'sequential',
+  name: 'sessionNext',
+  features: ['eventType', 'pageUrl', 'dwellMs'],
+  orderBy: 'createdAt',
+  sequenceLength: 8,
+  algorithm: { name: 'lstm' },
+});
+
+export default defineConfig({ traits: [sessionNext] });`;
+
+const defineCodeGenerative = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+const productDescription = defineTrait('Product', {
+  type: 'generative',
+  name: 'productDescription',
+  contextFields: ['name', 'category', 'specs'],
+  output: { field: 'description' },
+  provider: { sdk: 'ai', model: 'openai:gpt-4o-mini' },
+});
+
+export default defineConfig({ traits: [productDescription] });`;
+
+// ── Compile / Infer snippets ──────────────────────────────
 const trainCode = `$ scheml train
 
-◉ Loading Prisma schema...
+◉ Loading schema...
 ✔ Schema loaded
 ◉ Loading trait definitions...
 ✔ Loaded 1 trait definition(s)
 ◉ Running preflight validation...
 ✔ Preflight validation passed
 ◉ Checking Python environment...
-✔ Python environment OK (flaml, sklearn, skl2onnx)
-◉ Validating traits...
-✔ Traits validated
-◉ Extracting training data via Prisma...
+✔ Python environment OK
+◉ Extracting training data...
 ◉ Training churnRisk (FLAML AutoML, 60s budget)...
 ✔ Best estimator: LGBMClassifier
 ◉ Writing artifacts...
@@ -51,42 +97,54 @@ Artifacts:
   churnRisk.metadata.json
   churnRisk.onnx`;
 
-const predictCode = `import { extendClient } from '@vncsleal/scheml';
+const inferCodePredictive = `import { extendClient } from '@vncsleal/scheml';
 import { PrismaClient } from '@prisma/client';
 import config from './scheml.config';
 
 const db = extendClient(new PrismaClient(), config);
 
 const result = await db.scheml.predict('churnRisk', user);
+// → { prediction: "1", timestamp: "2026-04-02T..." }`;
 
-console.log(result.prediction);
-// → "1" (will churn)
-console.log(result.timestamp);
-// → "2026-04-02T16:00:00.000Z"`;
+const inferCodeAnomaly = `const result = await db.scheml.predict('orderFraud', order);
+// → { score: 0.87, isAnomaly: true }`;
+
+const inferCodeSimilarity = `const results = await db.scheml.findSimilar(
+  'productRecommend',
+  seedProduct,
+  { limit: 10 }
+);
+// → Product[] ranked by cosine similarity`;
+
+const inferCodeSequential = `const result = await db.scheml.predict('sessionNext', sessionEvents);
+// → { next: "checkout_page", confidence: 0.91 }`;
+
+const inferCodeGenerative = `const result = await db.scheml.generate(
+  'productDescription',
+  product
+);
+// → { description: "Lightweight merino blend..." }`;
 ---
 
 <BaseLayout title={title} description={description}>
   <div class="page">
+
+    <!-- ════════ SCROLL PROGRESS ════════ -->
+    <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
     <!-- ════════ HEADER ════════ -->
     <header class="header" id="top" transition:name="site-header">
       <div class="header__inner">
-        <a href="/" class="header__logo" aria-label="PrisML home">
-          <svg width="24" height="24" viewBox="-1.5 -1.5 8 8" fill="none" aria-hidden="true" shape-rendering="crispEdges">
-            <rect x="-1.5" y="-1.5" width="8" height="8" rx="1.4" fill="#161616"/>
-            <rect x="0" y="0" width="5" height="1" fill="#f1c21b"/>
-            <rect x="0" y="1" width="1" height="4" fill="#f1c21b"/>
-            <rect x="2" y="1" width="1" height="2" fill="#f1c21b"/>
-            <rect x="4" y="2" width="1" height="3" fill="#f1c21b"/>
-            <rect x="1" y="2" width="1" height="1" fill="#f1c21b"/>
-            <rect x="2" y="4" width="2" height="1" fill="#f1c21b"/>
-          </svg>
-          <span>PrisML</span>
+        <a href="/" class="header__logo" aria-label="ScheML home">
+          <span class="logo-mark">
+            <span class="logo-bracket">[</span><span class="logo-inner"></span><span class="logo-bracket">]</span>
+          </span>
         </a>
         <nav class="header__nav" aria-label="Main navigation">
           <a href="#features" class="header__nav-link">Features</a>
           <a href="#workflow" class="header__nav-link">How it works</a>
           <a href="/demo" class="header__nav-link">Demo</a>
-          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
+          <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
             GitHub
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="margin-left: 4px; opacity: 0.5;">
               <path d="M10 1h5v5l-1.7-1.7-4.6 4.6-1.4-1.4 4.6-4.6L10 1zM3 3h4v2H3v8h8V9h2v4a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z"/>
@@ -98,64 +156,64 @@ console.log(result.timestamp);
         </nav>
         <button class="header__menu-btn" aria-label="Toggle menu" id="menuBtn">
           <svg class="menu-icon menu-icon--open" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M3 5h14"/>
-            <path d="M3 10h14"/>
-            <path d="M3 15h14"/>
+            <path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/>
           </svg>
           <svg class="menu-icon menu-icon--close" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M4 4l12 12"/>
-            <path d="M16 4L4 16"/>
+            <path d="M4 4l12 12"/><path d="M16 4L4 16"/>
           </svg>
         </button>
       </div>
     </header>
 
     <!-- ════════ HERO ════════ -->
-    <section class="hero">
+    <section class="hero" id="heroSection">
+      <canvas id="heroCanvas" aria-hidden="true"></canvas>
       <div class="hero__container">
-        <div class="hero__breadcrumb">
-          <span>@vncsleal</span>
-          <span class="breadcrumb-sep">/</span>
-          <span>prisml</span>
-        </div>
-
-        <h1 class="hero__title anim-fade-up">
-          Machine learning<br/>
-          that compiles.
-        </h1>
-
-        <p class="hero__lead anim-fade-up anim-delay-1">
-          Define predictive models in TypeScript. Compile to immutable ONNX artifacts at build time.
-          Run inference in-process — no Python sidecars and no HTTP overhead.
-        </p>
-
-        <div class="hero__actions anim-fade-up anim-delay-2">
-          <div class="install-cmd" id="installCmd">
-            <span class="install-cmd__prompt">$</span>
-            <code class="install-cmd__text">npm install @vncsleal/scheml</code>
-            <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2"/>
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-              </svg>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="check-icon" aria-hidden="true">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </button>
+        <div class="hero__content">
+          <div class="hero__breadcrumb">
+            <span>@vncsleal</span>
+            <span class="breadcrumb-sep">/</span>
+            <span>scheml</span>
           </div>
-          <a href="/demo" class="btn btn--secondary">Live demo</a>
-          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
-            View source
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-          </a>
-        </div>
-      </div>
+
+          <h1 class="hero__title">
+            Machine learning<br/>
+            <strong>that compiles.</strong>
+          </h1>
+
+          <p class="hero__lead">
+            Define intelligence traits — predictive, anomaly, similarity, sequential, or generative — in TypeScript.
+            ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure.
+          </p>
+
+          <div class="hero__actions">
+            <div class="install-cmd" id="installCmd">
+              <span class="install-cmd__prompt">$</span>
+              <code class="install-cmd__text">npm install @vncsleal/scheml</code>
+              <button class="install-cmd__copy" aria-label="Copy install command" id="copyBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="check-icon" aria-hidden="true">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              </button>
+            </div>
+            <a href="/demo" class="btn btn--secondary">Live demo</a>
+            <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
+              View source
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+            </a>
+          </div>
+        </div><!-- /.hero__content -->
+      </div><!-- /.hero__container -->
     </section>
 
     <!-- ════════ PIPELINE ════════ -->
-    <section class="pipeline anim-fade-up anim-delay-3">
+    <section class="pipeline" id="pipelineSection">
       <div class="pipeline__container">
         <div class="pipeline__step">
           <div class="pipeline__icon">
@@ -168,10 +226,10 @@ console.log(result.timestamp);
           <div class="pipeline__desc">TypeScript</div>
         </div>
         <div class="pipeline__connector" aria-hidden="true">
-          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+          <span class="pipeline__connector-line"></span>
         </div>
         <div class="pipeline__step">
-          <div class="pipeline__icon">
+          <div class="pipeline__icon pipeline__icon--accent">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M16 4v24M4 16l12-12 12 12"/>
               <rect x="6" y="20" width="20" height="8" rx="1"/>
@@ -181,7 +239,7 @@ console.log(result.timestamp);
           <div class="pipeline__desc">Build time</div>
         </div>
         <div class="pipeline__connector" aria-hidden="true">
-          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+          <span class="pipeline__connector-line"></span>
         </div>
         <div class="pipeline__step">
           <div class="pipeline__icon">
@@ -194,16 +252,16 @@ console.log(result.timestamp);
           <div class="pipeline__desc">Quality gates</div>
         </div>
         <div class="pipeline__connector" aria-hidden="true">
-          <svg width="40" height="2" viewBox="0 0 40 2"><line x1="0" y1="1" x2="40" y2="1" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3"/></svg>
+          <span class="pipeline__connector-line"></span>
         </div>
         <div class="pipeline__step">
-          <div class="pipeline__icon pipeline__icon--accent">
+          <div class="pipeline__icon">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M12 4l8 12H4l8-12z"/>
               <path d="M20 16l8 12H12l8-12z"/>
             </svg>
           </div>
-          <div class="pipeline__label">Predict</div>
+          <div class="pipeline__label">Infer</div>
           <div class="pipeline__desc">In-process</div>
         </div>
       </div>
@@ -216,9 +274,18 @@ console.log(result.timestamp);
           <p class="section-tag">Workflow</p>
           <h2 class="section-title">Three files. Zero infrastructure.</h2>
           <p class="section-desc">
-            Models are defined as code, compiled at build time, and executed in-process.
-            Preflight validation catches config and environment issues early, before training crosses the Python boundary.
+            Define any intelligence trait in TypeScript, compile once, run in-process.
+            Same feature resolvers at train time and inference time — the encoding cannot drift.
           </p>
+        </div>
+
+        <!-- Trait type selector -->
+        <div class="trait-selector" id="traitSelector" role="tablist" aria-label="Trait type">
+          <button class="trait-btn active" role="tab" aria-selected="true" data-trait="predictive">predictive</button>
+          <button class="trait-btn" role="tab" aria-selected="false" data-trait="anomaly">anomaly</button>
+          <button class="trait-btn" role="tab" aria-selected="false" data-trait="similarity">similarity</button>
+          <button class="trait-btn" role="tab" aria-selected="false" data-trait="sequential">sequential</button>
+          <button class="trait-btn" role="tab" aria-selected="false" data-trait="generative">generative</button>
         </div>
 
         <div class="code-tabs" id="codeTabs">
@@ -226,28 +293,55 @@ console.log(result.timestamp);
             <button class="code-tab active" role="tab" aria-selected="true" data-tab="define">
               <span class="code-tab__num">01</span>
               <span class="code-tab__label">Define</span>
-              <span class="code-tab__file">models/churn.ts</span>
+              <span class="code-tab__file">scheml.config.ts</span>
             </button>
             <button class="code-tab" role="tab" aria-selected="false" data-tab="train">
               <span class="code-tab__num">02</span>
               <span class="code-tab__label">Compile</span>
               <span class="code-tab__file">terminal</span>
             </button>
-            <button class="code-tab" role="tab" aria-selected="false" data-tab="predict">
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="infer">
               <span class="code-tab__num">03</span>
-              <span class="code-tab__label">Predict</span>
-              <span class="code-tab__file">api/predict.ts</span>
+              <span class="code-tab__label">Infer</span>
+              <span class="code-tab__file">api/infer.ts</span>
             </button>
           </div>
           <div class="code-tabs__panels">
-            <div class="code-panel active" id="panel-define" role="tabpanel">
-              <Code code={defineCode} lang="ts" theme="github-dark" />
+            <!-- Define panels (one per trait type) -->
+            <div class="code-panel active" id="panel-define-predictive" role="tabpanel" data-trait-panel="predictive">
+              <Code code={defineCodePredictive} lang="ts" theme="github-dark" />
             </div>
+            <div class="code-panel" id="panel-define-anomaly" role="tabpanel" data-trait-panel="anomaly">
+              <Code code={defineCodeAnomaly} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-define-similarity" role="tabpanel" data-trait-panel="similarity">
+              <Code code={defineCodeSimilarity} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-define-sequential" role="tabpanel" data-trait-panel="sequential">
+              <Code code={defineCodeSequential} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-define-generative" role="tabpanel" data-trait-panel="generative">
+              <Code code={defineCodeGenerative} lang="ts" theme="github-dark" />
+            </div>
+            <!-- Compile panel (shared) -->
             <div class="code-panel" id="panel-train" role="tabpanel">
               <Code code={trainCode} lang="bash" theme="github-dark" />
             </div>
-            <div class="code-panel" id="panel-predict" role="tabpanel">
-              <Code code={predictCode} lang="ts" theme="github-dark" />
+            <!-- Infer panels (one per trait type) -->
+            <div class="code-panel" id="panel-infer-predictive" role="tabpanel" data-trait-infer-panel="predictive">
+              <Code code={inferCodePredictive} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-infer-anomaly" role="tabpanel" data-trait-infer-panel="anomaly">
+              <Code code={inferCodeAnomaly} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-infer-similarity" role="tabpanel" data-trait-infer-panel="similarity">
+              <Code code={inferCodeSimilarity} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-infer-sequential" role="tabpanel" data-trait-infer-panel="sequential">
+              <Code code={inferCodeSequential} lang="ts" theme="github-dark" />
+            </div>
+            <div class="code-panel" id="panel-infer-generative" role="tabpanel" data-trait-infer-panel="generative">
+              <Code code={inferCodeGenerative} lang="ts" theme="github-dark" />
             </div>
           </div>
         </div>
@@ -271,7 +365,32 @@ console.log(result.timestamp);
               </svg>
             </div>
             <h3 class="feature-card__title">Compiler-first</h3>
-            <p class="feature-card__desc">Models are declared in TypeScript and compiled to ONNX at build time. Artifacts carry a Prisma schema hash so drift is caught before serving predictions.</p>
+            <p class="feature-card__desc">Trait definitions compile to versioned build artifacts. No model registry, no train/inference drift. Artifacts are deterministic across machines.</p>
+          </div>
+
+          <div class="feature-card feature-card--amber">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="10" cy="16" r="4"/>
+                <circle cx="22" cy="8" r="4"/>
+                <circle cx="22" cy="24" r="4"/>
+                <path d="M14 14l4-4M14 18l4 4"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Five trait types</h3>
+            <p class="feature-card__desc">Predictive, anomaly, similarity, sequential, generative — one <code>defineTrait()</code> API. Each compiles to the right artifact format for its inference strategy.</p>
+          </div>
+
+          <div class="feature-card feature-card--amber">
+            <div class="feature-card__icon">
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="10" width="8" height="12" rx="1"/>
+                <rect x="12" y="6" width="8" height="20" rx="1"/>
+                <rect x="22" y="13" width="8" height="9" rx="1"/>
+              </svg>
+            </div>
+            <h3 class="feature-card__title">Three adapters</h3>
+            <p class="feature-card__desc">Prisma (model string), Drizzle (table object), Zod (schema object). Same trait definition — swap only the entity declaration.</p>
           </div>
 
           <div class="feature-card">
@@ -282,7 +401,7 @@ console.log(result.timestamp);
               </svg>
             </div>
             <h3 class="feature-card__title">In-process inference</h3>
-            <p class="feature-card__desc">Predictions run inside your V8 runtime via ONNX Runtime. No Python microservices, no HTTP latency, no serialization overhead.</p>
+            <p class="feature-card__desc">ONNX Runtime, FAISS, and AI SDK calls run in-process. No serialization, no network hop. Predictive trait latency typically &lt;1 ms.</p>
           </div>
 
           <div class="feature-card">
@@ -292,19 +411,21 @@ console.log(result.timestamp);
                 <path d="M16 18V4M16 18l12-7M16 18L4 11"/>
               </svg>
             </div>
-            <h3 class="feature-card__title">Schema-bound</h3>
-            <p class="feature-card__desc">Every model artifact is bound to a Prisma schema via SHA-256 hash. If the schema drifts after compilation, inference is rejected at runtime.</p>
+            <h3 class="feature-card__title">Schema drift guard</h3>
+            <p class="feature-card__desc">Every artifact carries a SHA-256 hash of the schema at compile time. <code>db.scheml.predict()</code> re-hashes on every call — <code>SchemaDriftError</code> before a single inference runs.</p>
           </div>
 
-          <div class="feature-card">
+          <div class="feature-card feature-card--amber">
             <div class="feature-card__icon">
               <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M10 4h12v24H10z"/>
-                <path d="M6 8h4M6 16h4M6 24h4M22 8h4M22 16h4M22 24h4"/>
+                <circle cx="8" cy="8" r="4"/>
+                <circle cx="24" cy="8" r="4"/>
+                <circle cx="16" cy="24" r="4"/>
+                <path d="M12 8h8M10 12l4 8M22 12l-4 8"/>
               </svg>
             </div>
-            <h3 class="feature-card__title">Deterministic encoding</h3>
-            <p class="feature-card__desc">Feature resolvers are pure functions. Training and inference use the same encoding rules from model metadata for consistent predictions.</p>
+            <h3 class="feature-card__title">TraitGraph</h3>
+            <p class="feature-card__desc">Chain traits into dependency graphs. Shared features are computed once and threaded through all dependent traits automatically.</p>
           </div>
 
           <div class="feature-card">
@@ -315,39 +436,19 @@ console.log(result.timestamp);
               </svg>
             </div>
             <h3 class="feature-card__title">Quality gates</h3>
-            <p class="feature-card__desc">Define metric thresholds (RMSE, F1, accuracy) in your model config. If training doesn't meet the gate, the training command fails — no silent regressions.</p>
+            <p class="feature-card__desc">Define metric thresholds (<code>f1</code>, <code>accuracy</code>, <code>roc_auc</code>, <code>rmse</code>) in your trait config. <code>scheml train</code> fails-fast — no silent regressions.</p>
           </div>
 
           <div class="feature-card">
             <div class="feature-card__icon">
               <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M20 4H8a2 2 0 00-2 2v20a2 2 0 002 2h16a2 2 0 002-2V10l-6-6z"/>
-                <path d="M20 4v6h6M12 18h8M12 22h5"/>
+                <path d="M4 20c4-8 20-8 24 0"/>
+                <path d="M4 12c4-8 20-8 24 0"/>
+                <circle cx="16" cy="26" r="3"/>
               </svg>
             </div>
-            <h3 class="feature-card__title">Typed errors</h3>
-            <p class="feature-card__desc">Core failure modes expose named error classes such as <code>SchemaDriftError</code>, <code>HydrationError</code>, and <code>ArtifactError</code>.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-card__icon">
-              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M4 10h24M4 16h24M4 22h24"/>
-                <rect x="2" y="4" width="28" height="24" rx="2" fill="none"/>
-              </svg>
-            </div>
-            <h3 class="feature-card__title">Schema validation</h3>
-            <p class="feature-card__desc">Run <code>scheml check</code> to validate trained trait contracts against your current Prisma schema and detect incompatibilities quickly.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-card__icon">
-              <svg width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M16 2v28M8 10l8-8 8 8M8 22l8 8 8-8"/>
-              </svg>
-            </div>
-            <h3 class="feature-card__title">Batch prediction</h3>
-            <p class="feature-card__desc">Process entire datasets in a single atomic call with <code>session.predictBatch()</code>. Either all entities succeed or the batch throws — no silent partial failures.</p>
+            <h3 class="feature-card__title">Feedback loop</h3>
+            <p class="feature-card__desc"><code>db.scheml.record()</code> and <code>db.scheml.recordBatch()</code> push observed outcomes back. Re-run <code>scheml train</code> to close the loop without changing your schema.</p>
           </div>
         </div>
       </div>
@@ -358,57 +459,57 @@ console.log(result.timestamp);
       <div class="how-it-works__container">
         <div class="section-header">
           <p class="section-tag">Architecture</p>
-          <h2 class="section-title">Models as build artifacts.</h2>
+          <h2 class="section-title">Traits as build artifacts.</h2>
           <p class="section-desc">
-            PrisML treats machine learning models the same way a compiler treats source code —
-            as deterministic transformations from input to artifact.
+            ScheML treats intelligence traits the same way a compiler treats source code —
+            as deterministic transformations from declaration to artifact.
           </p>
         </div>
 
         <div class="arch-grid">
-          <div class="arch-card">
+          <div class="arch-card" data-num="01">
             <div class="arch-card__header">
               <span class="arch-card__num">01</span>
               <h3 class="arch-card__title">Declaration</h3>
             </div>
             <p class="arch-card__body">
-              Use <code>defineTrait()</code> to declare an intelligence trait: target Prisma model, feature field names,
-              algorithm choice, and quality constraints. No data access — purely declarative.
+              Use <code>defineTrait()</code> to declare an intelligence trait against a Prisma model, Drizzle table, or Zod schema.
+              Specify feature fields, algorithm, and quality constraints. No data access — purely declarative.
             </p>
             <div class="arch-card__tags">
               <span class="tag">defineTrait()</span>
-              <span class="tag">TypeScript</span>
+              <span class="tag">Prisma · Drizzle · Zod</span>
               <span class="tag">Type-safe</span>
             </div>
           </div>
 
-          <div class="arch-card">
+          <div class="arch-card" data-num="02">
             <div class="arch-card__header">
               <span class="arch-card__num">02</span>
               <h3 class="arch-card__title">Compilation</h3>
             </div>
             <p class="arch-card__body">
-              The CLI loads trait definitions, extracts training data via Prisma, and materializes a training dataset.
-              A Python backend trains the model and exports a versioned ONNX artifact + metadata pair.
+              The CLI loads trait definitions, extracts training data via your adapter, and materialises a training dataset.
+              A Python backend trains the model and exports a versioned artifact — ONNX, FAISS, embedded pickle, or JSON config — plus a schema hash.
             </p>
             <div class="arch-card__tags">
-              <span class="tag">Prisma extraction</span>
-              <span class="tag">ONNX export</span>
+              <span class="tag">scheml train</span>
+              <span class="tag">ONNX / FAISS / AI SDK</span>
               <span class="tag">Schema hash</span>
             </div>
           </div>
 
-          <div class="arch-card">
+          <div class="arch-card" data-num="03">
             <div class="arch-card__header">
               <span class="arch-card__num">03</span>
               <h3 class="arch-card__title">Inference</h3>
             </div>
             <p class="arch-card__body">
-              At runtime, <code>PredictionSession</code> loads the ONNX model, validates the schema hash,
-              and runs predictions synchronously in-process. The same feature resolvers ensure encoding parity.
+              At runtime, <code>extendClient()</code> wraps your ORM client. The same feature resolvers that ran at train time
+              run at inference time — encoding cannot drift. Schema hash is validated on every call.
             </p>
             <div class="arch-card__tags">
-              <span class="tag">ONNX Runtime</span>
+              <span class="tag">extendClient()</span>
               <span class="tag">In-process</span>
               <span class="tag">Deterministic</span>
             </div>
@@ -427,6 +528,10 @@ console.log(result.timestamp);
               <li><span class="supported__check">&#10003;</span> Regression</li>
               <li><span class="supported__check">&#10003;</span> Binary classification</li>
               <li><span class="supported__check">&#10003;</span> Multiclass classification</li>
+              <li><span class="supported__check">&#10003;</span> Anomaly detection</li>
+              <li><span class="supported__check">&#10003;</span> Similarity / nearest-neighbour</li>
+              <li><span class="supported__check">&#10003;</span> Sequential prediction</li>
+              <li><span class="supported__check">&#10003;</span> Generative (AI SDK)</li>
             </ul>
           </div>
           <div class="supported__col">
@@ -437,6 +542,8 @@ console.log(result.timestamp);
               <li><span class="supported__check">&#10003;</span> Decision tree</li>
               <li><span class="supported__check">&#10003;</span> Random forest</li>
               <li><span class="supported__check">&#10003;</span> Gradient boosting</li>
+              <li><span class="supported__check">&#10003;</span> Isolation forest</li>
+              <li><span class="supported__check">&#10003;</span> LSTM</li>
             </ul>
           </div>
           <div class="supported__col">
@@ -449,6 +556,14 @@ console.log(result.timestamp);
               <li><span class="supported__check">&#10003;</span> Null (imputation)</li>
             </ul>
           </div>
+          <div class="supported__col">
+            <h3 class="supported__heading">Adapters</h3>
+            <ul class="supported__list">
+              <li><span class="supported__check">&#10003;</span> Prisma (model string)</li>
+              <li><span class="supported__check">&#10003;</span> Drizzle (table object)</li>
+              <li><span class="supported__check">&#10003;</span> Zod (schema object)</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -457,16 +572,17 @@ console.log(result.timestamp);
     <section class="cta">
       <div class="cta__container">
         <div class="cta__inner">
+          <span class="cta__rule" aria-hidden="true"></span>
           <h2 class="cta__title">Start building.</h2>
-          <p class="cta__desc">Add PrisML to your TypeScript project and define your first model in minutes.</p>
+          <p class="cta__desc">Add ScheML to your TypeScript project and define your first trait in minutes.</p>
           <div class="cta__actions">
-            <a href="https://github.com/vncsleal/prisml#getting-started" target="_blank" rel="noopener noreferrer" class="btn btn--primary">
+            <a href="https://github.com/vncsleal/scheml#getting-started" target="_blank" rel="noopener noreferrer" class="btn btn--primary">
               Get started
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                 <path d="M3 8h10M9 4l4 4-4 4"/>
               </svg>
             </a>
-            <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">
+            <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">
               GitHub repository
             </a>
           </div>
@@ -478,16 +594,9 @@ console.log(result.timestamp);
     <footer class="footer" transition:name="site-footer">
       <div class="footer__container">
         <div class="footer__left">
-          <svg width="20" height="20" viewBox="-1.5 -1.5 8 8" fill="none" aria-hidden="true" shape-rendering="crispEdges">
-            <rect x="-1.5" y="-1.5" width="8" height="8" rx="1.4" fill="#161616"/>
-            <rect x="0" y="0" width="5" height="1" fill="#f1c21b"/>
-            <rect x="0" y="1" width="1" height="4" fill="#f1c21b"/>
-            <rect x="2" y="1" width="1" height="2" fill="#f1c21b"/>
-            <rect x="4" y="2" width="1" height="3" fill="#f1c21b"/>
-            <rect x="1" y="2" width="1" height="1" fill="#f1c21b"/>
-            <rect x="2" y="4" width="2" height="1" fill="#f1c21b"/>
-          </svg>
-          <span class="footer__name">PrisML</span>
+          <span class="logo-mark logo-mark--sm">
+            <span class="logo-bracket">[</span>scheml<span class="logo-bracket">]</span>
+          </span>
         </div>
         <div class="footer__right">
           <span class="footer__license">MIT License</span>
@@ -498,26 +607,110 @@ console.log(result.timestamp);
     </footer>
   </div>
 
-  <!-- ════════ TAB SCRIPT ════════ -->
+  <!-- ════════ SCRIPTS ════════ -->
   <script>
     document.addEventListener('astro:page-load', () => {
-      // Tab switching
-      const tabs = document.querySelectorAll('.code-tab');
-      const panels = document.querySelectorAll('.code-panel');
 
-      tabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          const target = tab.getAttribute('data-tab');
-          tabs.forEach((t) => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
-          panels.forEach((p) => p.classList.remove('active'));
-          tab.classList.add('active');
-          tab.setAttribute('aria-selected', 'true');
-          document.getElementById(`panel-${target}`)?.classList.add('active');
+      // ── Logo typewriter ──────────────────────────────────
+      const logoInner = document.querySelector('.header__logo .logo-inner') as HTMLElement | null;
+      if (logoInner) {
+        const WORD = 'scheml';
+        const SPEED = 72;
+        const DELAY = 300;
+        logoInner.textContent = '';
+        logoInner.classList.remove('typing');
+        let i = 0;
+        setTimeout(() => {
+          logoInner.classList.add('typing');
+          const iv = setInterval(() => {
+            logoInner.textContent = WORD.slice(0, ++i);
+            if (i >= WORD.length) { clearInterval(iv); logoInner.classList.remove('typing'); }
+          }, SPEED);
+        }, DELAY);
+      }
+
+      // ── Scroll progress ──────────────────────────────────
+      const progressEl = document.getElementById('scrollProgress');
+      if (progressEl) {
+        window.addEventListener('scroll', () => {
+          const pct = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+          progressEl.style.width = `${pct}%`;
+        }, { passive: true });
+      }
+
+      // ── Trait selector + code tab logic ──────────────────
+      const traitBtns = document.querySelectorAll<HTMLButtonElement>('.trait-btn');
+      const codeTabs  = document.querySelectorAll<HTMLButtonElement>('.code-tab');
+      let currentTrait = 'predictive';
+      let currentTab   = 'define';
+      let prevTabIndex = 0;
+
+      function getActivePanel(): HTMLElement | null {
+        if (currentTab === 'define') {
+          return document.querySelector(`[data-trait-panel="${currentTrait}"]`);
+        } else if (currentTab === 'train') {
+          return document.getElementById('panel-train');
+        } else {
+          return document.querySelector(`[data-trait-infer-panel="${currentTrait}"]`);
+        }
+      }
+
+      function showPanel(incoming: HTMLElement | null, direction: 1 | -1) {
+        if (!incoming) return;
+        // hide all
+        document.querySelectorAll('.code-panel').forEach((p) => {
+          p.classList.remove('active', 'entering-right', 'entering-left');
+        });
+        incoming.classList.add('active', direction > 0 ? 'entering-right' : 'entering-left');
+        setTimeout(() => incoming.classList.remove('entering-right', 'entering-left'), 400);
+      }
+
+      function switchTrait(trait: string) {
+        currentTrait = trait;
+        traitBtns.forEach((b) => {
+          const active = b.dataset.trait === trait;
+          b.classList.toggle('active', active);
+          b.setAttribute('aria-selected', String(active));
+        });
+        // determine direction based on trait order
+        const order = ['predictive','anomaly','similarity','sequential','generative'];
+        const newIdx = order.indexOf(trait);
+        const oldIdx = order.indexOf(currentTrait);
+        showPanel(getActivePanel(), newIdx >= oldIdx ? 1 : -1);
+      }
+
+      function switchTab(tab: string) {
+        const order = ['define','train','infer'];
+        const newIdx = order.indexOf(tab);
+        const direction: 1 | -1 = newIdx >= prevTabIndex ? 1 : -1;
+        prevTabIndex = newIdx;
+        currentTab = tab;
+
+        codeTabs.forEach((t) => {
+          const active = t.dataset.tab === tab;
+          t.classList.toggle('active', active);
+          t.setAttribute('aria-selected', String(active));
+        });
+        showPanel(getActivePanel(), direction);
+      }
+
+      traitBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (btn.dataset.trait) switchTrait(btn.dataset.trait);
         });
       });
 
-      // Copy button
-      const copyBtn = document.getElementById('copyBtn');
+      codeTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          if (tab.dataset.tab) switchTab(tab.dataset.tab);
+        });
+      });
+
+      // initialise
+      showPanel(getActivePanel(), 1);
+
+      // ── Copy button ──────────────────────────────────────
+      const copyBtn   = document.getElementById('copyBtn');
       const installCmd = document.getElementById('installCmd');
       if (copyBtn && installCmd) {
         copyBtn.addEventListener('click', async () => {
@@ -527,44 +720,111 @@ console.log(result.timestamp);
         });
       }
 
-      // Mobile menu toggle
+      // ── Mobile menu ──────────────────────────────────────
       const menuBtn = document.getElementById('menuBtn');
-      const header = document.querySelector('.header');
+      const header  = document.querySelector('.header');
       if (menuBtn && header) {
-        menuBtn.addEventListener('click', () => {
-          header.classList.toggle('header--open');
-        });
-        // Close menu when a nav link is clicked
+        menuBtn.addEventListener('click', () => header.classList.toggle('header--open'));
         document.querySelectorAll('.header__nav-link').forEach((link) => {
-          link.addEventListener('click', () => {
-            header.classList.remove('header--open');
-          });
+          link.addEventListener('click', () => header.classList.remove('header--open'));
         });
       }
 
-      // Scroll reveal
-      const observer = new IntersectionObserver((entries) => {
+      // ── Scroll reveal ─────────────────────────────────────
+      const revealObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('revealed');
-            observer.unobserve(entry.target);
+            revealObserver.unobserve(entry.target);
           }
         });
       }, { threshold: 0.08, rootMargin: '0px 0px -32px 0px' });
 
-      document.querySelectorAll('.feature-card, .arch-card, .supported__col, .section-header').forEach((el) => {
-        observer.observe(el);
-      });
+      document.querySelectorAll(
+        '.feature-card, .arch-card, .supported__col, .section-header, .cta'
+      ).forEach((el) => revealObserver.observe(el));
 
-      // Header scroll — observe hero exit
-      const heroSection = document.querySelector('.hero');
-      const headerEl = document.querySelector('.header') as HTMLElement | null;
+      // ── Pipeline reveal ──────────────────────────────────
+      const pipelineObs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            pipelineObs.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      const pipeline = document.getElementById('pipelineSection');
+      if (pipeline) pipelineObs.observe(pipeline);
+
+      // ── Header scroll ─────────────────────────────────────
+      const heroSection = document.getElementById('heroSection');
+      const headerEl    = document.querySelector('.header') as HTMLElement | null;
       if (heroSection && headerEl) {
         const heroObs = new IntersectionObserver(
           ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
-          { threshold: 0, rootMargin: '0px 0px 0px 0px' }
+          { threshold: 0 }
         );
         heroObs.observe(heroSection);
+      }
+
+      // ── Hero canvas dot grid ─────────────────────────────
+      const canvas = document.getElementById('heroCanvas') as HTMLCanvasElement | null;
+      const hero   = document.getElementById('heroSection');
+      if (canvas && hero) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const GRID = 24;
+          const RADIUS = 150;
+          const REST_ALPHA = 0.055;
+          const PEAK_ALPHA = 0.45;
+          const AMBER: [number,number,number] = [241, 194, 27];
+          let dots: {x:number;y:number;brightness:number}[] = [];
+          let mouse = { x: -9999, y: -9999 };
+          let animId: number;
+
+          function buildDots() {
+            canvas!.width  = hero!.offsetWidth;
+            canvas!.height = hero!.offsetHeight;
+            dots = [];
+            for (let x = 0; x < canvas!.width; x += GRID) {
+              for (let y = 0; y < canvas!.height; y += GRID) {
+                dots.push({ x, y, brightness: 0 });
+              }
+            }
+          }
+
+          function draw() {
+            ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
+            for (const dot of dots) {
+              const dx = dot.x - mouse.x;
+              const dy = dot.y - mouse.y;
+              const dist = Math.sqrt(dx*dx + dy*dy);
+              const target = dist < RADIUS ? (1 - dist / RADIUS) * PEAK_ALPHA : 0;
+              dot.brightness += (target - dot.brightness) * 0.07;
+              const alpha = REST_ALPHA + dot.brightness;
+              if (alpha < 0.005) continue;
+              const [r,g,b] = dot.brightness > 0.02 ? AMBER : [255,255,255];
+              ctx!.beginPath();
+              ctx!.arc(dot.x, dot.y, 1.5, 0, Math.PI * 2);
+              ctx!.fillStyle = `rgba(${r},${g},${b},${Math.min(alpha, 1)})`;
+              ctx!.fill();
+            }
+            animId = requestAnimationFrame(draw);
+          }
+
+          hero.addEventListener('mousemove', (e) => {
+            const rect = hero.getBoundingClientRect();
+            mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+          });
+          hero.addEventListener('mouseleave', () => { mouse = { x: -9999, y: -9999 }; });
+
+          const ro = new ResizeObserver(() => buildDots());
+          ro.observe(hero);
+
+          buildDots();
+          draw();
+        }
       }
     });
   </script>
@@ -573,72 +833,46 @@ console.log(result.timestamp);
   <style is:global>
     /* ── Tokens ── */
     :root {
-      /* Gray scale (Carbon g100 dark theme) */
       --gray-100: #161616;
-      --gray-90: #262626;
-      --gray-80: #393939;
-      --gray-70: #525252;
-      --gray-60: #6f6f6f;
-      --gray-50: #8d8d8d;
-      --gray-30: #c6c6c6;
-      --gray-20: #d4d4d4;
-      --gray-10: #f4f4f4;
-
-      /* Amber */
+      --gray-90:  #262626;
+      --gray-80:  #393939;
+      --gray-70:  #525252;
+      --gray-60:  #6f6f6f;
+      --gray-50:  #8d8d8d;
+      --gray-30:  #c6c6c6;
+      --gray-20:  #d4d4d4;
+      --gray-10:  #f4f4f4;
       --amber-60: #d2a106;
       --amber-50: #f1c21b;
       --amber-40: #fddc69;
       --amber-20: #fcf4d6;
       --amber-90: #3d2e00;
-
-      /* Green */
       --green-50: #42be65;
       --green-40: #6fdc8c;
-
-      /* Red */
-      --red-50: #fa4d56;
-
-      /* Semantic */
-      --bg: var(--gray-100);
-      --bg-elevated: var(--gray-90);
-      --bg-hover: var(--gray-80);
-      --border-subtle: #2a2a2a;
-      --border-strong: var(--gray-80);
-      --text-primary: var(--gray-10);
-      --text-secondary: var(--gray-30);
-      --text-placeholder: var(--gray-60);
-      --text-interactive: var(--amber-50);
-      --focus: var(--amber-60);
-      --accent: var(--amber-50);
-
-      /* Typography */
+      --red-50:   #fa4d56;
+      --bg:              var(--gray-100);
+      --bg-elevated:     var(--gray-90);
+      --bg-hover:        var(--gray-80);
+      --border-subtle:   #2a2a2a;
+      --border-strong:   var(--gray-80);
+      --text-primary:    var(--gray-10);
+      --text-secondary:  var(--gray-30);
+      --text-placeholder:var(--gray-60);
+      --text-interactive:var(--amber-50);
+      --focus:           var(--amber-60);
+      --accent:          var(--amber-50);
       --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-
-      /* Spacing (8px grid) */
-      --sp-1: 4px;
-      --sp-2: 8px;
-      --sp-3: 12px;
-      --sp-4: 16px;
-      --sp-5: 24px;
-      --sp-6: 32px;
-      --sp-7: 40px;
-      --sp-8: 48px;
-      --sp-9: 64px;
-      --sp-10: 80px;
-      --sp-11: 96px;
-      --sp-12: 128px;
-
-      /* Layout */
+      --sp-1:  4px;  --sp-2:  8px;  --sp-3:  12px; --sp-4:  16px;
+      --sp-5:  24px; --sp-6:  32px; --sp-7:  40px; --sp-8:  48px;
+      --sp-9:  64px; --sp-10: 80px; --sp-11: 96px; --sp-12: 128px;
       --max-width: 1120px;
       --header-height: 48px;
     }
 
     /* ── Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-
     body {
       font-family: var(--font-sans);
       font-size: 14px;
@@ -649,8 +883,38 @@ console.log(result.timestamp);
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ── Page structure ── */
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--gray-70); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gray-50); }
+
+    /* ── Scroll progress ── */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 1px;
+      width: 0%;
+      background: var(--amber-60);
+      z-index: 200;
+      transition: width 40ms linear;
+      pointer-events: none;
+    }
+
+    /* ── Page ── */
     .page { min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Logo mark ── */
+    .logo-mark {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .logo-mark--sm { font-size: 13px; color: var(--text-secondary); }
+    .logo-bracket { color: var(--amber-50); font-weight: 400; }
 
     /* ── Header ── */
     .header {
@@ -663,12 +927,11 @@ console.log(result.timestamp);
       transition: background 200ms ease, border-color 200ms ease, backdrop-filter 200ms ease;
     }
     .header--scrolled {
-      background: rgba(22, 22, 22, 0.88);
+      background: rgba(22,22,22,0.88);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom-color: #333;
     }
-
     .header__inner {
       max-width: var(--max-width);
       margin: 0 auto;
@@ -678,26 +941,20 @@ console.log(result.timestamp);
       justify-content: space-between;
       align-items: center;
     }
-
     .header__logo {
       display: flex;
       align-items: center;
       gap: var(--sp-2);
-      font-family: var(--font-sans);
-      font-weight: 600;
-      font-size: 14px;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
       text-decoration: none;
     }
-    .header__logo:hover { opacity: 1; }
-
-    .header__nav {
-      display: flex;
-      align-items: center;
-      gap: 0;
+    .header__logo:hover .logo-mark { opacity: 0.85; }
+    .logo-inner.typing::after {
+      content: '|';
+      color: inherit;
+      font-weight: 400;
+      animation: cursor-blink 0.55s step-end infinite;
     }
-
+    .header__nav { display: flex; align-items: center; gap: 0; }
     .header__nav a {
       display: inline-flex;
       align-items: center;
@@ -708,33 +965,21 @@ console.log(result.timestamp);
       text-decoration: none;
       transition: background 120ms ease, color 120ms ease;
     }
-    .header__nav a:hover {
-      background: var(--bg-elevated);
-      color: var(--text-primary);
-    }
-
-    .header__npm-badge {
-      font-family: var(--font-mono);
-      font-size: 12px !important;
-    }
+    .header__nav a:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .header__npm-badge { font-family: var(--font-mono); font-size: 12px !important; }
     .npm-version {
       background: var(--bg-elevated);
       padding: 2px 10px;
-      border-radius: 0;
       border: 1px solid var(--border-subtle);
       font-size: 12px;
       color: var(--text-secondary);
     }
-
-    /* Mobile menu button (hidden on desktop) */
     .header__menu-btn {
       display: none;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
-      background: none;
-      border: none;
+      width: 40px; height: 40px;
+      background: none; border: none;
       color: var(--text-secondary);
       cursor: pointer;
       transition: color 120ms ease;
@@ -744,149 +989,212 @@ console.log(result.timestamp);
     .header--open .menu-icon--open { display: none; }
     .header--open .menu-icon--close { display: block; }
 
+    /* ── Keyframes ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(36px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes drawRight {
+      from { width: 0; }
+      to   { width: 100%; }
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(241,194,27,0.35); }
+      50%       { box-shadow: 0 0 0 8px rgba(241,194,27,0); }
+    }
+    @keyframes panelInRight {
+      from { opacity: 0; transform: translateX(24px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes panelInLeft {
+      from { opacity: 0; transform: translateX(-24px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
     /* ── Hero ── */
     .hero {
+      position: relative;
+      overflow: hidden;
       padding: var(--sp-12) 0 var(--sp-10);
       border-bottom: 1px solid var(--border-subtle);
     }
-
+    #heroCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
     .hero__container {
+      position: relative;
+      z-index: 1;
       max-width: var(--max-width);
       margin: 0 auto;
       padding: 0 var(--sp-6);
+      display: block;
     }
-
+    .hero__content { display: flex; flex-direction: column; }
     .hero__breadcrumb {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-placeholder);
-      margin-bottom: var(--sp-6);
-      letter-spacing: 0.01em;
+      margin-bottom: var(--sp-5);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+      animation: fadeUp 600ms cubic-bezier(0.22,1,0.36,1) both;
     }
-    .breadcrumb-sep {
-      margin: 0 var(--sp-1);
-      color: var(--gray-70);
-    }
-
+    .breadcrumb-sep { opacity: 0.4; }
     .hero__title {
-      font-size: clamp(2.5rem, 5vw, 3.75rem);
+      font-size: clamp(2rem, 4vw, 3rem);
       font-weight: 300;
-      line-height: 1.15;
       letter-spacing: -0.02em;
+      line-height: 1.12;
       color: var(--text-primary);
-      margin-bottom: var(--sp-6);
-      max-width: 720px;
+      margin-bottom: var(--sp-5);
+      animation: fadeUp 720ms cubic-bezier(0.22,1,0.36,1) 180ms both;
     }
-
+    .hero__title strong { font-weight: 600; }
     .hero__lead {
       font-size: 16px;
       line-height: 1.65;
       color: var(--text-secondary);
+      margin-bottom: var(--sp-6);
       max-width: 560px;
-      margin-bottom: var(--sp-8);
-      font-weight: 400;
+      animation: fadeUp 720ms cubic-bezier(0.22,1,0.36,1) 360ms both;
     }
+
+    /* Trait pills */
+    .trait-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+      margin-bottom: var(--sp-6);
+    }
+    .trait-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 10px;
+      background: var(--amber-90);
+      color: var(--amber-40);
+      border: 1px solid rgba(241,194,27,0.2);
+      letter-spacing: 0.02em;
+      animation: fadeIn 500ms cubic-bezier(0.16,1,0.3,1) both;
+    }
+    .trait-pill:nth-child(1) { animation-delay: 360ms; }
+    .trait-pill:nth-child(2) { animation-delay: 420ms; }
+    .trait-pill:nth-child(3) { animation-delay: 480ms; }
+    .trait-pill:nth-child(4) { animation-delay: 540ms; }
+    .trait-pill:nth-child(5) { animation-delay: 600ms; }
 
     .hero__actions {
       display: flex;
-      align-items: center;
-      gap: var(--sp-4);
-      flex-wrap: wrap;
-    }
-
-    /* Install command */
-    .install-cmd {
-      display: flex;
-      align-items: center;
       gap: var(--sp-3);
-      height: 48px;
-      padding: 0 var(--sp-4);
+      align-items: center;
+      flex-wrap: wrap;
+      animation: fadeUp 720ms cubic-bezier(0.22,1,0.36,1) 520ms both;
+    }
+
+    /* Hero right col: code card */
+    .hero__code-preview {
+      animation: fadeUp 500ms cubic-bezier(0.16,1,0.3,1) 560ms both;
+    }
+    .hero__code-card {
+      border: 1px solid rgba(241,194,27,0.25);
+      background: #0d1117;
+      overflow: hidden;
+    }
+    .hero__code-card pre {
+      margin: 0 !important;
+      padding: var(--sp-5) var(--sp-5) !important;
+      background: transparent !important;
+      font-size: 12px !important;
+      line-height: 1.65 !important;
+      font-family: var(--font-mono) !important;
+      white-space: pre-wrap !important;
+      word-break: break-all !important;
+    }
+
+    /* ── Install cmd ── */
+    .install-cmd {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      height: 40px;
+      padding: 0 var(--sp-3) 0 var(--sp-4);
       background: var(--bg-elevated);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-strong);
       font-family: var(--font-mono);
-      font-size: 14px;
-      color: var(--text-primary);
-      position: relative;
-      transition: background 120ms ease;
+      font-size: 13px;
+      color: var(--text-secondary);
       cursor: default;
+      transition: border-color 200ms ease;
     }
-
-    .install-cmd__prompt {
-      color: var(--green-50);
-      user-select: none;
-    }
-
-    .install-cmd__text {
-      user-select: all;
-    }
-
+    .install-cmd:hover { border-color: var(--gray-60); }
+    .install-cmd__prompt { color: var(--text-placeholder); }
+    .install-cmd__text { color: var(--text-primary); }
     .install-cmd__copy {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
-      margin-left: var(--sp-2);
+      width: 32px; height: 32px;
       background: none;
       border: none;
       color: var(--text-placeholder);
       cursor: pointer;
-      transition: color 120ms ease;
+      margin-left: var(--sp-1);
+      transition: color 120ms ease, background 120ms ease;
       position: relative;
     }
-    .install-cmd__copy:hover { color: var(--text-primary); }
-    .install-cmd__copy .check-icon {
-      position: absolute;
-      opacity: 0;
-      color: var(--green-50);
-    }
-    .install-cmd.copied .install-cmd__copy svg:first-child { opacity: 0; }
-    .install-cmd.copied .install-cmd__copy .check-icon { opacity: 1; }
+    .install-cmd__copy:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .check-icon { display: none; }
+    .install-cmd.copied .install-cmd__copy svg:not(.check-icon) { display: none; }
+    .install-cmd.copied .check-icon { display: block; color: var(--green-50); }
 
-    /* Buttons */
+    /* ── Buttons ── */
     .btn {
       display: inline-flex;
       align-items: center;
       gap: var(--sp-2);
-      height: 48px;
+      height: 40px;
       padding: 0 var(--sp-5);
       font-family: var(--font-sans);
       font-size: 14px;
       font-weight: 500;
-      text-decoration: none;
-      transition: background 120ms ease, color 120ms ease;
       cursor: pointer;
-      border: none;
-      white-space: nowrap;
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: background 200ms ease, border-color 200ms ease, color 200ms ease, transform 120ms ease;
     }
-
+    .btn:active { transform: scale(0.98); }
     .btn--primary {
-      background: var(--amber-60);
+      background: var(--amber-50);
       color: var(--gray-100);
+      border-color: var(--amber-50);
     }
-    .btn--primary:hover { background: #b28600; }
-
+    .btn--primary:hover { background: var(--amber-40); border-color: var(--amber-40); }
     .btn--secondary {
-      background: var(--bg-elevated);
-      color: var(--text-primary);
-      border: 1px solid var(--border-subtle);
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: var(--border-strong);
     }
-    .btn--secondary:hover { background: var(--bg-hover); }
-
+    .btn--secondary:hover { background: var(--bg-elevated); color: var(--text-primary); }
     .btn--ghost {
       background: transparent;
-      color: var(--text-interactive);
-      padding: 0 var(--sp-4);
+      color: var(--text-secondary);
+      border-color: transparent;
     }
-    .btn--ghost:hover { background: rgba(241, 194, 27, 0.08); }
+    .btn--ghost:hover { color: var(--text-primary); background: var(--bg-elevated); }
 
     /* ── Pipeline ── */
     .pipeline {
-      border-bottom: 1px solid var(--border-subtle);
       padding: var(--sp-8) 0;
-      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
     }
-
     .pipeline__container {
       max-width: var(--max-width);
       margin: 0 auto;
@@ -894,89 +1202,69 @@ console.log(result.timestamp);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: var(--sp-5);
-      flex-wrap: wrap;
+      gap: 0;
     }
-
     .pipeline__step {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: var(--sp-2);
-      min-width: 80px;
+      padding: 0 var(--sp-6);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0ms, transform 0ms;
     }
-
+    #pipelineSection.revealed .pipeline__step {
+      animation: fadeUp 560ms cubic-bezier(0.22,1,0.36,1) both;
+    }
+    #pipelineSection.revealed .pipeline__step:nth-child(1) { animation-delay: 0ms; }
+    #pipelineSection.revealed .pipeline__step:nth-child(3) { animation-delay: 240ms; }
+    #pipelineSection.revealed .pipeline__step:nth-child(5) { animation-delay: 480ms; }
+    #pipelineSection.revealed .pipeline__step:nth-child(7) { animation-delay: 720ms; }
+    .pipeline__connector {
+      flex: 1;
+      max-width: 80px;
+      display: flex;
+      align-items: center;
+    }
+    .pipeline__connector-line {
+      display: block;
+      height: 1px;
+      background: var(--gray-70);
+      width: 0;
+    }
+    #pipelineSection.revealed .pipeline__connector-line {
+      animation: drawRight 600ms cubic-bezier(0.16,1,0.3,1) forwards;
+    }
+    #pipelineSection.revealed .pipeline__connector:nth-child(2) .pipeline__connector-line { animation-delay: 100ms; }
+    #pipelineSection.revealed .pipeline__connector:nth-child(4) .pipeline__connector-line { animation-delay: 300ms; }
+    #pipelineSection.revealed .pipeline__connector:nth-child(6) .pipeline__connector-line { animation-delay: 500ms; }
     .pipeline__icon {
-      width: 48px;
-      height: 48px;
+      width: 48px; height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border: 1px solid var(--border-strong);
       color: var(--text-secondary);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg);
+      background: var(--bg-elevated);
     }
     .pipeline__icon--accent {
+      border-color: var(--amber-60);
       color: var(--amber-50);
-      border-color: var(--amber-50);
-      background: rgba(241, 194, 27, 0.08);
+      background: rgba(241,194,27,0.06);
     }
-
+    #pipelineSection.revealed .pipeline__icon--accent {
+      animation: pulse 2200ms ease-in-out 1000ms infinite;
+    }
     .pipeline__label {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       color: var(--text-primary);
     }
-
     .pipeline__desc {
-      font-size: 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
       color: var(--text-placeholder);
-      font-family: var(--font-mono);
-    }
-
-    .pipeline__connector {
-      color: var(--gray-70);
-      display: flex;
-      align-items: center;
-      margin-top: -24px;
-    }
-
-    /* ── Section headers ── */
-    .section-header {
-      margin-bottom: var(--sp-9);
-      opacity: 0;
-      transform: translateY(10px);
-      transition: opacity 500ms ease, transform 500ms ease;
-    }
-    .section-header.revealed {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .section-tag {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--amber-50);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: var(--sp-3);
-    }
-
-    .section-title {
-      font-size: clamp(1.5rem, 3vw, 2rem);
-      font-weight: 300;
-      line-height: 1.25;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
-      margin-bottom: var(--sp-4);
-    }
-
-    .section-desc {
-      font-size: 16px;
-      line-height: 1.6;
-      color: var(--text-secondary);
-      max-width: 520px;
     }
 
     /* ── Code section ── */
@@ -984,25 +1272,87 @@ console.log(result.timestamp);
       padding: var(--sp-11) 0;
       border-bottom: 1px solid var(--border-subtle);
     }
-
     .code-section__container {
       max-width: var(--max-width);
       margin: 0 auto;
       padding: 0 var(--sp-6);
     }
 
-    .code-tabs {
-      border: 1px solid var(--border-subtle);
-      background: var(--bg);
+    /* ── Section header ── */
+    .section-header {
+      margin-bottom: var(--sp-8);
+      opacity: 0;
+      transform: translateY(36px);
+      transition: opacity 620ms cubic-bezier(0.22,1,0.36,1), transform 620ms cubic-bezier(0.22,1,0.36,1);
+    }
+    .section-header.revealed { opacity: 1; transform: translateY(0); }
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--amber-50);
+      margin-bottom: var(--sp-3);
+      border-left: 2px solid var(--amber-50);
+      padding-left: var(--sp-2);
+    }
+    .section-header.revealed .section-tag::before {
+      width: 24px;
+    }
+    .section-title {
+      font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-3);
+    }
+    .section-desc {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      max-width: 600px;
     }
 
+    /* ── Trait selector ── */
+    .trait-selector {
+      display: flex;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: var(--sp-2);
+      overflow-x: auto;
+    }
+    .trait-btn {
+      padding: 0 var(--sp-5);
+      height: 40px;
+      background: var(--bg);
+      border: none;
+      border-right: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 250ms ease, color 250ms ease;
+      white-space: nowrap;
+    }
+    .trait-btn:last-child { border-right: none; }
+    .trait-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .trait-btn:active { transform: scale(0.98); }
+    .trait-btn.active {
+      background: var(--amber-90);
+      color: var(--amber-40);
+      font-weight: 600;
+    }
+
+    /* ── Code tabs ── */
+    .code-tabs {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+    }
     .code-tabs__bar {
       display: flex;
       border-bottom: 1px solid var(--border-subtle);
       background: var(--bg-elevated);
       overflow-x: auto;
     }
-
     .code-tab {
       display: flex;
       align-items: center;
@@ -1019,52 +1369,32 @@ console.log(result.timestamp);
       transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
       white-space: nowrap;
     }
-    .code-tab:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-    }
-    .code-tab.active {
-      color: var(--text-primary);
-      border-bottom-color: var(--amber-60);
-    }
-
+    .code-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .code-tab.active { color: var(--text-primary); border-bottom-color: var(--amber-60); }
     .code-tab__num {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--text-placeholder);
     }
-    .code-tab.active .code-tab__num {
-      color: var(--amber-50);
-    }
-
-    .code-tab__label {
-      font-weight: 500;
-    }
-
+    .code-tab.active .code-tab__num { color: var(--amber-50); }
+    .code-tab__label { font-weight: 500; }
     .code-tab__file {
       font-family: var(--font-mono);
       font-size: 12px;
       color: var(--text-placeholder);
     }
-
-    .code-tabs__panels {
-      display: grid;
-      grid-template-columns: 1fr;
-    }
+    .code-tabs__panels { display: grid; grid-template-columns: 1fr; }
     .code-panel {
       grid-column: 1;
       grid-row: 1;
       min-height: 320px;
       opacity: 0;
       visibility: hidden;
-      transition: opacity 220ms ease;
       pointer-events: none;
     }
-    .code-panel.active {
-      opacity: 1;
-      visibility: visible;
-      pointer-events: auto;
-    }
+    .code-panel.active { opacity: 1; visibility: visible; pointer-events: auto; }
+    .code-panel.entering-right { animation: panelInRight 350ms cubic-bezier(0.16,1,0.3,1) both; }
+    .code-panel.entering-left  { animation: panelInLeft  350ms cubic-bezier(0.16,1,0.3,1) both; }
     .code-panel pre {
       margin: 0 !important;
       padding: var(--sp-5) var(--sp-6) !important;
@@ -1083,88 +1413,78 @@ console.log(result.timestamp);
       padding: var(--sp-11) 0;
       border-bottom: 1px solid var(--border-subtle);
     }
-
     .features__container {
       max-width: var(--max-width);
       margin: 0 auto;
       padding: 0 var(--sp-6);
     }
-
     .features__grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 0;
       border-top: 1px solid var(--border-subtle);
       border-left: 1px solid var(--border-subtle);
     }
-
     .feature-card {
       padding: var(--sp-6);
       border-right: 1px solid var(--border-subtle);
       border-bottom: 1px solid var(--border-subtle);
-      transition: background 200ms ease;
       opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 400ms ease, transform 400ms ease, background 200ms ease;
+      transform: translateY(20px);
+      transition: opacity 560ms cubic-bezier(0.22,1,0.36,1), transform 560ms cubic-bezier(0.22,1,0.36,1), background 200ms ease, border-left-color 250ms ease;
     }
-    .feature-card.revealed {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .feature-card:nth-child(2).revealed { transition-delay: 80ms; }
-    .feature-card:nth-child(3).revealed { transition-delay: 160ms; }
-    .feature-card:nth-child(4).revealed { transition-delay: 240ms; }
-    .feature-card:nth-child(5).revealed { transition-delay: 320ms; }
-    .feature-card:nth-child(6).revealed { transition-delay: 400ms; }
-
-    .feature-card:hover {
-      background: var(--bg-elevated);
-    }
-
+    .feature-card.revealed { opacity: 1; transform: translateY(0); }
+    .feature-card:nth-child(2).revealed { transition-delay: 110ms; }
+    .feature-card:nth-child(3).revealed { transition-delay: 220ms; }
+    .feature-card:nth-child(4).revealed { transition-delay: 330ms; }
+    .feature-card:nth-child(5).revealed { transition-delay: 0ms; }
+    .feature-card:nth-child(6).revealed { transition-delay: 110ms; }
+    .feature-card:nth-child(7).revealed { transition-delay: 220ms; }
+    .feature-card:nth-child(8).revealed { transition-delay: 330ms; }
+    .feature-card:hover { background: var(--bg-elevated); }
     .feature-card__icon {
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--text-secondary);
       margin-bottom: var(--sp-5);
     }
-
+    .feature-card--amber .feature-card__icon {
+      background: rgba(241,194,27,0.07);
+      border: 1px solid rgba(241,194,27,0.18);
+      color: var(--amber-50);
+    }
     .feature-card__title {
       font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
       margin-bottom: var(--sp-2);
-      letter-spacing: -0.005em;
     }
-
     .feature-card__desc {
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.6;
       color: var(--text-secondary);
     }
     .feature-card__desc code {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: 11px;
       background: var(--bg-hover);
-      padding: 1px 6px;
+      padding: 1px 5px;
       color: var(--text-primary);
     }
 
-    /* ── How it works ── */
+    /* ── Architecture ── */
     .how-it-works {
       padding: var(--sp-11) 0;
       background: var(--bg-elevated);
       border-bottom: 1px solid var(--border-subtle);
     }
-
     .how-it-works__container {
       max-width: var(--max-width);
       margin: 0 auto;
       padding: 0 var(--sp-6);
     }
-
     .arch-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -1172,43 +1492,48 @@ console.log(result.timestamp);
       background: var(--border-subtle);
       border: 1px solid var(--border-subtle);
     }
-
     .arch-card {
+      position: relative;
+      overflow: hidden;
       background: var(--bg);
       padding: var(--sp-6);
       display: flex;
       flex-direction: column;
       gap: var(--sp-4);
       opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 400ms ease, transform 400ms ease;
+      transform: translateY(20px);
+      transition: opacity 560ms cubic-bezier(0.22,1,0.36,1), transform 560ms cubic-bezier(0.22,1,0.36,1);
     }
-    .arch-card.revealed {
-      opacity: 1;
-      transform: translateY(0);
+    .arch-card.revealed { opacity: 1; transform: translateY(0); }
+    .arch-card:nth-child(2).revealed { transition-delay: 200ms; }
+    .arch-card:nth-child(3).revealed { transition-delay: 400ms; }
+    .arch-card::before {
+      content: attr(data-num);
+      position: absolute;
+      right: -12px; top: -20px;
+      font-family: var(--font-mono);
+      font-size: 112px;
+      font-weight: 700;
+      color: var(--amber-50);
+      opacity: 0;
+      pointer-events: none;
+      line-height: 1;
+      user-select: none;
+      transition: opacity 600ms ease 200ms;
     }
-    .arch-card:nth-child(2).revealed { transition-delay: 120ms; }
-    .arch-card:nth-child(3).revealed { transition-delay: 240ms; }
-
-    .arch-card__header {
-      display: flex;
-      align-items: center;
-      gap: var(--sp-3);
-    }
-
+    .arch-card.revealed::before { opacity: 0.04; }
+    .arch-card__header { display: flex; align-items: center; gap: var(--sp-3); }
     .arch-card__num {
       font-family: var(--font-mono);
       font-size: 12px;
       color: var(--amber-50);
       font-weight: 500;
     }
-
     .arch-card__title {
       font-size: 16px;
       font-weight: 600;
       color: var(--text-primary);
     }
-
     .arch-card__body {
       font-size: 14px;
       line-height: 1.65;
@@ -1222,13 +1547,7 @@ console.log(result.timestamp);
       padding: 1px 6px;
       color: var(--text-primary);
     }
-
-    .arch-card__tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--sp-2);
-    }
-
+    .arch-card__tags { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
     .tag {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -1243,31 +1562,25 @@ console.log(result.timestamp);
       padding: var(--sp-10) 0;
       border-bottom: 1px solid var(--border-subtle);
     }
-
     .supported__container {
       max-width: var(--max-width);
       margin: 0 auto;
       padding: 0 var(--sp-6);
     }
-
     .supported__grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: var(--sp-9);
     }
-
     .supported__col {
       opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 400ms ease, transform 400ms ease;
+      transform: translateY(20px);
+      transition: opacity 560ms cubic-bezier(0.22,1,0.36,1), transform 560ms cubic-bezier(0.22,1,0.36,1);
     }
-    .supported__col.revealed {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .supported__col:nth-child(2).revealed { transition-delay: 120ms; }
-    .supported__col:nth-child(3).revealed { transition-delay: 240ms; }
-
+    .supported__col.revealed { opacity: 1; transform: translateY(0); }
+    .supported__col:nth-child(2).revealed { transition-delay: 130ms; }
+    .supported__col:nth-child(3).revealed { transition-delay: 260ms; }
+    .supported__col:nth-child(4).revealed { transition-delay: 390ms; }
     .supported__heading {
       font-size: 12px;
       font-weight: 600;
@@ -1277,14 +1590,12 @@ console.log(result.timestamp);
       margin-bottom: var(--sp-5);
       font-family: var(--font-mono);
     }
-
     .supported__list {
       list-style: none;
       display: flex;
       flex-direction: column;
       gap: var(--sp-3);
     }
-
     .supported__list li {
       font-size: 14px;
       color: var(--text-secondary);
@@ -1292,7 +1603,6 @@ console.log(result.timestamp);
       align-items: center;
       gap: var(--sp-3);
     }
-
     .supported__check {
       color: var(--green-50);
       font-family: var(--font-mono);
@@ -1305,46 +1615,45 @@ console.log(result.timestamp);
       padding: var(--sp-12) 0;
       background: var(--bg-elevated);
       border-bottom: 1px solid var(--border-subtle);
+      opacity: 0;
+      transform: translateY(36px);
+      transition: opacity 620ms cubic-bezier(0.22,1,0.36,1), transform 620ms cubic-bezier(0.22,1,0.36,1);
     }
-
-    .cta__container {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 0 var(--sp-6);
+    .cta.revealed { opacity: 1; transform: translateY(0); }
+    .cta__container { max-width: var(--max-width); margin: 0 auto; padding: 0 var(--sp-6); }
+    .cta__inner { }
+    .cta__rule {
+      display: block;
+      height: 1px;
+      background: var(--amber-60);
+      width: 0;
+      margin-bottom: var(--sp-5);
     }
-
-    .cta__inner {
-      max-width: 480px;
+    .cta.revealed .cta__rule {
+      animation: drawRight 500ms cubic-bezier(0.16,1,0.3,1) both;
+      width: auto;
     }
-
     .cta__title {
-      font-size: clamp(1.75rem, 3vw, 2.25rem);
+      font-size: clamp(2.5rem, 5vw, 4rem);
       font-weight: 300;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.02em;
       color: var(--text-primary);
-      margin-bottom: var(--sp-3);
+      margin-bottom: var(--sp-4);
+      animation: none;
     }
-
+    .cta.revealed .cta__title {
+      animation: fadeUp 500ms cubic-bezier(0.16,1,0.3,1) 80ms both;
+    }
     .cta__desc {
       font-size: 16px;
       color: var(--text-secondary);
       margin-bottom: var(--sp-7);
       line-height: 1.6;
     }
-
-    .cta__actions {
-      display: flex;
-      gap: var(--sp-4);
-      align-items: center;
-      flex-wrap: wrap;
-    }
+    .cta__actions { display: flex; gap: var(--sp-4); align-items: center; flex-wrap: wrap; }
 
     /* ── Footer ── */
-    .footer {
-      padding: var(--sp-5) 0;
-      border-top: 1px solid var(--border-subtle);
-    }
-
+    .footer { padding: var(--sp-5) 0; border-top: 1px solid var(--border-subtle); }
     .footer__container {
       max-width: var(--max-width);
       margin: 0 auto;
@@ -1353,19 +1662,7 @@ console.log(result.timestamp);
       justify-content: space-between;
       align-items: center;
     }
-
-    .footer__left {
-      display: flex;
-      align-items: center;
-      gap: var(--sp-2);
-    }
-
-    .footer__name {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
+    .footer__left { display: flex; align-items: center; gap: var(--sp-2); }
     .footer__right {
       display: flex;
       align-items: center;
@@ -1374,38 +1671,28 @@ console.log(result.timestamp);
       font-family: var(--font-mono);
       color: var(--text-placeholder);
     }
-
     .footer__sep { opacity: 0.4; }
 
-    /* ── Animations ── */
-    .anim-fade-up {
-      opacity: 0;
-      transform: translateY(16px);
-      animation: fadeUp 600ms ease forwards;
-    }
-    .anim-delay-1 { animation-delay: 120ms; }
-    .anim-delay-2 { animation-delay: 240ms; }
-    .anim-delay-3 { animation-delay: 360ms; }
-
-    @keyframes fadeUp {
-      to {
-        opacity: 1;
-        transform: translateY(0);
+    /* ── Reduced motion ── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-delay: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+      .section-header, .feature-card, .arch-card, .supported__col, .cta, .pipeline__step {
+        opacity: 1 !important;
+        transform: none !important;
       }
     }
 
-    /* ── Responsive: tablet ── */
-    @media (max-width: 900px) {
-      .features__grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      .arch-grid {
-        grid-template-columns: 1fr;
-      }
-      .supported__grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: var(--sp-7);
-      }
+    /* ── Tablet ── */
+    @media (max-width: 1023px) {
+      .hero__container { grid-template-columns: 1fr; }
+      .hero__code-preview { display: none; }
+      .features__grid { grid-template-columns: repeat(2, 1fr); }
+      .supported__grid { grid-template-columns: repeat(2, 1fr); gap: var(--sp-7); }
+      .arch-grid { grid-template-columns: 1fr; }
       .pipeline__connector { display: none; }
       .pipeline__container {
         display: grid;
@@ -1419,18 +1706,10 @@ console.log(result.timestamp);
       .cta { padding: var(--sp-9) 0; }
     }
 
-    /* ── Responsive: mobile ── */
+    /* ── Mobile ── */
     @media (max-width: 640px) {
-      /* Header: slide-down mobile nav */
-      .header {
-        height: auto;
-        min-height: var(--header-height);
-      }
-      .header__inner {
-        padding: 0 var(--sp-4);
-        flex-wrap: wrap;
-        height: var(--header-height);
-      }
+      .header { height: auto; min-height: var(--header-height); }
+      .header__inner { padding: 0 var(--sp-4); flex-wrap: wrap; height: var(--header-height); }
       .header__menu-btn { display: flex; }
       .header__nav {
         display: none;
@@ -1442,53 +1721,18 @@ console.log(result.timestamp);
       }
       .header--open .header__inner { height: auto; }
       .header--open .header__nav { display: flex; }
-      .header__nav a,
-      .header__nav .header__nav-link {
-        width: 100%;
-        height: 48px;
-        padding: 0 var(--sp-4);
-        font-size: 14px;
-        border-bottom: 1px solid var(--border-subtle);
-      }
-      .header__nav .header__npm-badge {
-        justify-content: flex-start;
-        border-bottom: none;
-      }
+      .header__nav a { width: 100%; height: 48px; padding: 0 var(--sp-4); border-bottom: 1px solid var(--border-subtle); }
+      .header__nav .header__npm-badge { justify-content: flex-start; border-bottom: none; }
 
-      /* Hero: breathable mobile layout */
       .hero { padding: var(--sp-8) 0 var(--sp-7); }
       .hero__container { padding: 0 var(--sp-4); }
-      .hero__breadcrumb { margin-bottom: var(--sp-4); }
-      .hero__title {
-        font-size: 2rem;
-        margin-bottom: var(--sp-4);
-        line-height: 1.2;
-      }
-      .hero__lead {
-        font-size: 15px;
-        line-height: 1.6;
-        margin-bottom: var(--sp-6);
-      }
-      .hero__actions {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--sp-3);
-      }
-      .install-cmd {
-        width: 100%;
-        font-size: 13px;
-        height: 44px;
-        padding: 0 var(--sp-3);
-        justify-content: center;
-        overflow: hidden;
-      }
-      .btn {
-        width: 100%;
-        justify-content: center;
-        height: 44px;
-      }
+      .hero__title { font-size: 2rem; margin-bottom: var(--sp-4); line-height: 1.2; }
+      .hero__lead { font-size: 15px; margin-bottom: var(--sp-5); }
+      .hero__actions { flex-direction: column; align-items: stretch; gap: var(--sp-3); }
+      .install-cmd { width: 100%; justify-content: center; overflow: hidden; }
+      .btn { width: 100%; justify-content: center; height: 44px; }
+      .trait-pills { margin-bottom: var(--sp-5); }
 
-      /* Pipeline: 2x2 grid on mobile */
       .pipeline { padding: var(--sp-6) 0; }
       .pipeline__container {
         display: grid;
@@ -1497,118 +1741,51 @@ console.log(result.timestamp);
         justify-items: center;
         padding: 0 var(--sp-4);
       }
-      .pipeline__connector { display: none; }
       .pipeline__icon { width: 40px; height: 40px; }
       .pipeline__icon svg { width: 20px; height: 20px; }
       .pipeline__label { font-size: 13px; }
       .pipeline__desc { font-size: 11px; }
 
-      /* Code section */
       .code-section { padding: var(--sp-7) 0; }
       .code-section__container { padding: 0 var(--sp-4); }
       .section-header { margin-bottom: var(--sp-6); }
       .section-title { font-size: 1.35rem; }
       .section-desc { font-size: 14px; }
+      .trait-selector { margin-bottom: 0; }
+      .trait-btn { padding: 0 var(--sp-3); font-size: 11px; }
       .code-tab__file { display: none; }
-      .code-tab {
-        padding: 0 var(--sp-3);
-        height: 44px;
-        gap: var(--sp-2);
-        flex: 1;
-        justify-content: center;
-      }
-      .code-tab__num { font-size: 10px; }
-      .code-tab__label { font-size: 13px; }
+      .code-tab { padding: 0 var(--sp-3); height: 44px; gap: var(--sp-2); flex: 1; justify-content: center; }
       .code-panel { min-height: 240px; }
-      .code-panel pre {
-        padding: var(--sp-4) !important;
-        font-size: 12px !important;
-        line-height: 1.6 !important;
-      }
+      .code-panel pre { padding: var(--sp-4) !important; font-size: 12px !important; line-height: 1.6 !important; }
 
-      /* Features: single column, looser padding */
       .features { padding: var(--sp-7) 0; }
       .features__container { padding: 0 var(--sp-4); }
-      .features__grid {
-        grid-template-columns: 1fr;
-        border-left: none;
-        border-top: none;
-      }
-      .feature-card {
-        padding: var(--sp-5) 0;
-        border-right: none;
-        border-bottom: 1px solid var(--border-subtle);
-        border-left: 2px solid transparent;
-        transition: border-left-color 200ms ease, opacity 400ms ease, transform 400ms ease;
-      }
-      .feature-card:hover {
-        background: transparent;
-        border-left-color: var(--amber-60);
-        padding-left: var(--sp-4);
-      }
-      .feature-card:last-child { border-bottom: none; }
-      .feature-card__icon { margin-bottom: var(--sp-3); }
-      .feature-card__title { font-size: 15px; }
-      .feature-card__desc { font-size: 13px; line-height: 1.65; }
+      .features__grid { grid-template-columns: 1fr; border-left: none; border-top: none; }
+      .feature-card { padding: var(--sp-5) 0; border-right: none; border-left: 2px solid transparent; }
+      .feature-card--amber .feature-card__icon { width: 36px; height: 36px; }
 
-      /* Architecture cards */
       .how-it-works { padding: var(--sp-7) 0; }
       .how-it-works__container { padding: 0 var(--sp-4); }
-      .arch-grid {
-        grid-template-columns: 1fr;
-        gap: 0;
-      }
       .arch-card { padding: var(--sp-5); }
       .arch-card__title { font-size: 15px; }
-      .arch-card__body { font-size: 13px; }
-      .arch-card__tags { gap: var(--sp-1); }
-      .tag { font-size: 10px; padding: 2px 8px; }
+      .arch-card::before { font-size: 80px; }
 
-      /* Supported: stacked columns with dividers */
       .supported { padding: var(--sp-7) 0; }
       .supported__container { padding: 0 var(--sp-4); }
-      .supported__grid {
-        grid-template-columns: 1fr;
-        gap: 0;
-      }
-      .supported__col {
-        padding: var(--sp-5) 0;
-        border-bottom: 1px solid var(--border-subtle);
-      }
+      .supported__grid { grid-template-columns: 1fr; gap: 0; }
+      .supported__col { padding: var(--sp-5) 0; border-bottom: 1px solid var(--border-subtle); }
       .supported__col:last-child { border-bottom: none; }
-      .supported__heading { margin-bottom: var(--sp-3); }
-      .supported__list { gap: var(--sp-2); }
-      .supported__list li { font-size: 13px; }
 
-      /* CTA */
       .cta { padding: var(--sp-8) 0; }
       .cta__container { padding: 0 var(--sp-4); }
-      .cta__title { font-size: 1.5rem; }
+      .cta__title { font-size: 2rem; }
       .cta__desc { font-size: 14px; margin-bottom: var(--sp-6); }
       .cta__actions { flex-direction: column; }
       .cta__actions .btn { width: 100%; justify-content: center; }
 
-      /* Footer */
       .footer { padding: var(--sp-4) 0; }
-      .footer__container {
-        padding: 0 var(--sp-4);
-        flex-direction: column;
-        gap: var(--sp-3);
-        text-align: center;
-      }
+      .footer__container { padding: 0 var(--sp-4); flex-direction: column; gap: var(--sp-3); text-align: center; }
       .footer__right { font-size: 11px; }
-    }
-
-    /* ── Responsive: very small screens ── */
-    @media (max-width: 380px) {
-      .hero__title { font-size: 1.65rem; }
-      .install-cmd { font-size: 11.5px; }
-      .install-cmd__copy { width: 28px; height: 28px; margin-left: 0; }
-      .code-panel pre { font-size: 11px !important; }
-      .pipeline__container {
-        grid-template-columns: repeat(2, 1fr);
-        gap: var(--sp-4);
-      }
     }
   </style>
 </BaseLayout>

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { PredictionSession, defineModel, type ModelMetadata } from '@vncsleal/scheml';
+import { PredictionSession, defineModel, type ModelMetadata } from '../../../../packages/scheml/src/index';
 
 export type DemoPredictionInput = {
   daysSinceActive: number;

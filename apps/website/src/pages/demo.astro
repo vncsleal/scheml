@@ -5,8 +5,8 @@ import { getDemoModelInfo, predictDemoChurn } from '../lib/demoPrediction';
 
 export const prerender = false;
 
-const title = 'PrisML — Live Demo';
-const description = 'Run a real ONNX model in-process. Adjust features, see the prediction and latency, then simulate a schema drift error — the thing that makes PrisML different.';
+const title = 'ScheML — Live Demo';
+const description = 'Run a real ONNX model in-process. Adjust features, see the prediction and latency, then simulate a schema drift error — the thing that makes ScheML different.';
 
 const demoInfo = await getDemoModelInfo();
 const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
@@ -89,24 +89,17 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
     <!-- HEADER -->
     <header class="header" id="top" transition:name="site-header">
       <div class="header__inner">
-        <a href="/" class="header__logo" aria-label="PrisML home">
-          <svg width="24" height="24" viewBox="-1.5 -1.5 8 8" fill="none" aria-hidden="true" shape-rendering="crispEdges">
-            <rect x="-1.5" y="-1.5" width="8" height="8" rx="1.4" fill="#161616"/>
-            <rect x="0" y="0" width="5" height="1" fill="#f1c21b"/>
-            <rect x="0" y="1" width="1" height="4" fill="#f1c21b"/>
-            <rect x="2" y="1" width="1" height="2" fill="#f1c21b"/>
-            <rect x="4" y="2" width="1" height="3" fill="#f1c21b"/>
-            <rect x="1" y="2" width="1" height="1" fill="#f1c21b"/>
-            <rect x="2" y="4" width="2" height="1" fill="#f1c21b"/>
-          </svg>
-          <span>PrisML</span>
+        <a href="/" class="header__logo" aria-label="ScheML home">
+          <span class="logo-mark">
+            <span class="logo-bracket">[</span><span class="logo-inner"></span><span class="logo-bracket">]</span>
+          </span>
         </a>
         <nav class="header__nav" aria-label="Main navigation">
           <a href="/" class="header__nav-link">Home</a>
           <a href="#inference" class="header__nav-link">Inference</a>
           <a href="#drift" class="header__nav-link">Drift guard</a>
           <a href="#integrate" class="header__nav-link">Integration</a>
-          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
+          <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="header__nav-link">
             GitHub
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="margin-left: 4px; opacity: 0.5;">
               <path d="M10 1h5v5l-1.7-1.7-4.6 4.6-1.4-1.4 4.6-4.6L10 1zM3 3h4v2H3v8h8V9h2v4a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z"/>
@@ -130,34 +123,24 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
     <!-- HERO -->
     <section class="hero">
       <div class="hero__container">
-        <div class="hero__breadcrumb">
-          <span>prisml</span>
+        <div class="hero__breadcrumb anim-fade-up">
+          <span>scheml</span>
           <span class="breadcrumb-sep">/</span>
           <span>demo</span>
         </div>
-        <h1 class="hero__title anim-fade-up">
+        <h1 class="hero__title anim-fade-up anim-delay-1">
           Predictions that<br/>ship with your code.
         </h1>
-        <p class="hero__lead anim-fade-up anim-delay-1">
-          A real ONNX model running in-process. Adjust the inputs, see the latency, then break the schema.
+        <p class="hero__lead anim-fade-up anim-delay-2">
+          Five trait types. One API. Each runs in-process — no serialisation, no network hop.
+          Select a trait type to run an interactive demo.
         </p>
-        <div class="hero-meta anim-fade-up anim-delay-2">
-          <div class="meta-pill">
-            <span class="meta-pill__label">artifact</span>
-            <code class="meta-pill__value">userChurn.onnx</code>
-          </div>
-          <div class="meta-pill">
-            <span class="meta-pill__label">algorithm</span>
-            <code class="meta-pill__value">{demoInfo.algorithm}</code>
-          </div>
-          <div class="meta-pill">
-            <span class="meta-pill__label">task</span>
-            <code class="meta-pill__value">{demoInfo.taskType}</code>
-          </div>
-          <div class="meta-pill">
-            <span class="meta-pill__label">compiled</span>
-            <code class="meta-pill__value">{new Date(demoInfo.compiledAt).toLocaleDateString()}</code>
-          </div>
+        <div class="trait-tabs anim-fade-up anim-delay-3" id="traitTabs" role="tablist" aria-label="Trait type demo">
+          <button class="trait-tab active" role="tab" aria-selected="true" data-trait="predictive">predictive</button>
+          <button class="trait-tab" role="tab" aria-selected="false" data-trait="anomaly">anomaly</button>
+          <button class="trait-tab" role="tab" aria-selected="false" data-trait="similarity">similarity</button>
+          <button class="trait-tab" role="tab" aria-selected="false" data-trait="sequential">sequential</button>
+          <button class="trait-tab" role="tab" aria-selected="false" data-trait="generative">generative</button>
         </div>
       </div>
     </section>
@@ -167,154 +150,510 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
       <div class="section__container">
 
         <div class="section-header">
-          <p class="section-tag">Live inference</p>
-          <h2 class="section-title">Adjust inputs. Get a real prediction.</h2>
-          <p class="section-desc">
-            Each submit hits <code>/api/demo/predict</code>, which calls <code>session.predict()</code>
+          <p class="section-tag" id="inferenceTag">Live inference · predictive</p>
+          <h2 class="section-title" id="inferenceTitle">Adjust inputs. Get a real prediction.</h2>
+          <p class="section-desc" id="inferenceDesc">
+            Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code>
             synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.
           </p>
         </div>
 
-        <div class="inference-grid">
+        <!-- ── PREDICTIVE PANE ── -->
+        <div class="demo-pane active" id="pane-predictive">
+          <div class="inference-grid">
 
-          <!-- Inputs -->
-          <div class="panel">
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Feature inputs</p>
-                <h3>Churn risk model</h3>
-              </div>
-            </div>
-
-            <div class="preset-bar">
-              <button type="button" class="preset-btn" data-preset="healthy">Healthy user</button>
-              <button type="button" class="preset-btn is-active" data-preset="at-risk">At-risk user</button>
-              <button type="button" class="preset-btn" data-preset="churning">Likely churning</button>
-            </div>
-
-            <form id="inferenceForm" class="inference-form">
-              <div class="field">
-                <div class="field__header">
-                  <label for="daysSinceActive">Days since last active</label>
-                  <span class="field__val" id="daysVal">{initialInputs.daysSinceActive}</span>
-                </div>
-                <input id="daysSinceActive" name="daysSinceActive" type="range"
-                  min="0" max="90" step="1" value={initialInputs.daysSinceActive} />
-                <div class="field__range-labels"><span>0d</span><span>90d</span></div>
-              </div>
-
-              <div class="field">
-                <div class="field__header">
-                  <label for="monthlySpend">Monthly spend ($)</label>
-                  <span class="field__val" id="spendVal">{initialInputs.monthlySpend}</span>
-                </div>
-                <input id="monthlySpend" name="monthlySpend" type="range"
-                  min="0" max="1000" step="10" value={initialInputs.monthlySpend} />
-                <div class="field__range-labels"><span>$0</span><span>$1,000</span></div>
-              </div>
-
-              <div class="field">
-                <div class="field__header">
-                  <label for="supportTickets">Open support tickets</label>
-                  <span class="field__val" id="ticketsVal">{initialInputs.supportTickets}</span>
-                </div>
-                <input id="supportTickets" name="supportTickets" type="range"
-                  min="0" max="15" step="1" value={initialInputs.supportTickets} />
-                <div class="field__range-labels"><span>0</span><span>15</span></div>
-              </div>
-
-              <button class="btn btn--primary" type="submit">Run prediction</button>
-            </form>
-          </div>
-
-          <!-- Result -->
-          <div class="result-stack">
-            <div class="panel result-panel" id="resultPanel"
-              data-tone={initialIsChurn ? 'danger' : 'healthy'}>
+            <div class="panel">
               <div class="panel__header">
                 <div>
-                  <p class="eyebrow">Prediction output</p>
-                  <h3 id="resultLabel">{initialIsChurn ? 'Will churn' : 'Will retain'}</h3>
+                  <p class="eyebrow">Feature inputs</p>
+                  <h3>Churn risk model</h3>
                 </div>
-                <span class:list={["status-pill", initialIsChurn ? "status-pill--danger" : "status-pill--healthy"]}
-                  id="resultPill">
-                  {initialIsChurn ? '1 — positive' : '0 — negative'}
-                </span>
               </div>
 
-              <dl class="output-stats">
-                <div>
-                  <dt>Raw output</dt>
-                  <dd id="resultRaw">{initialPrediction.prediction}</dd>
-                </div>
-                <div>
-                  <dt>Inference latency</dt>
-                  <dd id="resultLatency">{initialPrediction.latencyMs} ms</dd>
-                </div>
-                <div>
-                  <dt>Schema hash</dt>
-                  <dd id="resultHash" class="mono">a3f8c1b2</dd>
-                </div>
-                <div>
-                  <dt>Artifact</dt>
-                  <dd class="mono">userChurn.onnx</dd>
-                </div>
-              </dl>
+              <div class="preset-bar">
+                <button type="button" class="preset-btn" data-preset="healthy">Healthy user</button>
+                <button type="button" class="preset-btn is-active" data-preset="at-risk">At-risk user</button>
+                <button type="button" class="preset-btn" data-preset="churning">Likely churning</button>
+              </div>
 
-              <p id="resultStatus" class="result-status" aria-live="polite"></p>
+              <form id="inferenceForm" class="inference-form">
+                <div class="field">
+                  <div class="field__header">
+                    <label for="daysSinceActive">Days since last active</label>
+                    <span class="field__val" id="daysVal">{initialInputs.daysSinceActive}</span>
+                  </div>
+                  <input id="daysSinceActive" name="daysSinceActive" type="range"
+                    min="0" max="90" step="1" value={initialInputs.daysSinceActive} />
+                  <div class="field__range-labels"><span>0d</span><span>90d</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="monthlySpend">Monthly spend ($)</label>
+                    <span class="field__val" id="spendVal">{initialInputs.monthlySpend}</span>
+                  </div>
+                  <input id="monthlySpend" name="monthlySpend" type="range"
+                    min="0" max="1000" step="10" value={initialInputs.monthlySpend} />
+                  <div class="field__range-labels"><span>$0</span><span>$1,000</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="supportTickets">Open support tickets</label>
+                    <span class="field__val" id="ticketsVal">{initialInputs.supportTickets}</span>
+                  </div>
+                  <input id="supportTickets" name="supportTickets" type="range"
+                    min="0" max="15" step="1" value={initialInputs.supportTickets} />
+                  <div class="field__range-labels"><span>0</span><span>15</span></div>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Run prediction</button>
+              </form>
             </div>
 
-            <div class="panel latency-panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Latency comparison</p>
-                  <h3>Why in-process matters</h3>
+            <div class="result-stack">
+              <div class="panel result-panel" id="resultPanel"
+                data-tone={initialIsChurn ? 'danger' : 'healthy'}>
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Prediction output</p>
+                    <h3 id="resultLabel">{initialIsChurn ? 'Will churn' : 'Will retain'}</h3>
+                  </div>
+                  <span class:list={["status-pill", initialIsChurn ? "status-pill--danger" : "status-pill--healthy"]}
+                    id="resultPill">
+                    {initialIsChurn ? '1 — positive' : '0 — negative'}
+                  </span>
                 </div>
+
+                <dl class="output-stats">
+                  <div>
+                    <dt>Raw output</dt>
+                    <dd id="resultRaw">{initialPrediction.prediction}</dd>
+                  </div>
+                  <div>
+                    <dt>Inference latency</dt>
+                    <dd id="resultLatency">{initialPrediction.latencyMs} ms</dd>
+                  </div>
+                  <div>
+                    <dt>Schema hash</dt>
+                    <dd id="resultHash" class="mono">a3f8c1b2</dd>
+                  </div>
+                  <div>
+                    <dt>Artifact</dt>
+                    <dd class="mono">userChurn.onnx</dd>
+                  </div>
+                </dl>
+
+                <p id="resultStatus" class="result-status" aria-live="polite"></p>
               </div>
-              <div class="latency-bars">
-                <div class="latency-bar">
-                  <div class="latency-bar__label">
-                    <span>PrisML in-process</span>
-                    <strong id="latencyPrisml" class="latency-bar__ms">{initialPrediction.latencyMs} ms</strong>
-                  </div>
-                  <div class="latency-bar__track">
-                    <div class="latency-bar__fill latency-bar__fill--accent" id="latencyFill"
-                      style={`width: ${Math.min(100, Math.max(1, (initialPrediction.latencyMs / 800) * 100))}%`}></div>
+
+              <div class="panel latency-panel">
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Latency comparison</p>
+                    <h3>Why in-process matters</h3>
                   </div>
                 </div>
-                <div class="latency-bar">
-                  <div class="latency-bar__label">
-                    <span>HTTP microservice</span>
-                    <strong class="latency-bar__ms">~120 ms</strong>
+                <div class="latency-bars">
+                  <div class="latency-bar">
+                    <div class="latency-bar__label">
+                      <span>ScheML in-process</span>
+                      <strong id="latencyPrisml" class="latency-bar__ms">{initialPrediction.latencyMs} ms</strong>
+                    </div>
+                    <div class="latency-bar__track">
+                      <div class="latency-bar__fill latency-bar__fill--accent" id="latencyFill"
+                        style={`width: ${Math.min(100, Math.max(1, (initialPrediction.latencyMs / 800) * 100))}%`}></div>
+                    </div>
                   </div>
-                  <div class="latency-bar__track">
-                    <div class="latency-bar__fill" style="width: 15%"></div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
                   </div>
-                </div>
-                <div class="latency-bar">
-                  <div class="latency-bar__label">
-                    <span>External inference API</span>
-                    <strong class="latency-bar__ms">~400 ms</strong>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
                   </div>
-                  <div class="latency-bar__track">
-                    <div class="latency-bar__fill" style="width: 50%"></div>
-                  </div>
-                </div>
-                <div class="latency-bar">
-                  <div class="latency-bar__label">
-                    <span>Python subprocess</span>
-                    <strong class="latency-bar__ms">~800 ms</strong>
-                  </div>
-                  <div class="latency-bar__track">
-                    <div class="latency-bar__fill" style="width: 100%"></div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
                   </div>
                 </div>
+                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
               </div>
-              <p class="latency-note">Scale: 0 – 800 ms (Python subprocess = 100%). PrisML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
             </div>
+
           </div>
-
         </div>
+
+        <!-- ── ANOMALY PANE ── -->
+        <div class="demo-pane" id="pane-anomaly">
+          <div class="inference-grid">
+
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Feature inputs</p>
+                  <h3>Server metrics model</h3>
+                </div>
+              </div>
+
+              <div class="preset-bar">
+                <button type="button" class="preset-btn anom-preset is-active" data-anom-preset="healthy">Healthy cluster</button>
+                <button type="button" class="preset-btn anom-preset" data-anom-preset="spike">Memory spike</button>
+                <button type="button" class="preset-btn anom-preset" data-anom-preset="critical">Critical state</button>
+              </div>
+
+              <form id="anomalyForm" class="inference-form">
+                <div class="field">
+                  <div class="field__header">
+                    <label for="cpuUsage">CPU usage (%)</label>
+                    <span class="field__val" id="cpuVal">45</span>
+                  </div>
+                  <input id="cpuUsage" name="cpuUsage" type="range" min="0" max="100" step="1" value="45" />
+                  <div class="field__range-labels"><span>0%</span><span>100%</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="memPressure">Memory pressure (%)</label>
+                    <span class="field__val" id="memVal">62</span>
+                  </div>
+                  <input id="memPressure" name="memPressure" type="range" min="0" max="100" step="1" value="62" />
+                  <div class="field__range-labels"><span>0%</span><span>100%</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="errorRate">Error rate (%)</label>
+                    <span class="field__val" id="errVal">0.8</span>
+                  </div>
+                  <input id="errorRate" name="errorRate" type="range" min="0" max="10" step="0.1" value="0.8" />
+                  <div class="field__range-labels"><span>0%</span><span>10%</span></div>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Run inference</button>
+              </form>
+            </div>
+
+            <div class="result-stack">
+              <div class="panel result-panel" id="anomalyResultPanel" data-tone="healthy">
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Anomaly output</p>
+                    <h3 id="anomalyResultLabel">—</h3>
+                  </div>
+                  <span class="status-pill status-pill--healthy" id="anomalyResultPill">—</span>
+                </div>
+
+                <dl class="output-stats">
+                  <div><dt>Anomaly score</dt><dd id="anomalyScore" class="mono">—</dd></div>
+                  <div><dt>Inference latency</dt><dd id="anomalyLatency">—</dd></div>
+                  <div><dt>Algorithm</dt><dd class="mono">isolation_forest</dd></div>
+                  <div><dt>Artifact</dt><dd class="mono">serverMetrics.onnx</dd></div>
+                </dl>
+                <p id="anomalyStatus" class="result-status" aria-live="polite">Hit "Run inference" to see the result.</p>
+              </div>
+
+              <div class="panel latency-panel">
+                <div class="panel__header">
+                  <div><p class="eyebrow">Latency comparison</p><h3>Why in-process matters</h3></div>
+                </div>
+                <div class="latency-bars">
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>ScheML in-process</span><strong id="anomalyLatencyBar" class="latency-bar__ms">—</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="anomalyLatencyFill" style="width: 0%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
+                  </div>
+                </div>
+                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── SIMILARITY PANE ── -->
+        <div class="demo-pane" id="pane-similarity">
+          <div class="inference-grid">
+
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Query</p>
+                  <h3>Product similarity model</h3>
+                </div>
+              </div>
+
+              <div class="preset-bar">
+                <button type="button" class="preset-btn sim-preset is-active" data-sim-preset="laptop">Lightweight laptop</button>
+                <button type="button" class="preset-btn sim-preset" data-sim-preset="audio">Noise cancelling</button>
+                <button type="button" class="preset-btn sim-preset" data-sim-preset="keyboard">Mechanical keyboard</button>
+              </div>
+
+              <form id="simForm" class="inference-form">
+                <div class="field">
+                  <div class="field__header">
+                    <label for="simQuery">Search query</label>
+                  </div>
+                  <input id="simQuery" name="simQuery" type="text"
+                    placeholder="Describe what you're looking for..."
+                    value="lightweight laptop for travel" class="text-input" />
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="simK">Top-K results</label>
+                    <span class="field__val" id="simKVal">5</span>
+                  </div>
+                  <input id="simK" name="simK" type="range" min="1" max="8" step="1" value="5" />
+                  <div class="field__range-labels"><span>1</span><span>8</span></div>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Find similar</button>
+              </form>
+            </div>
+
+            <div class="result-stack">
+              <div class="panel" id="simResultPanel">
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Nearest neighbors</p>
+                    <h3 id="simResultTitle">—</h3>
+                  </div>
+                  <span class="status-pill status-pill--healthy" id="simLatencyPill">—</span>
+                </div>
+                <div id="simResultList" class="result-list"></div>
+                <p id="simStatus" class="result-status" aria-live="polite">Hit "Find similar" to retrieve nearest neighbors.</p>
+              </div>
+
+              <div class="panel latency-panel">
+                <div class="panel__header">
+                  <div><p class="eyebrow">Latency comparison</p><h3>Why in-process matters</h3></div>
+                </div>
+                <div class="latency-bars">
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>ScheML in-process</span><strong id="simLatencyBar" class="latency-bar__ms">—</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="simLatencyFill" style="width: 0%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
+                  </div>
+                </div>
+                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── SEQUENTIAL PANE ── -->
+        <div class="demo-pane" id="pane-sequential">
+          <div class="inference-grid">
+
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Sequence input</p>
+                  <h3>User session model</h3>
+                </div>
+              </div>
+
+              <div class="preset-bar">
+                <button type="button" class="preset-btn seq-preset is-active" data-seq-preset="browse">Browsing session</button>
+                <button type="button" class="preset-btn seq-preset" data-seq-preset="intent">Purchase intent</button>
+                <button type="button" class="preset-btn seq-preset" data-seq-preset="abandon">Abandonment risk</button>
+              </div>
+
+              <form id="seqForm" class="inference-form">
+                <div class="field">
+                  <label class="field__seq-label">Recent event sequence</label>
+                  <div class="seq-events">
+                    <div class="seq-step">
+                      <span class="seq-step-num">1</span>
+                      <select id="seqEv1" name="seqEv1" class="select-input">
+                        <option value="view_product" selected>View Product</option>
+                        <option value="search">Search</option>
+                        <option value="add_cart">Add to Cart</option>
+                        <option value="remove_cart">Remove from Cart</option>
+                        <option value="apply_coupon">Apply Coupon</option>
+                        <option value="checkout">Checkout</option>
+                        <option value="review_page">Review Page</option>
+                      </select>
+                    </div>
+                    <div class="seq-step">
+                      <span class="seq-step-num">2</span>
+                      <select id="seqEv2" name="seqEv2" class="select-input">
+                        <option value="view_product" selected>View Product</option>
+                        <option value="search">Search</option>
+                        <option value="add_cart">Add to Cart</option>
+                        <option value="remove_cart">Remove from Cart</option>
+                        <option value="apply_coupon">Apply Coupon</option>
+                        <option value="checkout">Checkout</option>
+                        <option value="review_page">Review Page</option>
+                      </select>
+                    </div>
+                    <div class="seq-step">
+                      <span class="seq-step-num">3</span>
+                      <select id="seqEv3" name="seqEv3" class="select-input">
+                        <option value="view_product">View Product</option>
+                        <option value="search">Search</option>
+                        <option value="add_cart" selected>Add to Cart</option>
+                        <option value="remove_cart">Remove from Cart</option>
+                        <option value="apply_coupon">Apply Coupon</option>
+                        <option value="checkout">Checkout</option>
+                        <option value="review_page">Review Page</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Predict next action</button>
+              </form>
+            </div>
+
+            <div class="result-stack">
+              <div class="panel" id="seqResultPanel">
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Predicted next action</p>
+                    <h3 id="seqResultTitle">—</h3>
+                  </div>
+                  <span class="status-pill status-pill--healthy" id="seqLatencyPill">—</span>
+                </div>
+                <div class="prob-bars" id="seqProbBars"></div>
+                <dl class="output-stats" style="margin-top: 16px;">
+                  <div><dt>Algorithm</dt><dd class="mono">lstm</dd></div>
+                  <div><dt>Artifact</dt><dd class="mono">userSession.onnx</dd></div>
+                </dl>
+                <p id="seqStatus" class="result-status" aria-live="polite">Hit "Predict next action" to see the result.</p>
+              </div>
+
+              <div class="panel latency-panel">
+                <div class="panel__header">
+                  <div><p class="eyebrow">Latency comparison</p><h3>Why in-process matters</h3></div>
+                </div>
+                <div class="latency-bars">
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>ScheML in-process</span><strong id="seqLatencyBar" class="latency-bar__ms">—</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="seqLatencyFill" style="width: 0%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
+                  </div>
+                </div>
+                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── GENERATIVE PANE ── -->
+        <div class="demo-pane" id="pane-generative">
+          <div class="inference-grid">
+
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Input text</p>
+                  <h3>Content classifier model</h3>
+                </div>
+              </div>
+
+              <div class="preset-bar">
+                <button type="button" class="preset-btn gen-preset is-active" data-gen-preset="review">Product review</button>
+                <button type="button" class="preset-btn gen-preset" data-gen-preset="ticket">Support ticket</button>
+                <button type="button" class="preset-btn gen-preset" data-gen-preset="feedback">User feedback</button>
+              </div>
+
+              <form id="genForm" class="inference-form">
+                <div class="field">
+                  <div class="field__header">
+                    <label for="genText">Text to classify</label>
+                  </div>
+                  <textarea id="genText" name="genText" rows="4" class="text-input"
+                    placeholder="Enter text to classify...">The shipping was fast but the product quality didn't match the description at all. Very disappointed with the value.</textarea>
+                </div>
+
+                <button class="btn btn--primary" type="submit">Classify</button>
+              </form>
+            </div>
+
+            <div class="result-stack">
+              <div class="panel" id="genResultPanel">
+                <div class="panel__header">
+                  <div>
+                    <p class="eyebrow">Label distribution</p>
+                    <h3 id="genResultTitle">—</h3>
+                  </div>
+                  <span class="status-pill status-pill--healthy" id="genLatencyPill">—</span>
+                </div>
+                <div class="prob-bars" id="genProbBars"></div>
+                <dl class="output-stats" style="margin-top: 16px;">
+                  <div><dt>Algorithm</dt><dd class="mono">multinomial_nb</dd></div>
+                  <div><dt>Artifact</dt><dd class="mono">contentClass.onnx</dd></div>
+                </dl>
+                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution.</p>
+              </div>
+
+              <div class="panel latency-panel">
+                <div class="panel__header">
+                  <div><p class="eyebrow">Latency comparison</p><h3>Why in-process matters</h3></div>
+                </div>
+                <div class="latency-bars">
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>ScheML in-process</span><strong id="genLatencyBar" class="latency-bar__ms">—</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="genLatencyFill" style="width: 0%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
+                  </div>
+                  <div class="latency-bar">
+                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
+                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
+                  </div>
+                </div>
+                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -327,7 +666,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <h2 class="section-title">The model knows what schema it was trained on.</h2>
           <p class="section-desc">
             Every artifact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
-            and you try to initialise predictions, <code>PredictionSession</code> throws a typed
+            and you call <code>db.scheml.predict()</code>, ScheML throws a typed
             <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
           </p>
           <div class="artifact-ls drift-ls">
@@ -393,7 +732,7 @@ const result = await db.scheml.predict('userChurn', user);
               <p>
                 The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
                 When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares.
-                A match means the feature definitions are still valid against the live data shape.
+                A match means the feature resolvers are still valid against the live data shape.
               </p>
             </div>
           </div>
@@ -437,10 +776,10 @@ const result = await db.scheml.predict('userChurn', user);
               <span class="code-tab__label">Compile</span>
               <span class="code-tab__file">terminal</span>
             </button>
-            <button class="code-tab" role="tab" aria-selected="false" data-tab="predict">
+            <button class="code-tab" role="tab" aria-selected="false" data-tab="infer">
               <span class="code-tab__num">03</span>
-              <span class="code-tab__label">Predict</span>
-              <span class="code-tab__file">api/predict.ts</span>
+              <span class="code-tab__label">Infer</span>
+              <span class="code-tab__file">api/infer.ts</span>
             </button>
           </div>
           <div class="code-tabs__panels">
@@ -450,7 +789,7 @@ const result = await db.scheml.predict('userChurn', user);
             <div class="code-panel" id="panel-train" role="tabpanel">
               <Code code={trainCode} lang="bash" theme="github-dark" />
             </div>
-            <div class="code-panel" id="panel-predict" role="tabpanel">
+            <div class="code-panel" id="panel-infer" role="tabpanel">
               <Code code={predictCode} lang="ts" theme="github-dark" />
             </div>
           </div>
@@ -470,7 +809,7 @@ const result = await db.scheml.predict('userChurn', user);
               </svg>
             </button>
           </div>
-          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
+          <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
             View source on GitHub
           </a>
         </div>
@@ -482,23 +821,16 @@ const result = await db.scheml.predict('userChurn', user);
     <footer class="footer" transition:name="site-footer">
       <div class="footer__container">
         <div class="footer__left">
-          <svg width="20" height="20" viewBox="-1.5 -1.5 8 8" fill="none" aria-hidden="true" shape-rendering="crispEdges">
-            <rect x="-1.5" y="-1.5" width="8" height="8" rx="1.4" fill="#161616"/>
-            <rect x="0" y="0" width="5" height="1" fill="#f1c21b"/>
-            <rect x="0" y="1" width="1" height="4" fill="#f1c21b"/>
-            <rect x="2" y="1" width="1" height="2" fill="#f1c21b"/>
-            <rect x="4" y="2" width="1" height="3" fill="#f1c21b"/>
-            <rect x="1" y="2" width="1" height="1" fill="#f1c21b"/>
-            <rect x="2" y="4" width="2" height="1" fill="#f1c21b"/>
-          </svg>
-          <span class="footer__name">PrisML</span>
+          <span class="logo-mark logo-mark--sm">
+            <span class="logo-bracket">[</span>scheml<span class="logo-bracket">]</span>
+          </span>
           <span class="footer__sep">·</span>
           <span>MIT License</span>
         </div>
         <div class="footer__right">
-          <span>v0.1.2</span>
+          <span>v0.3.1</span>
           <span class="footer__sep">·</span>
-          <a href="https://github.com/vncsleal/prisml" target="_blank" rel="noopener noreferrer">github.com/vncsleal/prisml</a>
+          <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer">github.com/vncsleal/scheml</a>
         </div>
       </div>
     </footer>
@@ -508,102 +840,470 @@ const result = await db.scheml.predict('userChurn', user);
   <script>
     document.addEventListener('astro:page-load', () => {
 
-      // Range sliders
-      const daysInput = document.getElementById('daysSinceActive') as HTMLInputElement | null;
-      const spendInput = document.getElementById('monthlySpend') as HTMLInputElement | null;
-      const ticketsInput = document.getElementById('supportTickets') as HTMLInputElement | null;
-      const daysVal = document.getElementById('daysVal');
-      const spendVal = document.getElementById('spendVal');
-      const ticketsVal = document.getElementById('ticketsVal');
+      // ── Logo typewriter ──────────────────────────────────────────────
+      const logoInner = document.querySelector('.header__logo .logo-inner') as HTMLElement | null;
+      if (logoInner) {
+        const WORD = 'scheml';
+        const SPEED = 72;
+        const DELAY = 300;
+        logoInner.textContent = '';
+        logoInner.classList.remove('typing');
+        let i = 0;
+        setTimeout(() => {
+          logoInner.classList.add('typing');
+          const iv = setInterval(() => {
+            logoInner.textContent = WORD.slice(0, ++i);
+            if (i >= WORD.length) { clearInterval(iv); logoInner.classList.remove('typing'); }
+          }, SPEED);
+        }, DELAY);
+      }
 
-      daysInput?.addEventListener('input', () => { if (daysVal) daysVal.textContent = daysInput.value; });
-      spendInput?.addEventListener('input', () => { if (spendVal) spendVal.textContent = spendInput.value; });
-      ticketsInput?.addEventListener('input', () => { if (ticketsVal) ticketsVal.textContent = ticketsInput.value; });
-
-      // Presets
-      const presets: Record<string, { days: number; spend: number; tickets: number }> = {
-        healthy:  { days: 3,  spend: 750, tickets: 0  },
-        'at-risk':{ days: 34, spend: 192, tickets: 7  },
-        churning: { days: 70, spend: 45,  tickets: 12 },
+      // ── Trait section header metadata ─────────────────────────────────
+      const TRAIT_META: Record<string, { tag: string; title: string; desc: string }> = {
+        predictive: {
+          tag: 'Live inference · predictive',
+          title: 'Adjust inputs. Get a real prediction.',
+          desc: `Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code> synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.`,
+        },
+        anomaly: {
+          tag: 'Live inference · anomaly',
+          title: 'Detect anomalies in server metrics.',
+          desc: `Adjust the metric sliders to cross anomaly thresholds. The isolation forest model scores each sample in-process — no HTTP round-trip, no serialisation overhead.`,
+        },
+        similarity: {
+          tag: 'Live inference · similarity',
+          title: 'Retrieve the nearest neighbors.',
+          desc: `Type a search query and retrieve the most similar items from the embedded product space. Cosine similarity runs in-process over the compiled embedding index.`,
+        },
+        sequential: {
+          tag: 'Live inference · sequential',
+          title: 'Predict the next event in the sequence.',
+          desc: `Select the recent event chain and the LSTM predicts the next user action. Runs in-process against the compiled userSession artifact — no subprocess, no network.`,
+        },
+        generative: {
+          tag: 'Live inference · generative',
+          title: 'Generate a structured label distribution.',
+          desc: `Enter any text and get a multi-label classification score across five categories. The multinomial classifier runs in-process with zero infrastructure.`,
+        },
       };
 
-      document.querySelectorAll('.preset-btn').forEach((btn) => {
+      // ── Trait tab switching ──────────────────────────────────────────
+      const traitTabs    = document.querySelectorAll('.trait-tab');
+      const inferenceTag   = document.getElementById('inferenceTag');
+      const inferenceTitle = document.getElementById('inferenceTitle');
+      const inferenceDesc  = document.getElementById('inferenceDesc');
+
+      function switchTrait(trait: string) {
+        traitTabs.forEach((t) => {
+          const el = t as HTMLElement;
+          const active = el.dataset.trait === trait;
+          el.classList.toggle('active', active);
+          el.setAttribute('aria-selected', String(active));
+        });
+        document.querySelectorAll('.demo-pane').forEach((p) => {
+          p.classList.toggle('active', p.id === `pane-${trait}`);
+        });
+        const meta = TRAIT_META[trait];
+        if (meta) {
+          if (inferenceTag)   inferenceTag.textContent = meta.tag;
+          if (inferenceTitle) inferenceTitle.textContent = meta.title;
+          if (inferenceDesc)  inferenceDesc.innerHTML = meta.desc;
+        }
+      }
+
+      traitTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const trait = (tab as HTMLElement).dataset.trait ?? 'predictive';
+          switchTrait(trait);
+        });
+      });
+
+      // initialise the active pane
+      const activeTraitTab = document.querySelector('.trait-tab.active') as HTMLElement | null;
+      if (activeTraitTab?.dataset.trait) switchTrait(activeTraitTab.dataset.trait);
+
+      // ── Helpers ──────────────────────────────────────────────────────
+      function flashPanel(el: HTMLElement | null) {
+        if (!el) return;
+        el.classList.remove('result-updated');
+        void el.offsetWidth;
+        el.classList.add('result-updated');
+        el.addEventListener('animationend', () => el.classList.remove('result-updated'), { once: true });
+      }
+
+      function updateLatencyBar(barEl: HTMLElement | null, fillEl: HTMLElement | null, ms: number) {
+        if (barEl) barEl.textContent = `${ms} ms`;
+        if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(1, (ms / 800) * 100))}%`;
+      }
+
+      function simDelay(minMs: number, maxMs: number): Promise<number> {
+        const ms = minMs + Math.random() * (maxMs - minMs);
+        return new Promise<number>((resolve) => setTimeout(() => resolve(parseFloat(ms.toFixed(2))), 60));
+      }
+
+      // ── PREDICTIVE ───────────────────────────────────────────────────
+      const daysInput   = document.getElementById('daysSinceActive') as HTMLInputElement | null;
+      const spendInput  = document.getElementById('monthlySpend') as HTMLInputElement | null;
+      const ticketsInput = document.getElementById('supportTickets') as HTMLInputElement | null;
+      const daysVal     = document.getElementById('daysVal');
+      const spendVal    = document.getElementById('spendVal');
+      const ticketsVal  = document.getElementById('ticketsVal');
+
+      daysInput?.addEventListener('input', () => { if (daysVal) daysVal.textContent = daysInput!.value; });
+      spendInput?.addEventListener('input', () => { if (spendVal) spendVal.textContent = spendInput!.value; });
+      ticketsInput?.addEventListener('input', () => { if (ticketsVal) ticketsVal.textContent = ticketsInput!.value; });
+
+      const presets: Record<string, { days: number; spend: number; tickets: number }> = {
+        'healthy':  { days: 3,  spend: 750, tickets: 0  },
+        'at-risk':  { days: 34, spend: 192, tickets: 7  },
+        'churning': { days: 70, spend: 45,  tickets: 12 },
+      };
+      document.querySelectorAll('.preset-btn[data-preset]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const key = (btn as HTMLElement).dataset.preset ?? '';
-          const p = presets[key];
-          if (!p) return;
+          const p = presets[key]; if (!p) return;
           if (daysInput)    { daysInput.value    = String(p.days);    if (daysVal)    daysVal.textContent    = String(p.days); }
           if (spendInput)   { spendInput.value   = String(p.spend);   if (spendVal)   spendVal.textContent   = String(p.spend); }
           if (ticketsInput) { ticketsInput.value = String(p.tickets); if (ticketsVal) ticketsVal.textContent = String(p.tickets); }
-          document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('is-active'));
+          document.querySelectorAll('.preset-btn[data-preset]').forEach((b) => b.classList.remove('is-active'));
           btn.classList.add('is-active');
         });
       });
 
-      // Inference form
-      const form = document.getElementById('inferenceForm');
-      const resultPanel = document.getElementById('resultPanel');
-      const resultLabel = document.getElementById('resultLabel');
-      const resultPill  = document.getElementById('resultPill');
-      const resultRaw   = document.getElementById('resultRaw');
-      const resultLatency = document.getElementById('resultLatency');
-      const resultStatus  = document.getElementById('resultStatus');
-      const latencyPrisml = document.getElementById('latencyPrisml');
-      const latencyFill   = document.getElementById('latencyFill');
-      const submitBtn = form?.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+      const inferenceForm  = document.getElementById('inferenceForm');
+      const resultPanel    = document.getElementById('resultPanel');
+      const resultLabel    = document.getElementById('resultLabel');
+      const resultPill     = document.getElementById('resultPill');
+      const resultRaw      = document.getElementById('resultRaw');
+      const resultLatency  = document.getElementById('resultLatency');
+      const resultStatus   = document.getElementById('resultStatus');
+      const latencyPrisml  = document.getElementById('latencyPrisml');
+      const latencyFill    = document.getElementById('latencyFill');
 
-      form?.addEventListener('submit', async (e) => {
+      inferenceForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (submitBtn) { submitBtn.textContent = 'Running...'; submitBtn.disabled = true; }
+        const btn = inferenceForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) { btn.textContent = 'Running...'; btn.disabled = true; }
         if (resultStatus) resultStatus.textContent = '';
-
         try {
           const payload = {
             daysSinceActive: Number(daysInput?.value ?? 0),
             monthlySpend:    Number(spendInput?.value  ?? 0),
             supportTickets:  Number(ticketsInput?.value ?? 0),
           };
-
-          const res  = await fetch('/api/demo/predict', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          const res  = await fetch('/api/demo/predict', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
           const data = await res.json();
           if (!data.ok) throw new Error(data.error ?? 'Prediction failed');
-
-          const isChurn  = String(data.prediction.prediction) === '1';
+          const isChurn   = String(data.prediction.prediction) === '1';
           const latencyMs = data.prediction.latencyMs ?? 0;
-
           if (resultPanel)  resultPanel.dataset.tone = isChurn ? 'danger' : 'healthy';
           if (resultLabel)  resultLabel.textContent  = isChurn ? 'Will churn' : 'Will retain';
-          if (resultPill) {
-            resultPill.textContent = isChurn ? '1 — positive' : '0 — negative';
-            resultPill.className   = `status-pill ${isChurn ? 'status-pill--danger' : 'status-pill--healthy'}`;
-          }
-          if (resultRaw)     resultRaw.textContent     = String(data.prediction.prediction);
+          if (resultPill) { resultPill.textContent = isChurn ? '1 — positive' : '0 — negative'; resultPill.className = `status-pill ${isChurn ? 'status-pill--danger' : 'status-pill--healthy'}`; }
+          if (resultRaw)     resultRaw.textContent  = String(data.prediction.prediction);
           if (resultLatency) resultLatency.textContent = `${latencyMs} ms`;
-          if (latencyPrisml) latencyPrisml.textContent = `${latencyMs} ms`;
-          if (latencyFill)   latencyFill.style.width   = `${Math.min(100, Math.max(1, (latencyMs / 800) * 100))}%`;
-
-          // Flash the result panel to signal a fresh result
-          if (resultPanel) {
-            resultPanel.classList.remove('result-updated');
-            void resultPanel.offsetWidth; // force reflow so animation retriggers
-            resultPanel.classList.add('result-updated');
-            resultPanel.addEventListener('animationend', () => {
-              resultPanel.classList.remove('result-updated');
-            }, { once: true });
-          }
-
+          updateLatencyBar(latencyPrisml, latencyFill, latencyMs);
+          flashPanel(resultPanel);
         } catch (err) {
           if (resultStatus) resultStatus.textContent = err instanceof Error ? err.message : 'Request failed';
         } finally {
-          if (submitBtn) { submitBtn.textContent = 'Run prediction'; submitBtn.disabled = false; }
+          if (btn) { btn.textContent = 'Run prediction'; btn.disabled = false; }
         }
       });
 
-      // Schema drift toggle
+      // ── ANOMALY ───────────────────────────────────────────────────────
+      const cpuInput  = document.getElementById('cpuUsage') as HTMLInputElement | null;
+      const memInput  = document.getElementById('memPressure') as HTMLInputElement | null;
+      const errInput  = document.getElementById('errorRate') as HTMLInputElement | null;
+      const cpuVal    = document.getElementById('cpuVal');
+      const memVal    = document.getElementById('memVal');
+      const errVal    = document.getElementById('errVal');
+
+      cpuInput?.addEventListener('input', () => { if (cpuVal) cpuVal.textContent = cpuInput!.value; });
+      memInput?.addEventListener('input', () => { if (memVal) memVal.textContent = memInput!.value; });
+      errInput?.addEventListener('input', () => { if (errVal) errVal.textContent = errInput!.value; });
+
+      const anomPresets: Record<string, { cpu: number; mem: number; err: number }> = {
+        healthy:  { cpu: 45,  mem: 62,  err: 0.8 },
+        spike:    { cpu: 55,  mem: 94,  err: 1.2 },
+        critical: { cpu: 92,  mem: 97,  err: 7.4 },
+      };
+      document.querySelectorAll('.anom-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = (btn as HTMLElement).dataset.anomPreset ?? '';
+          const p = anomPresets[key]; if (!p) return;
+          if (cpuInput) { cpuInput.value = String(p.cpu); if (cpuVal) cpuVal.textContent = String(p.cpu); }
+          if (memInput) { memInput.value = String(p.mem); if (memVal) memVal.textContent = String(p.mem); }
+          if (errInput) { errInput.value = String(p.err); if (errVal) errVal.textContent = String(p.err); }
+          document.querySelectorAll('.anom-preset').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        });
+      });
+
+      function simAnomaly(cpu: number, mem: number, err: number) {
+        const n = (v: number, lo: number, hi: number) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+        const score = Math.min(1, n(cpu, 55, 100) * 0.40 + n(mem, 70, 100) * 0.35 + n(err, 1, 10) * 0.25);
+        return parseFloat((score + (Math.random() - 0.5) * 0.02).toFixed(3));
+      }
+
+      const anomalyForm = document.getElementById('anomalyForm');
+      anomalyForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = anomalyForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) { btn.textContent = 'Running...'; btn.disabled = true; }
+        const latencyMs = await simDelay(0.18, 0.52);
+        const cpu = Number(cpuInput?.value ?? 45);
+        const mem = Number(memInput?.value ?? 62);
+        const err = Number(errInput?.value ?? 0.8);
+        const score = simAnomaly(cpu, mem, err);
+        const isAnom = score > 0.45;
+        const panel  = document.getElementById('anomalyResultPanel');
+        if (panel) panel.dataset.tone = isAnom ? 'danger' : 'healthy';
+        const lbl = document.getElementById('anomalyResultLabel');
+        if (lbl) lbl.textContent = isAnom ? 'Anomaly detected' : 'Normal';
+        const pill = document.getElementById('anomalyResultPill');
+        if (pill) { pill.textContent = isAnom ? '1 — anomaly' : '0 — normal'; pill.className = `status-pill ${isAnom ? 'status-pill--danger' : 'status-pill--healthy'}`; }
+        const sc = document.getElementById('anomalyScore');
+        if (sc) sc.textContent = String(score);
+        const lat = document.getElementById('anomalyLatency');
+        if (lat) lat.textContent = `${latencyMs} ms`;
+        updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), latencyMs);
+        const st = document.getElementById('anomalyStatus'); if (st) st.textContent = '';
+        flashPanel(panel);
+        if (btn) { btn.textContent = 'Run inference'; btn.disabled = false; }
+      });
+
+      // ── SIMILARITY ────────────────────────────────────────────────────
+      const SIM_PRODUCTS = [
+        { name: 'ThinkPad X1 Carbon',    cat: 'Laptop',    tags: ['laptop','lightweight','portable','travel','ultrabook','thin','business'] },
+        { name: 'Dell XPS 13',           cat: 'Laptop',    tags: ['laptop','lightweight','portable','display','compact','thin','design'] },
+        { name: 'MacBook Air M3',        cat: 'Laptop',    tags: ['laptop','lightweight','apple','battery','portable','silent','m-chip'] },
+        { name: 'Sony WH-1000XM5',       cat: 'Audio',     tags: ['headphones','noise','cancelling','wireless','audio','sony','premium'] },
+        { name: 'Bose QuietComfort 45',  cat: 'Audio',     tags: ['headphones','noise','cancelling','quiet','comfort','audio','bose'] },
+        { name: 'AirPods Pro 2',         cat: 'Audio',     tags: ['earbuds','noise','cancelling','apple','wireless','portable','small'] },
+        { name: 'Keychron Q3',           cat: 'Keyboard',  tags: ['keyboard','mechanical','typing','aluminum','tenkeyless','qmk'] },
+        { name: 'HHKB Professional',     cat: 'Keyboard',  tags: ['keyboard','mechanical','typing','programming','compact','premium'] },
+        { name: 'Logitech MX Keys',      cat: 'Keyboard',  tags: ['keyboard','wireless','typing','productivity','rechargeable','quiet'] },
+        { name: 'iPad Pro M4',           cat: 'Tablet',    tags: ['tablet','portable','apple','display','drawing','lightweight','m-chip'] },
+        { name: 'Samsung Galaxy Tab S9', cat: 'Tablet',    tags: ['tablet','portable','android','display','drawing','lightweight'] },
+        { name: 'Dell U2722D',           cat: 'Monitor',   tags: ['monitor','display','productivity','4k','usb-c','wide'] },
+      ];
+
+      const simPresetTexts: Record<string, string> = {
+        laptop:   'lightweight laptop for travel',
+        audio:    'noise cancelling headphones wireless',
+        keyboard: 'mechanical keyboard for programming',
+      };
+
+      const simQueryInput = document.getElementById('simQuery') as HTMLInputElement | null;
+      const simKInput     = document.getElementById('simK') as HTMLInputElement | null;
+      const simKVal       = document.getElementById('simKVal');
+
+      simKInput?.addEventListener('input', () => { if (simKVal) simKVal.textContent = simKInput!.value; });
+
+      document.querySelectorAll('.sim-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = (btn as HTMLElement).dataset.simPreset ?? '';
+          if (simQueryInput && simPresetTexts[key]) simQueryInput.value = simPresetTexts[key];
+          document.querySelectorAll('.sim-preset').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        });
+      });
+
+      function simSimilarity(query: string, k: number) {
+        const qWords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+        return SIM_PRODUCTS.map((p) => {
+          const tagHits  = p.tags.filter((t) => qWords.some((w) => t.includes(w) || w.includes(t))).length;
+          const nameHits = qWords.filter((w) => p.name.toLowerCase().includes(w)).length;
+          const raw = tagHits * 0.14 + nameHits * 0.22 + Math.random() * 0.06;
+          return { ...p, score: parseFloat(Math.min(0.99, Math.max(0.08, raw)).toFixed(3)) };
+        }).sort((a, b) => b.score - a.score).slice(0, k);
+      }
+
+      const simForm = document.getElementById('simForm');
+      simForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = simForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) { btn.textContent = 'Searching...'; btn.disabled = true; }
+        const latencyMs = await simDelay(0.30, 0.72);
+        const query = simQueryInput?.value.trim() || 'laptop';
+        const k     = Number(simKInput?.value ?? 5);
+        const results = simSimilarity(query, k);
+        const list = document.getElementById('simResultList');
+        if (list) {
+          list.innerHTML = results.map((r, i) => `
+            <div class="result-item">
+              <div class="result-item__left">
+                <span class="result-item__name">${r.name}</span>
+                <span class="result-item__cat">${r.cat}</span>
+              </div>
+              <span class="result-item__score">${r.score.toFixed(3)}</span>
+            </div>
+          `).join('');
+        }
+        const title = document.getElementById('simResultTitle');
+        if (title) title.textContent = `Top ${results.length} matches`;
+        const latPill = document.getElementById('simLatencyPill');
+        if (latPill) latPill.textContent = `${latencyMs} ms`;
+        updateLatencyBar(document.getElementById('simLatencyBar'), document.getElementById('simLatencyFill'), latencyMs);
+        const st = document.getElementById('simStatus'); if (st) st.textContent = '';
+        flashPanel(document.getElementById('simResultPanel'));
+        if (btn) { btn.textContent = 'Find similar'; btn.disabled = false; }
+      });
+
+      // ── SEQUENTIAL ────────────────────────────────────────────────────
+      const EVENT_LABELS: Record<string, string> = {
+        view_product:  'View Product',
+        search:        'Search',
+        add_cart:      'Add to Cart',
+        remove_cart:   'Remove from Cart',
+        apply_coupon:  'Apply Coupon',
+        checkout:      'Checkout',
+        review_page:   'Review Page',
+      };
+
+      const SEQ_TABLE: Record<string, Record<string, number>> = {
+        'view_product,view_product,add_cart':    { checkout: 0.42, apply_coupon: 0.28, view_product: 0.18, remove_cart: 0.12 },
+        'view_product,view_product,view_product':{ view_product: 0.35, add_cart: 0.30, search: 0.25, checkout: 0.10 },
+        'search,view_product,add_cart':          { checkout: 0.45, apply_coupon: 0.28, view_product: 0.17, search: 0.10 },
+        'add_cart,remove_cart,view_product':     { search: 0.38, view_product: 0.32, add_cart: 0.20, checkout: 0.10 },
+        'view_product,add_cart,checkout':        { review_page: 0.58, view_product: 0.24, checkout: 0.18 },
+        'search,search,view_product':            { add_cart: 0.40, view_product: 0.30, search: 0.20, checkout: 0.10 },
+        'checkout,review_page,view_product':     { view_product: 0.42, add_cart: 0.30, search: 0.18, checkout: 0.10 },
+      };
+
+      const seqPresets: Record<string, { ev1: string; ev2: string; ev3: string }> = {
+        browse:  { ev1: 'view_product', ev2: 'view_product', ev3: 'view_product' },
+        intent:  { ev1: 'search',       ev2: 'view_product', ev3: 'add_cart' },
+        abandon: { ev1: 'add_cart',     ev2: 'remove_cart',  ev3: 'view_product' },
+      };
+
+      const seqEv1 = document.getElementById('seqEv1') as HTMLSelectElement | null;
+      const seqEv2 = document.getElementById('seqEv2') as HTMLSelectElement | null;
+      const seqEv3 = document.getElementById('seqEv3') as HTMLSelectElement | null;
+
+      document.querySelectorAll('.seq-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = (btn as HTMLElement).dataset.seqPreset ?? '';
+          const p = seqPresets[key]; if (!p) return;
+          if (seqEv1) seqEv1.value = p.ev1;
+          if (seqEv2) seqEv2.value = p.ev2;
+          if (seqEv3) seqEv3.value = p.ev3;
+          document.querySelectorAll('.seq-preset').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        });
+      });
+
+      function simSeq(ev1: string, ev2: string, ev3: string) {
+        const key = `${ev1},${ev2},${ev3}`;
+        const table = SEQ_TABLE[key] ?? { view_product: 0.30, search: 0.25, add_cart: 0.25, checkout: 0.20 };
+        return Object.entries(table).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      }
+
+      const seqForm = document.getElementById('seqForm');
+      seqForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = seqForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) { btn.textContent = 'Predicting...'; btn.disabled = true; }
+        const latencyMs = await simDelay(0.28, 0.58);
+        const ev1 = seqEv1?.value ?? 'view_product';
+        const ev2 = seqEv2?.value ?? 'view_product';
+        const ev3 = seqEv3?.value ?? 'add_cart';
+        const results = simSeq(ev1, ev2, ev3);
+        const barsEl = document.getElementById('seqProbBars');
+        if (barsEl) {
+          barsEl.innerHTML = results.map(([event, prob], i) => `
+            <div class="prob-bar">
+              <div class="prob-bar__header">
+                <span class="prob-bar__label">${EVENT_LABELS[event] ?? event}</span>
+                <span class="prob-bar__pct">${(prob * 100).toFixed(0)}%</span>
+              </div>
+              <div class="prob-bar__track">
+                <div class="prob-bar__fill${i === 0 ? ' prob-bar__fill--top' : ''}" style="width: ${(prob * 100).toFixed(1)}%"></div>
+              </div>
+            </div>
+          `).join('');
+        }
+        const title = document.getElementById('seqResultTitle');
+        if (title) title.textContent = EVENT_LABELS[results[0]?.[0] ?? ''] ?? '—';
+        const latPill = document.getElementById('seqLatencyPill');
+        if (latPill) latPill.textContent = `${latencyMs} ms`;
+        updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), latencyMs);
+        const st = document.getElementById('seqStatus'); if (st) st.textContent = '';
+        flashPanel(document.getElementById('seqResultPanel'));
+        if (btn) { btn.textContent = 'Predict next action'; btn.disabled = false; }
+      });
+
+      // ── GENERATIVE ────────────────────────────────────────────────────
+      const GEN_LABELS = ['Negative sentiment', 'Positive sentiment', 'Shipping concern', 'Quality feedback', 'Support needed'];
+      const GEN_PATTERNS: Record<string, string[]> = {
+        'Negative sentiment': ['disappoint','poor',"didn't",'bad','terrible','issue','wrong','broken','worst','hate'],
+        'Positive sentiment': ['great','excellent','amazing','love','perfect','fast','wonderful','best','recommend','happy'],
+        'Shipping concern':   ['ship','deliver','packag','fast','quick','late','arrived','tracking','dispatch','delay'],
+        'Quality feedback':   ['quality','material','durable','solid','cheap','flimsy','premium','build','finish','defect'],
+        'Support needed':     ['support','help','service','response','ticket','agent','resolve','contact','fix','refund'],
+      };
+
+      const genPresets: Record<string, string> = {
+        review:   "The shipping was fast but the product quality didn't match the description at all. Very disappointed with the value.",
+        ticket:   'My order arrived damaged. I need help getting a replacement. Support has not responded in 3 days.',
+        feedback: 'Absolutely love this product! Build quality is excellent and it arrived two days early. Highly recommend.',
+      };
+
+      const genText = document.getElementById('genText') as HTMLTextAreaElement | null;
+
+      document.querySelectorAll('.gen-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = (btn as HTMLElement).dataset.genPreset ?? '';
+          if (genText && genPresets[key]) genText.value = genPresets[key];
+          document.querySelectorAll('.gen-preset').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        });
+      });
+
+      function simClassify(text: string): Array<[string, number]> {
+        const t = text.toLowerCase();
+        const rawScores = GEN_LABELS.map((label) => {
+          const pats = GEN_PATTERNS[label] ?? [];
+          const hits = pats.filter((p) => t.includes(p)).length;
+          return [label, hits / (pats.length || 1) + Math.random() * 0.06] as [string, number];
+        });
+        const total = rawScores.reduce((s, [, v]) => s + v, 0) || 1;
+        return rawScores.map(([l, v]) => [l, parseFloat((v / total).toFixed(3))]).sort((a, b) => b[1] - a[1]);
+      }
+
+      const genForm = document.getElementById('genForm');
+      genForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = genForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) { btn.textContent = 'Classifying...'; btn.disabled = true; }
+        const latencyMs = await simDelay(0.12, 0.38);
+        const text = genText?.value.trim() || '';
+        const results = simClassify(text);
+        const barsEl = document.getElementById('genProbBars');
+        if (barsEl) {
+          barsEl.innerHTML = results.map(([label, prob], i) => `
+            <div class="prob-bar">
+              <div class="prob-bar__header">
+                <span class="prob-bar__label">${label}</span>
+                <span class="prob-bar__pct">${(prob * 100).toFixed(1)}%</span>
+              </div>
+              <div class="prob-bar__track">
+                <div class="prob-bar__fill${i === 0 ? ' prob-bar__fill--top' : ''}" style="width: ${(prob * 100).toFixed(1)}%"></div>
+              </div>
+            </div>
+          `).join('');
+        }
+        const title = document.getElementById('genResultTitle');
+        if (title) title.textContent = results[0]?.[0] ?? '—';
+        const latPill = document.getElementById('genLatencyPill');
+        if (latPill) latPill.textContent = `${latencyMs} ms`;
+        updateLatencyBar(document.getElementById('genLatencyBar'), document.getElementById('genLatencyFill'), latencyMs);
+        const st = document.getElementById('genStatus'); if (st) st.textContent = '';
+        flashPanel(document.getElementById('genResultPanel'));
+        if (btn) { btn.textContent = 'Classify'; btn.disabled = false; }
+      });
+
+      // ── SCHEMA DRIFT TOGGLE ──────────────────────────────────────────
       const driftToggle      = document.getElementById('driftToggle');
       const driftToggleLabel = document.getElementById('driftToggleLabel');
       const driftOutput      = document.getElementById('driftOutput');
@@ -633,31 +1333,20 @@ const result = await db.scheml.predict('userChurn', user); // schema now hashes 
         driftActive = !driftActive;
         driftToggle.setAttribute('aria-pressed', String(driftActive));
         driftToggle.classList.toggle('is-active', driftActive);
-
         if (driftToggleLabel) driftToggleLabel.textContent = driftActive ? 'Schema has changed' : 'Schema matches artifact';
         if (schemaDiff) schemaDiff.setAttribute('aria-hidden', String(!driftActive));
         if (driftResultTitle) driftResultTitle.textContent = driftActive ? 'SchemaDriftError thrown' : 'Prediction runs normally';
-        if (driftResultPill) {
-          driftResultPill.textContent = driftActive ? 'Error' : 'OK';
-          driftResultPill.className   = `status-pill ${driftActive ? 'status-pill--danger' : 'status-pill--healthy'}`;
-        }
+        if (driftResultPill) { driftResultPill.textContent = driftActive ? 'Error' : 'OK'; driftResultPill.className = `status-pill ${driftActive ? 'status-pill--danger' : 'status-pill--healthy'}`; }
         if (driftOutputCode) driftOutputCode.textContent = driftActive ? errorCode : normalCode;
-        if (driftOutput) {
-          if (driftActive) driftOutput.setAttribute('data-tone', 'danger');
-          else driftOutput.removeAttribute('data-tone');
-        }
+        if (driftOutput) { if (driftActive) driftOutput.setAttribute('data-tone', 'danger'); else driftOutput.removeAttribute('data-tone'); }
         if (driftExplanation) {
           driftExplanation.innerHTML = driftActive
-            ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>.
-PrisML catches the mismatch in <code>session.load()</code> and throws <code>SchemaDriftError</code>
-before running a single inference. You are forced to retrain — no silent model incorrectness.</p>`
-            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-When calling <code>session.load()</code>, PrisML re-hashes the current schema file and compares.
-A match means the feature resolvers are still valid against the live data shape.</p>`;
+            ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>. ScheML catches the mismatch before running any inference and throws <code>SchemaDriftError</code>. You are forced to retrain — no silent model incorrectness.</p>`
+            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time. When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares. A match means the feature resolvers are still valid against the live data shape.</p>`;
         }
       });
 
-      // Code tabs
+      // ── CODE TABS ────────────────────────────────────────────────────
       const tabs   = document.querySelectorAll('.code-tab');
       const panels = document.querySelectorAll('.code-panel');
       tabs.forEach((tab) => {
@@ -667,11 +1356,11 @@ A match means the feature resolvers are still valid against the live data shape.
           panels.forEach((p) => p.classList.remove('active'));
           tab.classList.add('active');
           tab.setAttribute('aria-selected', 'true');
-          document.getElementById(`panel-${target}`)?.classList.add('active');
+          document.getElementById(`panel-${target === 'predict' ? 'infer' : target}`)?.classList.add('active');
         });
       });
 
-      // Copy install command
+      // ── COPY INSTALL COMMAND ─────────────────────────────────────────
       const copyBtn    = document.getElementById('copyBtn');
       const installCmd = document.getElementById('installCmd');
       copyBtn?.addEventListener('click', async () => {
@@ -680,7 +1369,7 @@ A match means the feature resolvers are still valid against the live data shape.
         setTimeout(() => installCmd?.classList.remove('copied'), 2000);
       });
 
-      // Mobile menu
+      // ── MOBILE MENU ──────────────────────────────────────────────────
       const menuBtn = document.getElementById('menuBtn');
       const header  = document.querySelector('.header');
       menuBtn?.addEventListener('click', () => header?.classList.toggle('header--open'));
@@ -688,24 +1377,20 @@ A match means the feature resolvers are still valid against the live data shape.
         link.addEventListener('click', () => header?.classList.remove('header--open'));
       });
 
-      // Header scroll — observe hero exit
+      // ── HEADER SCROLL ────────────────────────────────────────────────
       const heroSection = document.querySelector('.hero');
       const headerEl = document.querySelector('.header') as HTMLElement | null;
       if (heroSection && headerEl) {
-        const heroObs = new IntersectionObserver(
+        new IntersectionObserver(
           ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
-          { threshold: 0, rootMargin: '0px 0px 0px 0px' }
-        );
-        heroObs.observe(heroSection);
+          { threshold: 0 }
+        ).observe(heroSection);
       }
 
-      // Scroll reveal for below-fold sections
+      // ── SCROLL REVEAL ────────────────────────────────────────────────
       const revealObs = new IntersectionObserver((entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add('revealed');
-            revealObs.unobserve(e.target);
-          }
+          if (e.isIntersecting) { e.target.classList.add('revealed'); revealObs.unobserve(e.target); }
         });
       }, { threshold: 0.06, rootMargin: '0px 0px -32px 0px' });
 
@@ -713,6 +1398,7 @@ A match means the feature resolvers are still valid against the live data shape.
         el.classList.add('reveal-pending');
         revealObs.observe(el);
       });
+
     });
   </script>
 
@@ -751,7 +1437,156 @@ A match means the feature resolvers are still valid against the live data shape.
     }
     .page { min-height: 100vh; display: flex; flex-direction: column; }
 
-    /* Header */
+    /* Logo mark */
+    .logo-mark {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .logo-mark--sm { font-size: 13px; color: var(--text-secondary); }
+    .logo-bracket { color: var(--amber-50); font-weight: 400; }
+
+    /* Trait tabs (hero) */
+    .trait-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 28px;
+    }
+    .trait-tab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 14px;
+      background: none;
+      color: var(--text-placeholder);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: color 120ms, border-color 120ms, background 120ms;
+      letter-spacing: 0.04em;
+    }
+    .trait-tab:hover { color: var(--text-primary); border-color: var(--gray-70); }
+    .trait-tab.active {
+      background: rgba(61,46,0,0.7);
+      color: var(--amber-40);
+      border-color: rgba(241,194,27,0.2);
+    }
+
+    /* Demo panes */
+    .demo-pane { display: none; }
+    .demo-pane.active { display: block; }
+
+    /* Text / textarea / select inputs */
+    .text-input {
+      width: 100%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 120ms;
+      appearance: none;
+    }
+    .text-input:focus { border-color: var(--amber-60); }
+    textarea.text-input { resize: vertical; min-height: 88px; }
+    .select-input {
+      width: 100%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    .select-input:focus { border-color: var(--amber-60); }
+
+    /* Sequential event selectors */
+    .field__seq-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+    .seq-events { display: flex; flex-direction: column; gap: 8px; }
+    .seq-step { display: flex; align-items: center; gap: 10px; }
+    .seq-step-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-placeholder);
+      min-width: 16px;
+      text-align: center;
+    }
+
+    /* Probability bars (sequential / generative) */
+    .prob-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .prob-bar { }
+    .prob-bar__header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+    .prob-bar__label { color: var(--text-secondary); }
+    .prob-bar__pct { font-family: var(--font-mono); color: var(--amber-40); }
+    .prob-bar__track {
+      height: 3px;
+      background: var(--bg-elevated);
+      overflow: hidden;
+    }
+    .prob-bar__fill {
+      height: 100%;
+      background: var(--gray-70);
+      transition: width 350ms ease;
+    }
+    .prob-bar__fill--top { background: var(--amber-50); }
+
+    /* Similarity result list */
+    .result-list { display: flex; flex-direction: column; gap: 5px; margin-top: 16px; }
+    .result-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      font-size: 13px;
+    }
+    .result-item__left { display: flex; align-items: center; gap: 8px; }
+    .result-item__name { color: var(--text-primary); }
+    .result-item__cat {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-placeholder);
+      padding: 1px 6px;
+      background: var(--bg);
+      border: 1px solid var(--border-subtle);
+    }
+    .result-item__score {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--amber-40);
+    }
+
+    /* Hero trait pills (kept for reference) */
+    .hero-trait-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 24px;
+    }
+    .trait-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 10px;
+      background: var(--bg-elevated);
+      color: var(--text-placeholder);
+      border: 1px solid var(--border-subtle);
+      letter-spacing: 0.02em;
+    }
+    .trait-pill--active {
+      background: rgba(61,46,0,0.7);
+      color: var(--amber-40);
+      border-color: rgba(241,194,27,0.2);
+    }
+
+        /* Header */
     .header {
       position: sticky; top: 0; z-index: 100;
       height: var(--header-height); background: var(--bg);
@@ -771,8 +1606,13 @@ A match means the feature resolvers are still valid against the live data shape.
     }
     .header__logo {
       display: flex; align-items: center; gap: var(--sp-2);
-      font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
-      color: var(--text-primary); text-decoration: none;
+      text-decoration: none;
+    }
+    .logo-inner.typing::after {
+      content: '|';
+      color: inherit;
+      font-weight: 400;
+      animation: cursor-blink 0.55s step-end infinite;
     }
     .header__nav { display: flex; align-items: center; }
     .header__nav a {
@@ -1116,11 +1956,11 @@ A match means the feature resolvers are still valid against the live data shape.
     /* Scroll reveal (applied by JS) */
     .reveal-pending {
       opacity: 0;
-      transform: translateY(10px);
-      transition: opacity 400ms ease, transform 400ms ease;
+      transform: translateY(22px);
+      transition: opacity 560ms cubic-bezier(0.22,1,0.36,1), transform 560ms cubic-bezier(0.22,1,0.36,1);
     }
-    .reveal-pending:nth-child(2) { transition-delay: 80ms; }
-    .reveal-pending:nth-child(3) { transition-delay: 160ms; }
+    .reveal-pending:nth-child(2) { transition-delay: 140ms; }
+    .reveal-pending:nth-child(3) { transition-delay: 280ms; }
     .reveal-pending.revealed {
       opacity: 1;
       transform: translateY(0);
@@ -1158,9 +1998,10 @@ A match means the feature resolvers are still valid against the live data shape.
     .footer__sep { opacity: 0.4; }
 
     /* Animations */
-    .anim-fade-up { opacity: 0; transform: translateY(16px); animation: fadeUp 600ms ease forwards; }
-    .anim-delay-1 { animation-delay: 120ms; }
-    .anim-delay-2 { animation-delay: 240ms; }
+    .anim-fade-up { opacity: 0; transform: translateY(28px); animation: fadeUp 720ms cubic-bezier(0.22,1,0.36,1) forwards; }
+    .anim-delay-1 { animation-delay: 160ms; }
+    .anim-delay-2 { animation-delay: 340ms; }
+    .anim-delay-3 { animation-delay: 520ms; }
     @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
 
     /* Responsive */
