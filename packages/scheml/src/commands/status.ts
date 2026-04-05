@@ -31,7 +31,11 @@ function listMetadataFiles(outputDir: string): string[] {
 }
 
 function parseMetadata(pathname: string): any {
-  return JSON.parse(fs.readFileSync(pathname, 'utf-8'));
+  try {
+    return JSON.parse(fs.readFileSync(pathname, 'utf-8'));
+  } catch {
+    return null;
+  }
 }
 
 function createStatusItem(outputDir: string, metadata: any): StatusItem {
@@ -75,9 +79,12 @@ export const statusCommand = {
     const outputDir = path.resolve(argv.output);
     const jsonMode = argv.json as boolean;
 
-    const items = listMetadataFiles(outputDir).map((filePath) =>
-      createStatusItem(outputDir, parseMetadata(filePath))
-    );
+    const items = listMetadataFiles(outputDir)
+      .map((filePath) => {
+        const m = parseMetadata(filePath);
+        return m ? createStatusItem(outputDir, m) : null;
+      })
+      .filter((item): item is StatusItem => item !== null);
 
     const summary = {
       total: items.length,

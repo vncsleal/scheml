@@ -14,6 +14,15 @@ import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { readHistoryRecords, type HistoryRecord } from '../history';
 
+function sanitizeTraitName(name: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(
+      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
+    );
+  }
+  return name;
+}
+
 // ---------------------------------------------------------------------------
 // Change detection
 // ---------------------------------------------------------------------------
@@ -124,7 +133,7 @@ export const diffCommand = {
       }),
 
   handler: async (argv: any) => {
-    const traitName = argv.trait as string;
+    const traitName = sanitizeTraitName(argv.trait as string);
     const outputDir = path.resolve(argv.output as string);
     const jsonMode = argv.json as boolean;
 
@@ -137,19 +146,7 @@ export const diffCommand = {
     const changes = from && to ? detectChanges(from, to) : [];
 
     if (jsonMode) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            trait: traitName,
-            from,
-            to,
-            changes,
-          },
-          null,
-          2
-        )
-      );
+      process.stdout.write(JSON.stringify({ ok: true, trait: traitName, from, to, changes }) + '\n');
       return;
     }
 

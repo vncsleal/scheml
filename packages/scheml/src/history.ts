@@ -71,10 +71,12 @@ export function detectAuthor(): string {
     return process.env.SCHEML_AUTHOR.replace(/[\r\n"]/g, '').slice(0, 200) || 'unknown';
   }
   if (process.env.GITHUB_WORKFLOW) {
-    return `agent:${process.env.GITHUB_WORKFLOW}`;
+    const safe = process.env.GITHUB_WORKFLOW.replace(/[\r\n"]/g, '').slice(0, 200) || 'unknown';
+    return `agent:${safe}`;
   }
   if (process.env.GITHUB_ACTOR && process.env.CI) {
-    return `human:${process.env.GITHUB_ACTOR}`;
+    const safe = process.env.GITHUB_ACTOR.replace(/[\r\n"]/g, '').slice(0, 200) || 'unknown';
+    return `human:${safe}`;
   }
   try {
     const result = spawnSync('git', ['config', 'user.name'], { encoding: 'utf-8' });

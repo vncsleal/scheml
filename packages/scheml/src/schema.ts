@@ -168,7 +168,8 @@ export function parseModelSchema(
   schema: string,
   modelName: string
 ): Record<string, { type: string; optional: boolean }> {
-  const modelRegex = new RegExp(`model\\s+${modelName}\\s*{([^}]+)}`, 's');
+  const escapedName = modelName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const modelRegex = new RegExp(`model\\s+${escapedName}\\s*{([^}]+)}`, 's');
   const match = schema.match(modelRegex);
 
   if (!match) {

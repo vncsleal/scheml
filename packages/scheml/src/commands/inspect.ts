@@ -18,6 +18,15 @@ import { readFeedbackRecords } from '../feedback';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function sanitizeTraitName(name: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(
+      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
+    );
+  }
+  return name;
+}
+
 function metadataPath(outputDir: string, traitName: string): string {
   return path.join(outputDir, `${traitName}.metadata.json`);
 }
@@ -127,7 +136,7 @@ export const inspectCommand = {
       }),
 
   handler: async (argv: any) => {
-    const traitName = argv.trait as string;
+    const traitName = sanitizeTraitName(argv.trait as string);
     const outputDir = path.resolve(argv.output as string);
     const jsonMode = argv.json as boolean;
 
@@ -136,7 +145,7 @@ export const inspectCommand = {
     if (!meta) {
       const err = { ok: false, error: `No artifact found for trait "${traitName}" in ${outputDir}` };
       if (jsonMode) {
-        console.log(JSON.stringify(err, null, 2));
+        process.stdout.write(JSON.stringify(err) + '\n');
       } else {
         console.error(chalk.red(`  ✗ No artifact found for trait "${traitName}"`));
         console.error(chalk.dim(`    Looked in: ${outputDir}`));
@@ -149,18 +158,8 @@ export const inspectCommand = {
     const feedbackCount = feedbackRecords.length;
 
     if (jsonMode) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            trait: traitName,
-            metadata: meta,
-            history,
-            feedbackCount,
-          },
-          null,
-          2
-        )
+      process.stdout.write(
+        JSON.stringify({ ok: true, trait: traitName, metadata: meta, history, feedbackCount }) + '\n'
       );
       return;
     }

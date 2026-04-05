@@ -12,6 +12,15 @@ import chalk from 'chalk';
 import { parseModelSchema } from '../schema';
 import type { AnyTraitDefinition } from '../traitTypes';
 
+function sanitizeTraitName(name: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(
+      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
+    );
+  }
+  return name;
+}
+
 function isTraitDefinition(value: any): value is AnyTraitDefinition {
   return (
     value &&
@@ -94,7 +103,7 @@ export const migrateCommand = {
   handler: async (argv: any) => {
     const configPath = path.resolve(argv.config);
     const schemaPath = path.resolve(argv.schema);
-    const traitFilter = argv.trait as string | undefined;
+    const traitFilter = argv.trait ? sanitizeTraitName(argv.trait as string) : undefined;
     const jsonMode = argv.json as boolean;
 
     const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
@@ -151,7 +160,7 @@ export const migrateCommand = {
       );
     }
 
-    const migrationId = `${timestampId()}_${String(argv.name)}`;
+    const migrationId = `${timestampId()}_${String(argv.name).replace(/[^\w-]/g, '_').slice(0, 100)}`;
     const migrationDir = path.resolve(process.cwd(), 'prisma', 'migrations', migrationId);
     const migrationPath = path.join(migrationDir, 'migration.sql');
 

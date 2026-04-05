@@ -70,6 +70,9 @@ export async function findSimilar(input: SimilarityInput) {
   const queryVec = l2Normalize(zScored);
 
   const { entityCount, embeddingDim, entityIds } = meta;
+  if (!entityIds || entityIds.length < entityCount) {
+    throw new Error('productSimilarity artifact is missing entityIds — please re-run scheml train.');
+  }
   const scores: Array<{ id: string; name: string; category: string; score: number }> = [];
 
   for (let i = 0; i < entityCount; i++) {

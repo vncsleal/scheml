@@ -14,7 +14,7 @@
   "dependencies": {
     "@astrojs/vercel": "^7.8.0",
     "@vercel/analytics": "^1.6.1",
-    "@vncsleal/scheml": "^0.1.2",
+    "@vncsleal/scheml": "^0.3.1",
     "astro": "^4.16.2",
     "onnxruntime-web": "1.24.3"
   },

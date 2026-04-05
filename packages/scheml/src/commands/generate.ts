@@ -31,7 +31,7 @@ function traitValueType(type: AnyTraitDefinition['type']): string {
     case 'generative':
       return 'string | null';
     case 'similarity':
-      return 'unknown | null';
+      return 'Array<{ id: string; score: number }> | null';
     case 'predictive':
     case 'anomaly':
     case 'sequential':

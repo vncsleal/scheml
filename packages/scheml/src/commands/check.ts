@@ -51,8 +51,11 @@ function loadMetadataFiles(outputDir: string, model?: string): string[] {
 }
 
 function readRawMetadata(filePath: string): any {
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
 }
 
 function isTraitArtifact(m: any): m is ArtifactMetadata {
@@ -113,6 +116,10 @@ export const checkCommand = {
 
     for (const metadataPath of metadataPaths) {
       const raw = readRawMetadata(metadataPath);
+      if (raw === null) {
+        warnings.push(`${metadataPath}: Failed to parse metadata file — skipping.`);
+        continue;
+      }
 
       // -----------------------------------------------------------------------
       // New trait artifacts — route by traitType

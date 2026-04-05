@@ -38,7 +38,9 @@ export interface AccuracyDecayResult {
   pairedCount: number;
   /** Binary classification accuracy (0–1), if applicable */
   accuracy?: number;
-  /** Root mean squared error, if applicable */
+  /** Root mean squared error, if applicable.
+   * Also holds the computed value for MSE and MAE metrics — check the `metric`
+   * field to determine which regression metric this value represents. */
   rmse?: number;
   /**
    * `true` when the computed metric fails to satisfy the quality gate

@@ -29,7 +29,10 @@ export async function predictAnomaly(input: AnomalyInput) {
   const zScored = values.map((v, i) => (v - means[i]) / (stds[i] || 1));
   const norm = Math.sqrt(zScored.reduce((s, z) => s + z * z, 0));
 
-  const { threshold } = meta.normScoreStats!;
+  if (!meta.normScoreStats) {
+    throw new Error('serverAnomaly artifact is missing normScoreStats — please re-run scheml train.');
+  }
+  const { threshold } = meta.normScoreStats;
   const isAnomaly = norm > threshold;
   const score = parseFloat(Math.min(1, Math.max(0, norm / (threshold * 2))).toFixed(4));
 

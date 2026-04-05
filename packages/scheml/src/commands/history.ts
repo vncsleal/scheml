@@ -9,6 +9,15 @@ import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { historyDir, readHistoryRecords, type HistoryRecord } from '../history';
 
+function sanitizeTraitName(name: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(
+      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
+    );
+  }
+  return name;
+}
+
 function listTraitsWithHistory(outputDir: string): string[] {
   const dir = historyDir(outputDir);
   if (!fs.existsSync(dir)) return [];
@@ -51,7 +60,7 @@ export const historyCommand = {
     const trait = argv.trait as string | undefined;
     const jsonMode = argv.json as boolean;
 
-    const traits = trait ? [trait] : listTraitsWithHistory(outputDir);
+    const traits = trait ? [sanitizeTraitName(trait)] : listTraitsWithHistory(outputDir);
     const data = traits.map((traitName) => ({
       trait: traitName,
       records: readHistoryRecords(outputDir, traitName),

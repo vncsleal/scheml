@@ -12,7 +12,10 @@ function getSession(): Promise<PredictionSession> {
       const session = new PredictionSession();
       await session.loadTrait('engagementSequence', { artifactsDir, schemaPath });
       return session;
-    })();
+    })().catch((err) => {
+      sessionPromise = undefined;
+      throw err;
+    });
   }
   return sessionPromise;
 }
