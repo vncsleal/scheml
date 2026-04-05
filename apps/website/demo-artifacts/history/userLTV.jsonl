@@ -1,0 +1,1 @@
+{"trait":"userLTV","model":"User","adapter":"prisma","schemaHash":"1d49fc098cc1dfb2f1676fa0fc82e26e45fcad24d8c0aafb80a60e84e22ee7cb","definedAt":"2026-04-04T19:28:02.136Z","definedBy":"human:Vinicius Leal","trainedAt":"2026-04-04T19:28:02.221Z","artifactVersion":"1","status":"trained"}

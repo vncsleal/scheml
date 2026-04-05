@@ -42,7 +42,18 @@ export class ModelMetadataLoader {
     let metadata: ModelMetadata;
 
     try {
-      metadata = JSON.parse(content);
+      const raw = JSON.parse(content);
+      // Normalize new trait artifact format (anomaly/similarity/sequential) to
+      // the ModelMetadata shape expected by the rest of the prediction engine.
+      // New artifacts use `traitName` instead of `modelName` and `schemaHash`
+      // instead of `prismaSchemaHash`.
+      if (raw.traitName && !raw.modelName) {
+        raw.modelName = raw.traitName;
+      }
+      if (raw.schemaHash && !raw.prismaSchemaHash) {
+        raw.prismaSchemaHash = raw.schemaHash;
+      }
+      metadata = raw;
     } catch (error) {
       throw new ArtifactError(
         'unknown',
@@ -182,6 +193,37 @@ export class PredictionSession {
   }
 
   /**
+   * Load a trained trait artifact from disk.
+   *
+   * Works for all ONNX-backed trait types: `sequential`, and `predictive`.
+   * The artifact's own `schemaHash` is compared against the current schema to
+   * detect drift without requiring the caller to specify a hash algorithm.
+   *
+   * @example
+   * ```ts
+   * const session = new PredictionSession();
+   * await session.loadTrait('engagementSequence', { artifactsDir, schemaPath });
+   * const result = await session.predict('engagementSequence', entity, resolvers);
+   * ```
+   */
+  async loadTrait(
+    traitName: string,
+    opts?: { artifactsDir?: string; schemaPath?: string }
+  ): Promise<void> {
+    const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
+    const schemaFilePath =
+      opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    const metadataPath = path.resolve(dir, `${traitName}.metadata.json`);
+    const meta = this.metadataLoader.loadMetadata(metadataPath);
+    // Prefer the onnxFile path from metadata; fall back to convention.
+    const onnxFile = (meta as any).onnxFile ?? `${traitName}.onnx`;
+    const onnxPath = path.resolve(dir, onnxFile);
+    const schema = fs.readFileSync(schemaFilePath, 'utf-8');
+    const hash = computeSchemaHashForMetadata(schema, meta as any);
+    await this.initializeModel(metadataPath, onnxPath, hash);
+  }
+
+  /**
    * Run prediction on a single entity.
    *
    * Overload 1 (recommended): pass the model definition — resolvers are read from model.features
@@ -248,7 +290,9 @@ export class PredictionSession {
         1,
         vector.length,
       ]);
-      const results = await session.run({ [inputName]: inputTensor });
+      // Request only the first output by name to avoid ZipMap type errors
+      // that arise with certain sklearn→ONNX classifiers (e.g. ExtraTrees).
+      const results = await session.run({ [inputName]: inputTensor }, [outputName]);
       const outputTensor = results[outputName];
 
       if (!outputTensor) {
@@ -396,7 +440,7 @@ export class PredictionSession {
           1,
           vector.length,
         ]);
-        const onnxResults = await session.run({ [inputName]: inputTensor });
+        const onnxResults = await session.run({ [inputName]: inputTensor }, [outputName]);
         const outputTensor = onnxResults[outputName];
 
         if (!outputTensor) {

@@ -96,6 +96,27 @@ def serialize_model(model: IsolationForest) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+def _compute_norm_score_stats(X_normalised: np.ndarray, contamination: float) -> dict:
+    """
+    Compute L2-norm statistics for pure-JS anomaly scoring at inference time.
+
+    The Node.js API route normalises a raw input using the stored means/stds,
+    computes the L2 norm of the z-scored vector, and uses these thresholds to
+    produce a [0, 1] anomaly score without calling a Python subprocess.
+    """
+    norms = np.sqrt(np.sum(X_normalised ** 2, axis=1))
+    mean_norm = float(np.mean(norms))
+    std_norm = float(np.std(norms))
+    # Threshold at the (1 - contamination) percentile — same semantics as `threshold`
+    # but in the L2-norm space so it is directly comparable to client-side scores.
+    norm_threshold = float(np.percentile(norms, (1.0 - contamination) * 100))
+    return {
+        "mean": mean_norm,
+        "std": max(std_norm, 1e-6),
+        "threshold": norm_threshold,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="ScheML anomaly training backend")
     parser.add_argument("--dataset",     required=True,  help="Path to the .dataset.json file")
@@ -151,6 +172,10 @@ def main() -> None:
         "contamination": args.contamination,
         "threshold": threshold,
         "normalization": {"means": means, "stds": stds},
+        # L2-norm stats for pure-JS inference (no Python subprocess at runtime).
+        # The API route normalises the input with means/stds, computes the L2
+        # norm of the z-scored vector, and compares it to normScoreStats.threshold.
+        "normScoreStats": _compute_norm_score_stats(X_normalised, model.contamination),
     }
 
     # Write to stdout for train.ts to parse

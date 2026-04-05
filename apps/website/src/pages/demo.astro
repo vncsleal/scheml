@@ -349,7 +349,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <div><dt>Anomaly score</dt><dd id="anomalyScore" class="mono">—</dd></div>
                   <div><dt>Inference latency</dt><dd id="anomalyLatency">—</dd></div>
                   <div><dt>Algorithm</dt><dd class="mono">isolation_forest</dd></div>
-                  <div><dt>Artefact</dt><dd class="mono">serverMetrics.onnx</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">serverAnomaly.metadata.json</dd></div>
                 </dl>
                 <p id="anomalyStatus" class="result-status" aria-live="polite">Hit "Run inference" to see the result.</p>
               </div>
@@ -396,19 +396,50 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               </div>
 
               <div class="preset-bar">
-                <button type="button" class="preset-btn sim-preset is-active" data-sim-preset="laptop">Lightweight laptop</button>
-                <button type="button" class="preset-btn sim-preset" data-sim-preset="audio">Noise cancelling</button>
-                <button type="button" class="preset-btn sim-preset" data-sim-preset="keyboard">Mechanical keyboard</button>
+                <button type="button" class="preset-btn sim-preset is-active" data-sim-preset="laptop">Laptop (light)</button>
+                <button type="button" class="preset-btn sim-preset" data-sim-preset="audio">Wireless audio</button>
+                <button type="button" class="preset-btn sim-preset" data-sim-preset="monitor">Budget monitor</button>
               </div>
 
               <form id="simForm" class="inference-form">
                 <div class="field">
                   <div class="field__header">
-                    <label for="simQuery">Search query</label>
+                    <label for="simCategory">Category</label>
                   </div>
-                  <input id="simQuery" name="simQuery" type="text"
-                    placeholder="Describe what you're looking for..."
-                    value="lightweight laptop for travel" class="text-input" />
+                  <select id="simCategory" name="simCategory" class="select-input">
+                    <option value="0">Laptop</option>
+                    <option value="1">Tablet</option>
+                    <option value="2">Audio</option>
+                    <option value="3">Keyboard</option>
+                    <option value="4">Monitor</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="simPrice">Max price ($)</label>
+                    <span class="field__val" id="simPriceVal">1200</span>
+                  </div>
+                  <input id="simPrice" name="simPrice" type="range" min="0" max="2000" step="50" value="1200" />
+                  <div class="field__range-labels"><span>$0</span><span>$2000</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="simBattery">Battery life (h)</label>
+                    <span class="field__val" id="simBatteryVal">15</span>
+                  </div>
+                  <input id="simBattery" name="simBattery" type="range" min="0" max="40" step="1" value="15" />
+                  <div class="field__range-labels"><span>0 h</span><span>40 h</span></div>
+                </div>
+
+                <div class="field">
+                  <div class="field__header">
+                    <label for="simWeight">Weight (kg)</label>
+                    <span class="field__val" id="simWeightVal">1.2</span>
+                  </div>
+                  <input id="simWeight" name="simWeight" type="range" min="0" max="8" step="0.1" value="1.2" />
+                  <div class="field__range-labels"><span>0 kg</span><span>8 kg</span></div>
                 </div>
 
                 <div class="field">
@@ -474,60 +505,59 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Sequence input</p>
-                  <h3>User session model</h3>
+                  <h3>User churn model</h3>
                 </div>
               </div>
 
               <div class="preset-bar">
-                <button type="button" class="preset-btn seq-preset is-active" data-seq-preset="browse">Browsing session</button>
-                <button type="button" class="preset-btn seq-preset" data-seq-preset="intent">Purchase intent</button>
-                <button type="button" class="preset-btn seq-preset" data-seq-preset="abandon">Abandonment risk</button>
+                <button type="button" class="preset-btn seq-preset is-active" data-seq-preset="healthy">Healthy user</button>
+                <button type="button" class="preset-btn seq-preset" data-seq-preset="declining">Declining</button>
+                <button type="button" class="preset-btn seq-preset" data-seq-preset="churning">Churn risk</button>
               </div>
 
               <form id="seqForm" class="inference-form">
                 <div class="field">
-                  <label class="field__seq-label">Recent event sequence</label>
+                  <label class="field__seq-label">Weekly engagement scores (last 5 weeks)</label>
                   <div class="seq-events">
                     <div class="seq-step">
-                      <span class="seq-step-num">1</span>
-                      <select id="seqEv1" name="seqEv1" class="select-input">
-                        <option value="view_product" selected>View Product</option>
-                        <option value="search">Search</option>
-                        <option value="add_cart">Add to Cart</option>
-                        <option value="remove_cart">Remove from Cart</option>
-                        <option value="apply_coupon">Apply Coupon</option>
-                        <option value="checkout">Checkout</option>
-                        <option value="review_page">Review Page</option>
-                      </select>
+                      <span class="seq-step-num">W1</span>
+                      <div style="flex:1">
+                        <input id="seqScore1" name="seqScore1" type="range" min="0" max="100" step="1" value="88" />
+                        <span class="field__val" id="seqVal1" style="float:right;font-size:12px">88</span>
+                      </div>
                     </div>
                     <div class="seq-step">
-                      <span class="seq-step-num">2</span>
-                      <select id="seqEv2" name="seqEv2" class="select-input">
-                        <option value="view_product" selected>View Product</option>
-                        <option value="search">Search</option>
-                        <option value="add_cart">Add to Cart</option>
-                        <option value="remove_cart">Remove from Cart</option>
-                        <option value="apply_coupon">Apply Coupon</option>
-                        <option value="checkout">Checkout</option>
-                        <option value="review_page">Review Page</option>
-                      </select>
+                      <span class="seq-step-num">W2</span>
+                      <div style="flex:1">
+                        <input id="seqScore2" name="seqScore2" type="range" min="0" max="100" step="1" value="85" />
+                        <span class="field__val" id="seqVal2" style="float:right;font-size:12px">85</span>
+                      </div>
                     </div>
                     <div class="seq-step">
-                      <span class="seq-step-num">3</span>
-                      <select id="seqEv3" name="seqEv3" class="select-input">
-                        <option value="view_product">View Product</option>
-                        <option value="search">Search</option>
-                        <option value="add_cart" selected>Add to Cart</option>
-                        <option value="remove_cart">Remove from Cart</option>
-                        <option value="apply_coupon">Apply Coupon</option>
-                        <option value="checkout">Checkout</option>
-                        <option value="review_page">Review Page</option>
-                      </select>
+                      <span class="seq-step-num">W3</span>
+                      <div style="flex:1">
+                        <input id="seqScore3" name="seqScore3" type="range" min="0" max="100" step="1" value="91" />
+                        <span class="field__val" id="seqVal3" style="float:right;font-size:12px">91</span>
+                      </div>
+                    </div>
+                    <div class="seq-step">
+                      <span class="seq-step-num">W4</span>
+                      <div style="flex:1">
+                        <input id="seqScore4" name="seqScore4" type="range" min="0" max="100" step="1" value="87" />
+                        <span class="field__val" id="seqVal4" style="float:right;font-size:12px">87</span>
+                      </div>
+                    </div>
+                    <div class="seq-step">
+                      <span class="seq-step-num">W5</span>
+                      <div style="flex:1">
+                        <input id="seqScore5" name="seqScore5" type="range" min="0" max="100" step="1" value="90" />
+                        <span class="field__val" id="seqVal5" style="float:right;font-size:12px">90</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <button class="btn btn--primary" type="submit">Predict next action</button>
+                <button class="btn btn--primary" type="submit">Predict churn risk</button>
               </form>
             </div>
 
@@ -535,17 +565,17 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               <div class="panel" id="seqResultPanel">
                 <div class="panel__header">
                   <div>
-                    <p class="eyebrow">Predicted next action</p>
+                    <p class="eyebrow">Churn prediction</p>
                     <h3 id="seqResultTitle">—</h3>
                   </div>
                   <span class="status-pill status-pill--healthy" id="seqLatencyPill">—</span>
                 </div>
                 <div class="prob-bars" id="seqProbBars"></div>
                 <dl class="output-stats" style="margin-top: 16px;">
-                  <div><dt>Algorithm</dt><dd class="mono">lstm</dd></div>
-                  <div><dt>Artefact</dt><dd class="mono">userSession.onnx</dd></div>
+                  <div><dt>Algorithm</dt><dd class="mono">extra_tree</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">engagementSequence.onnx</dd></div>
                 </dl>
-                <p id="seqStatus" class="result-status" aria-live="polite">Hit "Predict next action" to see the result.</p>
+                <p id="seqStatus" class="result-status" aria-live="polite">Hit "Predict churn risk" to see the result.</p>
               </div>
 
               <div class="panel latency-panel">
@@ -869,17 +899,17 @@ const result = await db.scheml.predict('userChurn', user);
         anomaly: {
           tag: 'Live inference · anomaly',
           title: 'Detect anomalies in server metrics.',
-          desc: `Adjust the metric sliders to cross anomaly thresholds. The isolation forest model scores each sample in-process — no HTTP round-trip, no serialisation overhead.`,
+          desc: `Adjust the metric sliders to cross anomaly thresholds. The isolation forest model scores each sample in-process using L2-norm scoring against the trained <code>serverAnomaly</code> artefact — no HTTP round-trip, no serialisation overhead.`,
         },
         similarity: {
           tag: 'Live inference · similarity',
           title: 'Retrieve the nearest neighbours.',
-          desc: `Type a search query and retrieve the most similar items from the embedded product space. Cosine similarity runs in-process over the compiled embedding index.`,
+          desc: `Set category and feature sliders to find the most similar products from the embedded product space. Cosine similarity runs in-process over the compiled <code>productSimilarity.embeddings.npy</code> index — no vector DB, no external service.`,
         },
         sequential: {
           tag: 'Live inference · sequential',
-          title: 'Predict the next event in the sequence.',
-          desc: `Select the recent event chain and the LSTM predicts the next user action. Runs in-process against the compiled userSession artefact — no subprocess, no network.`,
+          title: 'Predict churn from weekly engagement scores.',
+          desc: `Enter the last five weeks of engagement scores and the <code>extra_tree</code> model predicts whether the user will churn. Runs in-process against the compiled <code>engagementSequence.onnx</code> artefact — no subprocess, no network.`,
         },
         generative: {
           tag: 'Live inference · generative (stand-in)',
@@ -1040,10 +1070,8 @@ const result = await db.scheml.predict('userChurn', user);
         });
       });
 
-      function simAnomaly(cpu: number, mem: number, err: number) {
-        const n = (v: number, lo: number, hi: number) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
-        const score = Math.min(1, n(cpu, 55, 100) * 0.40 + n(mem, 70, 100) * 0.35 + n(err, 1, 10) * 0.25);
-        return parseFloat((score + (Math.random() - 0.5) * 0.02).toFixed(3));
+      function simAnomaly(_cpu: number, _mem: number, _err: number) {
+        return 0; // replaced by real API
       }
 
       const anomalyForm = document.getElementById('anomalyForm');
@@ -1051,187 +1079,194 @@ const result = await db.scheml.predict('userChurn', user);
         e.preventDefault();
         const btn = anomalyForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
         if (btn) { btn.textContent = 'Running...'; btn.disabled = true; }
-        const latencyMs = await simDelay(0.18, 0.52);
         const cpu = Number(cpuInput?.value ?? 45);
         const mem = Number(memInput?.value ?? 62);
         const err = Number(errInput?.value ?? 0.8);
-        const score = simAnomaly(cpu, mem, err);
-        const isAnom = score > 0.45;
-        const panel  = document.getElementById('anomalyResultPanel');
-        if (panel) panel.dataset.tone = isAnom ? 'danger' : 'healthy';
-        const lbl = document.getElementById('anomalyResultLabel');
-        if (lbl) lbl.textContent = isAnom ? 'Anomaly detected' : 'Normal';
-        const pill = document.getElementById('anomalyResultPill');
-        if (pill) { pill.textContent = isAnom ? '1 — anomaly' : '0 — normal'; pill.className = `status-pill ${isAnom ? 'status-pill--danger' : 'status-pill--healthy'}`; }
-        const sc = document.getElementById('anomalyScore');
-        if (sc) sc.textContent = String(score);
-        const lat = document.getElementById('anomalyLatency');
-        if (lat) lat.textContent = `${latencyMs} ms`;
-        updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), latencyMs);
-        const st = document.getElementById('anomalyStatus'); if (st) st.textContent = '';
-        flashPanel(panel);
+        try {
+          const res = await fetch('/api/demo/anomaly', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ cpuUsage: cpu, memoryPressure: mem, errorRate: err }),
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error ?? 'Anomaly request failed');
+          const { isAnomaly, score, latencyMs } = data.result;
+          const panel = document.getElementById('anomalyResultPanel');
+          if (panel) panel.dataset.tone = isAnomaly ? 'danger' : 'healthy';
+          const lbl = document.getElementById('anomalyResultLabel');
+          if (lbl) lbl.textContent = isAnomaly ? 'Anomaly detected' : 'Normal';
+          const pill = document.getElementById('anomalyResultPill');
+          if (pill) { pill.textContent = isAnomaly ? '1 — anomaly' : '0 — normal'; pill.className = `status-pill ${isAnomaly ? 'status-pill--danger' : 'status-pill--healthy'}`; }
+          const sc = document.getElementById('anomalyScore');
+          if (sc) sc.textContent = String(score);
+          const lat = document.getElementById('anomalyLatency');
+          if (lat) lat.textContent = `${latencyMs} ms`;
+          updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), latencyMs);
+          const st = document.getElementById('anomalyStatus'); if (st) st.textContent = '';
+          flashPanel(panel);
+        } catch (err) {
+          const st = document.getElementById('anomalyStatus');
+          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
         if (btn) { btn.textContent = 'Run inference'; btn.disabled = false; }
       });
 
       // ── SIMILARITY ────────────────────────────────────────────────────
-      const SIM_PRODUCTS = [
-        { name: 'ThinkPad X1 Carbon',    cat: 'Laptop',    tags: ['laptop','lightweight','portable','travel','ultrabook','thin','business'] },
-        { name: 'Dell XPS 13',           cat: 'Laptop',    tags: ['laptop','lightweight','portable','display','compact','thin','design'] },
-        { name: 'MacBook Air M3',        cat: 'Laptop',    tags: ['laptop','lightweight','apple','battery','portable','silent','m-chip'] },
-        { name: 'Sony WH-1000XM5',       cat: 'Audio',     tags: ['headphones','noise','cancelling','wireless','audio','sony','premium'] },
-        { name: 'Bose QuietComfort 45',  cat: 'Audio',     tags: ['headphones','noise','cancelling','quiet','comfort','audio','bose'] },
-        { name: 'AirPods Pro 2',         cat: 'Audio',     tags: ['earbuds','noise','cancelling','apple','wireless','portable','small'] },
-        { name: 'Keychron Q3',           cat: 'Keyboard',  tags: ['keyboard','mechanical','typing','aluminum','tenkeyless','qmk'] },
-        { name: 'HHKB Professional',     cat: 'Keyboard',  tags: ['keyboard','mechanical','typing','programming','compact','premium'] },
-        { name: 'Logitech MX Keys',      cat: 'Keyboard',  tags: ['keyboard','wireless','typing','productivity','rechargeable','quiet'] },
-        { name: 'iPad Pro M4',           cat: 'Tablet',    tags: ['tablet','portable','apple','display','drawing','lightweight','m-chip'] },
-        { name: 'Samsung Galaxy Tab S9', cat: 'Tablet',    tags: ['tablet','portable','android','display','drawing','lightweight'] },
-        { name: 'Dell U2722D',           cat: 'Monitor',   tags: ['monitor','display','productivity','4k','usb-c','wide'] },
-      ];
-
-      const simPresetTexts: Record<string, string> = {
-        laptop:   'lightweight laptop for travel',
-        audio:    'noise cancelling headphones wireless',
-        keyboard: 'mechanical keyboard for programming',
+      type SimPreset = { cat: number; price: number; battery: number; weight: number };
+      const simPresets: Record<string, SimPreset> = {
+        laptop:  { cat: 0, price: 1200, battery: 15, weight: 1.2 },
+        audio:   { cat: 2, price: 300,  battery: 25, weight: 0.25 },
+        monitor: { cat: 4, price: 400,  battery: 0,  weight: 6.0 },
       };
 
-      const simQueryInput = document.getElementById('simQuery') as HTMLInputElement | null;
-      const simKInput     = document.getElementById('simK') as HTMLInputElement | null;
-      const simKVal       = document.getElementById('simKVal');
+      const simCatInput     = document.getElementById('simCategory') as HTMLSelectElement | null;
+      const simPriceInput   = document.getElementById('simPrice') as HTMLInputElement | null;
+      const simBatteryInput = document.getElementById('simBattery') as HTMLInputElement | null;
+      const simWeightInput  = document.getElementById('simWeight') as HTMLInputElement | null;
+      const simKInput       = document.getElementById('simK') as HTMLInputElement | null;
+      const simPriceVal     = document.getElementById('simPriceVal');
+      const simBatteryVal   = document.getElementById('simBatteryVal');
+      const simWeightVal    = document.getElementById('simWeightVal');
+      const simKVal         = document.getElementById('simKVal');
 
-      simKInput?.addEventListener('input', () => { if (simKVal) simKVal.textContent = simKInput!.value; });
+      simPriceInput?.addEventListener('input',   () => { if (simPriceVal)   simPriceVal.textContent   = simPriceInput!.value; });
+      simBatteryInput?.addEventListener('input', () => { if (simBatteryVal) simBatteryVal.textContent = simBatteryInput!.value; });
+      simWeightInput?.addEventListener('input',  () => { if (simWeightVal)  simWeightVal.textContent  = simWeightInput!.value; });
+      simKInput?.addEventListener('input',       () => { if (simKVal)       simKVal.textContent       = simKInput!.value; });
 
       document.querySelectorAll('.sim-preset').forEach((btn) => {
         btn.addEventListener('click', () => {
           const key = (btn as HTMLElement).dataset.simPreset ?? '';
-          if (simQueryInput && simPresetTexts[key]) simQueryInput.value = simPresetTexts[key];
+          const p = simPresets[key]; if (!p) return;
+          if (simCatInput)     simCatInput.value     = String(p.cat);
+          if (simPriceInput)  { simPriceInput.value  = String(p.price);   if (simPriceVal)   simPriceVal.textContent   = String(p.price); }
+          if (simBatteryInput){ simBatteryInput.value = String(p.battery); if (simBatteryVal) simBatteryVal.textContent = String(p.battery); }
+          if (simWeightInput) { simWeightInput.value  = String(p.weight);  if (simWeightVal)  simWeightVal.textContent  = String(p.weight); }
           document.querySelectorAll('.sim-preset').forEach((b) => b.classList.remove('is-active'));
           btn.classList.add('is-active');
         });
       });
-
-      function simSimilarity(query: string, k: number) {
-        const qWords = query.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
-        return SIM_PRODUCTS.map((p) => {
-          const tagHits  = p.tags.filter((t) => qWords.some((w) => t.includes(w) || w.includes(t))).length;
-          const nameHits = qWords.filter((w) => p.name.toLowerCase().includes(w)).length;
-          const raw = tagHits * 0.14 + nameHits * 0.22 + Math.random() * 0.06;
-          return { ...p, score: parseFloat(Math.min(0.99, Math.max(0.08, raw)).toFixed(3)) };
-        }).sort((a, b) => b.score - a.score).slice(0, k);
-      }
 
       const simForm = document.getElementById('simForm');
       simForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = simForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
         if (btn) { btn.textContent = 'Searching...'; btn.disabled = true; }
-        const latencyMs = await simDelay(0.30, 0.72);
-        const query = simQueryInput?.value.trim() || 'laptop';
-        const k     = Number(simKInput?.value ?? 5);
-        const results = simSimilarity(query, k);
-        const list = document.getElementById('simResultList');
-        if (list) {
-          list.innerHTML = results.map((r, i) => `
-            <div class="result-item">
-              <div class="result-item__left">
-                <span class="result-item__name">${r.name}</span>
-                <span class="result-item__cat">${r.cat}</span>
+        const categoryInt = Number(simCatInput?.value ?? 0);
+        const price       = Number(simPriceInput?.value ?? 1200);
+        const batteryLife = Number(simBatteryInput?.value ?? 15);
+        const weightKg    = Number(simWeightInput?.value ?? 1.2);
+        const k           = Number(simKInput?.value ?? 5);
+        try {
+          const res = await fetch('/api/demo/similarity', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ categoryInt, price, batteryLife, weightKg, k }),
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error ?? 'Similarity request failed');
+          const { results, latencyMs } = data.result;
+          const list = document.getElementById('simResultList');
+          if (list) {
+            list.innerHTML = results.map((r: { name: string; category: string; score: number }) => `
+              <div class="result-item">
+                <div class="result-item__left">
+                  <span class="result-item__name">${r.name}</span>
+                  <span class="result-item__cat">${r.category}</span>
+                </div>
+                <span class="result-item__score">${r.score.toFixed(3)}</span>
               </div>
-              <span class="result-item__score">${r.score.toFixed(3)}</span>
-            </div>
-          `).join('');
+            `).join('');
+          }
+          const title = document.getElementById('simResultTitle');
+          if (title) title.textContent = `Top ${results.length} matches`;
+          const latPill = document.getElementById('simLatencyPill');
+          if (latPill) latPill.textContent = `${latencyMs} ms`;
+          updateLatencyBar(document.getElementById('simLatencyBar'), document.getElementById('simLatencyFill'), latencyMs);
+          const st = document.getElementById('simStatus'); if (st) st.textContent = '';
+          flashPanel(document.getElementById('simResultPanel'));
+        } catch (err) {
+          const st = document.getElementById('simStatus');
+          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
         }
-        const title = document.getElementById('simResultTitle');
-        if (title) title.textContent = `Top ${results.length} matches`;
-        const latPill = document.getElementById('simLatencyPill');
-        if (latPill) latPill.textContent = `${latencyMs} ms`;
-        updateLatencyBar(document.getElementById('simLatencyBar'), document.getElementById('simLatencyFill'), latencyMs);
-        const st = document.getElementById('simStatus'); if (st) st.textContent = '';
-        flashPanel(document.getElementById('simResultPanel'));
         if (btn) { btn.textContent = 'Find similar'; btn.disabled = false; }
       });
 
       // ── SEQUENTIAL ────────────────────────────────────────────────────
-      const EVENT_LABELS: Record<string, string> = {
-        view_product:  'View Product',
-        search:        'Search',
-        add_cart:      'Add to Cart',
-        remove_cart:   'Remove from Cart',
-        apply_coupon:  'Apply Coupon',
-        checkout:      'Checkout',
-        review_page:   'Review Page',
+      type SeqPreset = [number, number, number, number, number];
+      const seqPresets: Record<string, SeqPreset> = {
+        healthy:  [90, 88, 91, 87, 92],
+        declining:[80, 65, 50, 35, 20],
+        churning: [15, 12,  8, 20, 10],
       };
 
-      const SEQ_TABLE: Record<string, Record<string, number>> = {
-        'view_product,view_product,add_cart':    { checkout: 0.42, apply_coupon: 0.28, view_product: 0.18, remove_cart: 0.12 },
-        'view_product,view_product,view_product':{ view_product: 0.35, add_cart: 0.30, search: 0.25, checkout: 0.10 },
-        'search,view_product,add_cart':          { checkout: 0.45, apply_coupon: 0.28, view_product: 0.17, search: 0.10 },
-        'add_cart,remove_cart,view_product':     { search: 0.38, view_product: 0.32, add_cart: 0.20, checkout: 0.10 },
-        'view_product,add_cart,checkout':        { review_page: 0.58, view_product: 0.24, checkout: 0.18 },
-        'search,search,view_product':            { add_cart: 0.40, view_product: 0.30, search: 0.20, checkout: 0.10 },
-        'checkout,review_page,view_product':     { view_product: 0.42, add_cart: 0.30, search: 0.18, checkout: 0.10 },
-      };
+      const seqScoreInputs = [1, 2, 3, 4, 5].map((n) => ({
+        input: document.getElementById(`seqScore${n}`) as HTMLInputElement | null,
+        val:   document.getElementById(`seqVal${n}`) as HTMLElement | null,
+      }));
 
-      const seqPresets: Record<string, { ev1: string; ev2: string; ev3: string }> = {
-        browse:  { ev1: 'view_product', ev2: 'view_product', ev3: 'view_product' },
-        intent:  { ev1: 'search',       ev2: 'view_product', ev3: 'add_cart' },
-        abandon: { ev1: 'add_cart',     ev2: 'remove_cart',  ev3: 'view_product' },
-      };
-
-      const seqEv1 = document.getElementById('seqEv1') as HTMLSelectElement | null;
-      const seqEv2 = document.getElementById('seqEv2') as HTMLSelectElement | null;
-      const seqEv3 = document.getElementById('seqEv3') as HTMLSelectElement | null;
+      seqScoreInputs.forEach(({ input, val }) => {
+        input?.addEventListener('input', () => { if (val && input) val.textContent = input.value; });
+      });
 
       document.querySelectorAll('.seq-preset').forEach((btn) => {
         btn.addEventListener('click', () => {
           const key = (btn as HTMLElement).dataset.seqPreset ?? '';
           const p = seqPresets[key]; if (!p) return;
-          if (seqEv1) seqEv1.value = p.ev1;
-          if (seqEv2) seqEv2.value = p.ev2;
-          if (seqEv3) seqEv3.value = p.ev3;
+          seqScoreInputs.forEach(({ input, val }, i) => {
+            if (input) { input.value = String(p[i]); if (val) val.textContent = String(p[i]); }
+          });
           document.querySelectorAll('.seq-preset').forEach((b) => b.classList.remove('is-active'));
           btn.classList.add('is-active');
         });
       });
-
-      function simSeq(ev1: string, ev2: string, ev3: string) {
-        const key = `${ev1},${ev2},${ev3}`;
-        const table = SEQ_TABLE[key] ?? { view_product: 0.30, search: 0.25, add_cart: 0.25, checkout: 0.20 };
-        return Object.entries(table).sort((a, b) => b[1] - a[1]).slice(0, 5);
-      }
 
       const seqForm = document.getElementById('seqForm');
       seqForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = seqForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
         if (btn) { btn.textContent = 'Predicting...'; btn.disabled = true; }
-        const latencyMs = await simDelay(0.28, 0.58);
-        const ev1 = seqEv1?.value ?? 'view_product';
-        const ev2 = seqEv2?.value ?? 'view_product';
-        const ev3 = seqEv3?.value ?? 'add_cart';
-        const results = simSeq(ev1, ev2, ev3);
-        const barsEl = document.getElementById('seqProbBars');
-        if (barsEl) {
-          barsEl.innerHTML = results.map(([event, prob], i) => `
-            <div class="prob-bar">
-              <div class="prob-bar__header">
-                <span class="prob-bar__label">${EVENT_LABELS[event] ?? event}</span>
-                <span class="prob-bar__pct">${(prob * 100).toFixed(0)}%</span>
+        const scores = seqScoreInputs.map(({ input }) => Number(input?.value ?? 50));
+        try {
+          const res = await fetch('/api/demo/sequential', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ scores }),
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error ?? 'Sequential request failed');
+          const { predicted, confidence, latencyMs } = data.result;
+          const willChurn = predicted === '1';
+          const barsEl = document.getElementById('seqProbBars');
+          if (barsEl) {
+            const riskPct = (confidence * 100).toFixed(1);
+            const riskLabel = willChurn ? 'Will churn' : 'Will not churn';
+            const fillClass = willChurn ? 'prob-bar__fill--top' : 'prob-bar__fill';
+            barsEl.innerHTML = `
+              <div class="prob-bar">
+                <div class="prob-bar__header">
+                  <span class="prob-bar__label">${riskLabel}</span>
+                  <span class="prob-bar__pct">${riskPct}%</span>
+                </div>
+                <div class="prob-bar__track">
+                  <div class="${fillClass}" style="width: ${riskPct}%"></div>
+                </div>
               </div>
-              <div class="prob-bar__track">
-                <div class="prob-bar__fill${i === 0 ? ' prob-bar__fill--top' : ''}" style="width: ${(prob * 100).toFixed(1)}%"></div>
-              </div>
-            </div>
-          `).join('');
+            `;
+          }
+          const title = document.getElementById('seqResultTitle');
+          if (title) title.textContent = willChurn ? 'Churn detected' : 'No churn predicted';
+          const seqPanel = document.getElementById('seqResultPanel');
+          const latPill = document.getElementById('seqLatencyPill');
+          if (latPill) latPill.textContent = `${latencyMs} ms`;
+          updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), latencyMs);
+          const st = document.getElementById('seqStatus'); if (st) st.textContent = '';
+          flashPanel(seqPanel);
+        } catch (err) {
+          const st = document.getElementById('seqStatus');
+          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
         }
-        const title = document.getElementById('seqResultTitle');
-        if (title) title.textContent = EVENT_LABELS[results[0]?.[0] ?? ''] ?? '—';
-        const latPill = document.getElementById('seqLatencyPill');
-        if (latPill) latPill.textContent = `${latencyMs} ms`;
-        updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), latencyMs);
-        const st = document.getElementById('seqStatus'); if (st) st.textContent = '';
-        flashPanel(document.getElementById('seqResultPanel'));
-        if (btn) { btn.textContent = 'Predict next action'; btn.disabled = false; }
+        if (btn) { btn.textContent = 'Predict churn risk'; btn.disabled = false; }
       });
 
       // ── GENERATIVE ────────────────────────────────────────────────────

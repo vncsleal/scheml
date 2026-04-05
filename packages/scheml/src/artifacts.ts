@@ -118,6 +118,18 @@ export interface AnomalyArtifactMetadata extends ArtifactMetadataBase {
   };
   featureDependencies?: import('./types').FeatureDependency[];
   dataset?: import('./types').TrainingDataset;
+  /**
+   * L2-norm statistics for pure-JS inference (no Python subprocess at runtime).
+   * The Node.js API route normalises the raw input with `normalization.means/stds`,
+   * computes the L2 norm of the z-scored vector, and uses these values to produce
+   * a [0, 1] anomaly score.
+   */
+  normScoreStats?: {
+    mean: number;
+    std: number;
+    /** L2-norm at the (1-contamination) percentile of training data */
+    threshold: number;
+  };
 }
 
 // ---------------------------------------------------------------------------

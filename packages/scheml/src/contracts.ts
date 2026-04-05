@@ -22,8 +22,13 @@ export function usesModelSubsetSchemaHash(metadataSchemaVersion?: string): boole
 
 export function computeSchemaHashForMetadata(
   schemaContent: string,
-  metadata: Pick<ModelMetadata, 'metadataSchemaVersion' | 'modelName' | 'featureDependencies'>
+  metadata: Pick<ModelMetadata, 'metadataSchemaVersion' | 'modelName' | 'featureDependencies'> & { entityName?: string }
 ): string {
+  // New trait artifacts (anomaly, similarity, sequential) store entityName and
+  // always use the model-subset hash regardless of metadataSchemaVersion.
+  if (metadata.entityName) {
+    return hashPrismaModelSubset(schemaContent, metadata.entityName);
+  }
   const prismaModelName =
     metadata.featureDependencies?.find((dep: FeatureDependency) => dep.modelName)?.modelName ||
     metadata.modelName;

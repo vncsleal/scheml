@@ -13,6 +13,11 @@ export default defineConfig({
       'demo-artifacts/schema.prisma',
       'demo-artifacts/userChurn.metadata.json',
       'demo-artifacts/userChurn.onnx',
+      'demo-artifacts/serverAnomaly.metadata.json',
+      'demo-artifacts/productSimilarity.metadata.json',
+      'demo-artifacts/productSimilarity.embeddings.npy',
+      'demo-artifacts/engagementSequence.metadata.json',
+      'demo-artifacts/engagementSequence.onnx',
       // onnxruntime-web WASM files — nft doesn't trace dynamically-resolved
       // binary assets, so they must be listed explicitly.
       'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',

@@ -535,6 +535,7 @@ export const trainCommand = {
             normalization: anomalyResponse.normalization,
             featureNames: anomalyResponse.featureNames,
             contamination: anomalyResponse.contamination,
+            normScoreStats: anomalyResponse.normScoreStats,
           };
           fs.writeFileSync(
             path.join(outputDir, `${trait.name}.metadata.json`),
@@ -672,6 +673,21 @@ export const trainCommand = {
           }
           const seqResponse = JSON.parse(seqResult.stdout.trim());
           const seqSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          // Build FeatureSchema from the expanded feature names returned by Python
+          const expandedNames: string[] = seqResponse.expandedFeatureNames ?? [];
+          const seqFeatures = expandedNames.length > 0
+            ? {
+                features: expandedNames.map((name: string, idx: number) => ({
+                  name,
+                  index: idx,
+                  columnCount: 1,
+                  originalType: 'number' as const,
+                  imputation: { strategy: 'constant' as const, value: 0 },
+                })),
+                count: expandedNames.length,
+                order: expandedNames,
+              }
+            : undefined;
           const seqMetadata: SequentialArtifactMetadata = {
             traitType: 'sequential',
             traitName: trait.name,
@@ -686,6 +702,7 @@ export const trainCommand = {
             onnxFile: path.basename(seqResponse.onnxPath),
             taskType: trait.output.taskType,
             bestEstimator: seqResponse.bestEstimator,
+            features: seqFeatures,
           };
           fs.writeFileSync(
             path.join(outputDir, `${trait.name}.metadata.json`),
@@ -736,6 +753,9 @@ export const trainCommand = {
       }
 
       spinner.start('Writing artifacts...');
+      // Copy the Prisma schema alongside the artifacts so runtime drift checks
+      // always use the same schema that was active at train time.
+      fs.copyFileSync(schemaPath, path.join(outputDir, 'schema.prisma'));
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
       if (jsonMode) {

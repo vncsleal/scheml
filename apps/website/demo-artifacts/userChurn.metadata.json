@@ -1,44 +1,62 @@
 {
-  "version": "0.1.2",
-  "metadataSchemaVersion": "1.1.0",
+  "version": "0.3.1",
+  "metadataSchemaVersion": "1.2.0",
   "modelName": "userChurn",
   "taskType": "binary_classification",
   "algorithm": {
     "name": "gbm",
-    "version": "1.0.0",
     "hyperparameters": {
       "nEstimators": 200,
       "learningRate": 0.1,
       "maxDepth": 5
     }
   },
+  "bestEstimator": "gbm",
   "features": {
     "features": [
       {
         "name": "daysSinceActive",
         "index": 0,
+        "columnCount": 1,
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 41.56041666666667
+          "value": 68.33072916666667
+        },
+        "scaling": {
+          "strategy": "standard",
+          "mean": 68.33072916666667,
+          "std": 27.377330446648433
         }
       },
       {
         "name": "monthlySpend",
         "index": 1,
+        "columnCount": 1,
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 183.59204166666652
+          "value": 182.73468749999992
+        },
+        "scaling": {
+          "strategy": "standard",
+          "mean": 182.73468749999992,
+          "std": 120.34853316646205
         }
       },
       {
         "name": "supportTickets",
         "index": 2,
+        "columnCount": 1,
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 5.227083333333334
+          "value": 5.197916666666667
+        },
+        "scaling": {
+          "strategy": "standard",
+          "mean": 5.197916666666667,
+          "std": 2.155998375012269
         }
       }
     ],
@@ -94,18 +112,35 @@
   "imputation": {
     "daysSinceActive": {
       "strategy": "constant",
-      "value": 41.56041666666667
+      "value": 68.33072916666667
     },
     "monthlySpend": {
       "strategy": "constant",
-      "value": 183.59204166666652
+      "value": 182.73468749999992
     },
     "supportTickets": {
       "strategy": "constant",
-      "value": 5.227083333333334
+      "value": 5.197916666666667
     }
   },
-  "prismaSchemaHash": "06cbb3d39c0e714b173fb65c5741b1f0cc10e968cd2adb44f79b6c34e2d48a65",
+  "scaling": {
+    "daysSinceActive": {
+      "strategy": "standard",
+      "mean": 68.33072916666667,
+      "std": 27.377330446648433
+    },
+    "monthlySpend": {
+      "strategy": "standard",
+      "mean": 182.73468749999992,
+      "std": 120.34853316646205
+    },
+    "supportTickets": {
+      "strategy": "standard",
+      "mean": 5.197916666666667,
+      "std": 2.155998375012269
+    }
+  },
+  "prismaSchemaHash": "1d49fc098cc1dfb2f1676fa0fc82e26e45fcad24d8c0aafb80a60e84e22ee7cb",
   "trainingMetrics": [
     {
       "metric": "accuracy",
@@ -133,7 +168,7 @@
     "splitSeed": 42,
     "trainSize": 384,
     "testSize": 96,
-    "materializedAt": "2026-03-10T02:29:08.143Z"
+    "materializedAt": "2026-04-04T19:26:57.617Z"
   },
-  "compiledAt": "2026-03-10T02:29:10.845Z"
+  "compiledAt": "2026-04-04T19:27:00.192Z"
 }

@@ -1,0 +1,204 @@
+{
+  "version": "0.3.1",
+  "metadataSchemaVersion": "1.2.0",
+  "modelName": "userLTV",
+  "taskType": "regression",
+  "bestEstimator": "extra_tree",
+  "features": {
+    "features": [
+      {
+        "name": "accountAge",
+        "index": 0,
+        "columnCount": 1,
+        "originalType": "number",
+        "imputation": {
+          "strategy": "constant",
+          "value": 462.2942708333333
+        },
+        "scaling": {
+          "strategy": "standard",
+          "mean": 462.2942708333333,
+          "std": 216.3999103908703
+        }
+      },
+      {
+        "name": "signupSource",
+        "index": 1,
+        "columnCount": 3,
+        "originalType": "string",
+        "encoding": {
+          "type": "onehot",
+          "categories": [
+            "organic",
+            "paid",
+            "referral"
+          ]
+        },
+        "imputation": {
+          "strategy": "constant",
+          "value": "organic"
+        }
+      },
+      {
+        "name": "monthlySpend",
+        "index": 4,
+        "columnCount": 1,
+        "originalType": "number",
+        "imputation": {
+          "strategy": "constant",
+          "value": 20.429340639840856
+        },
+        "scaling": {
+          "strategy": "standard",
+          "mean": 20.429340639840856,
+          "std": 25.29171942243146
+        }
+      },
+      {
+        "name": "isPremium",
+        "index": 5,
+        "columnCount": 1,
+        "originalType": "boolean",
+        "imputation": {
+          "strategy": "constant",
+          "value": 1
+        }
+      }
+    ],
+    "count": 6,
+    "order": [
+      "accountAge",
+      "signupSource",
+      "monthlySpend",
+      "isPremium"
+    ]
+  },
+  "output": {
+    "field": "estimatedLTV",
+    "shape": [
+      1
+    ]
+  },
+  "tensorSpec": {
+    "inputShape": [
+      1,
+      6
+    ],
+    "outputShape": [
+      1
+    ]
+  },
+  "featureDependencies": [
+    {
+      "modelName": "User",
+      "path": "User.accountAge",
+      "scalarType": "number",
+      "nullable": false,
+      "extractable": false,
+      "issues": [
+        "Feature \"accountAge\" is not a direct field on model \"User\""
+      ]
+    },
+    {
+      "modelName": "User",
+      "path": "User.signupSource",
+      "scalarType": "string",
+      "nullable": false,
+      "encoding": {
+        "type": "onehot",
+        "categories": [
+          "organic",
+          "paid",
+          "referral"
+        ]
+      },
+      "extractable": false,
+      "issues": [
+        "Feature \"signupSource\" is not a direct field on model \"User\""
+      ]
+    },
+    {
+      "modelName": "User",
+      "path": "User.monthlySpend",
+      "scalarType": "number",
+      "nullable": false,
+      "extractable": true
+    },
+    {
+      "modelName": "User",
+      "path": "User.isPremium",
+      "scalarType": "boolean",
+      "nullable": false,
+      "extractable": false,
+      "issues": [
+        "Feature \"isPremium\" is not a direct field on model \"User\""
+      ]
+    }
+  ],
+  "encoding": {
+    "signupSource": {
+      "type": "onehot",
+      "categories": [
+        "organic",
+        "paid",
+        "referral"
+      ]
+    }
+  },
+  "imputation": {
+    "accountAge": {
+      "strategy": "constant",
+      "value": 462.2942708333333
+    },
+    "signupSource": {
+      "strategy": "constant",
+      "value": "organic"
+    },
+    "monthlySpend": {
+      "strategy": "constant",
+      "value": 20.429340639840856
+    },
+    "isPremium": {
+      "strategy": "constant",
+      "value": 1
+    }
+  },
+  "scaling": {
+    "accountAge": {
+      "strategy": "standard",
+      "mean": 462.2942708333333,
+      "std": 216.3999103908703
+    },
+    "monthlySpend": {
+      "strategy": "standard",
+      "mean": 20.429340639840856,
+      "std": 25.29171942243146
+    }
+  },
+  "prismaSchemaHash": "1d49fc098cc1dfb2f1676fa0fc82e26e45fcad24d8c0aafb80a60e84e22ee7cb",
+  "trainingMetrics": [
+    {
+      "metric": "rmse",
+      "value": 253.63662941857487,
+      "split": "test"
+    },
+    {
+      "metric": "mae",
+      "value": 166.83729474676832,
+      "split": "test"
+    },
+    {
+      "metric": "r2",
+      "value": 0.9941733373867633,
+      "split": "test"
+    }
+  ],
+  "dataset": {
+    "size": 480,
+    "splitSeed": 42,
+    "trainSize": 384,
+    "testSize": 96,
+    "materializedAt": "2026-04-04T19:27:00.274Z"
+  },
+  "compiledAt": "2026-04-04T19:28:02.133Z"
+}

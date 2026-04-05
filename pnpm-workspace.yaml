@@ -3,3 +3,6 @@ packages:
   - 'examples/*'
   - 'apps/*'
   - '!apps/website'
+
+onlyBuiltDependencies:
+  - onnxruntime-node

@@ -20,3 +20,31 @@ model User {
   supportTickets      Int
   willChurn           Boolean
 }
+
+model ServerMetric {
+  id             String   @id @default(cuid())
+  timestamp      DateTime @default(now())
+  cpuUsage       Float
+  memoryPressure Float
+  errorRate      Float
+  isAnomalous    Boolean
+}
+
+// categoryInt: 0=laptop, 1=tablet, 2=audio, 3=keyboard, 4=monitor
+model Product {
+  id          String @id @default(cuid())
+  name        String
+  categoryInt Int
+  price       Float
+  batteryLife Float
+  weightKg    Float
+}
+
+// sequence of weekly engagement scores per user; target = willChurn in this segment
+model EngagementEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  engagementScore Float
+  occurredAt      DateTime
+  willChurn       Boolean
+}
