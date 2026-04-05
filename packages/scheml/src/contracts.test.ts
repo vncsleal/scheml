@@ -43,21 +43,27 @@ describe('contracts', () => {
 
   describe('computeSchemaHashForMetadata', () => {
     it('computes the legacy full-schema hash for v1.1.0 artifacts', () => {
+      const graph = { rawSource: SAMPLE_SCHEMA, entities: new Map() } as any;
+      const reader = {} as any; // not used in legacy path
       expect(
-        computeSchemaHashForMetadata(SAMPLE_SCHEMA, {
+        computeSchemaHashForMetadata(graph, {
           metadataSchemaVersion: '1.1.0',
           modelName: 'User',
-        } as any)
+        } as any, reader)
       ).toBe(hashPrismaSchema(SAMPLE_SCHEMA));
     });
 
     it('computes the model-subset hash for v1.2.x artifacts', () => {
+      const graph = { rawSource: SAMPLE_SCHEMA, entities: new Map() } as any;
+      const reader = {
+        hashModel: (_g: any, name: string) => hashPrismaModelSubset(SAMPLE_SCHEMA, name),
+      } as any;
       expect(
-        computeSchemaHashForMetadata(SAMPLE_SCHEMA, {
+        computeSchemaHashForMetadata(graph, {
           metadataSchemaVersion: '1.2.1',
           modelName: 'churnRisk',
           featureDependencies: [{ modelName: 'User' }],
-        } as any)
+        } as any, reader)
       ).toBe(hashPrismaModelSubset(SAMPLE_SCHEMA, 'User'));
     });
   });

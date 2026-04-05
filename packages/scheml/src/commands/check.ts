@@ -14,18 +14,27 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
+import { createJiti } from 'jiti';
+import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import {
   ModelMetadata,
-  hashPrismaModelSubset,
-  parseModelSchema,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
-import { PrismaSchemaReader } from '../adapters/prisma';
+import { getAdapter } from '../adapters';
 import type { ArtifactMetadata } from '../artifacts';
-import { checkArtifactDrift, type SchemaDelta } from '../drift';
+import { checkArtifactDrift, type SchemaDelta, type SchemaSnapshot } from '../drift';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
 import { checkFeedbackDecay, type AccuracyDecayResult } from '../feedback';
+
+// ---------------------------------------------------------------------------
+// Config helpers
+// ---------------------------------------------------------------------------
+
+async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
+  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
+  return (await jiti.import(configPath)) as Record<string, unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,9 +84,15 @@ export const checkCommand = {
   description: 'Validate schema-only contract compatibility',
   builder: (yargs: Argv) => {
     return yargs
+      .option('config', {
+        alias: 'c',
+        description: 'Path to scheml.config.ts',
+        type: 'string',
+        default: './scheml.config.ts',
+      })
       .option('schema', {
         alias: 's',
-        description: 'Path to Prisma schema',
+        description: 'Path to schema source file',
         type: 'string',
         default: './prisma/schema.prisma',
       })
@@ -104,9 +119,24 @@ export const checkCommand = {
     const modelFilter = argv.model as string | undefined;
     const jsonMode = argv.json as boolean;
 
-    const reader = new PrismaSchemaReader();
+    // Resolve adapter from config (gracefully falls back to 'prisma')
+    let adapterName = 'prisma';
+    try {
+      const configPath = path.resolve(argv.config ?? './scheml.config.ts');
+      if (fs.existsSync(configPath)) {
+        const configModule = await loadConfigModule(configPath);
+        const configExports =
+          configModule.default && typeof configModule.default === 'object'
+            ? { ...configModule, ...configModule.default }
+            : configModule;
+        const configAdapter = (configExports as any).adapter;
+        if (typeof configAdapter === 'string') adapterName = configAdapter;
+      }
+    } catch { /* config load failure — default to prisma */ }
+
+    const adapter = getAdapter(adapterName);
+    const reader = adapter.reader;
     const graph = await reader.readSchema(schemaPath);
-    const schemaContent = graph.rawSource;
     const metadataPaths = loadMetadataFiles(outputDir, modelFilter);
 
     const errors: string[] = [];
@@ -134,8 +164,11 @@ export const checkCommand = {
           continue;
         }
 
-        const currentFields = parseModelSchema(schemaContent, metadata.entityName);
-        const currentHash = hashPrismaModelSubset(schemaContent, metadata.entityName);
+        const entity = graph.entities.get(metadata.entityName);
+        const currentFields: SchemaSnapshot = Object.fromEntries(
+          Object.entries(entity?.fields ?? {}).map(([k, f]) => [k, { type: f.scalarType, optional: f.nullable }])
+        );
+        const currentHash = reader.hashModel(graph, metadata.entityName);
         const delta = checkArtifactDrift(metadata, currentHash, currentFields);
 
         if (delta.hasDrift) {
@@ -157,7 +190,7 @@ export const checkCommand = {
           appendHistoryRecord(outputDir, {
             trait: metadata.traitName,
             model: metadata.entityName,
-            adapter: 'prisma',
+            adapter: adapterName,
             schemaHash: metadata.schemaHash,
             definedAt: latest?.definedAt ?? new Date().toISOString(),
             definedBy: latest?.definedBy ?? detectAuthor(),
@@ -238,10 +271,10 @@ export const checkCommand = {
           });
       }
 
-      const expectedSchemaHash = computeSchemaHashForMetadata(graph.rawSource, metadata);
-      if (metadata.prismaSchemaHash !== expectedSchemaHash) {
+      const expectedSchemaHash = computeSchemaHashForMetadata(graph, metadata, reader);
+      if ((metadata.schemaHash ?? metadata.prismaSchemaHash) !== expectedSchemaHash) {
         warnings.push(
-          `${metadata.modelName}: Prisma schema hash differs from metadata (hash mismatch).`
+          `${metadata.modelName}: Schema hash differs from metadata (hash mismatch).`
         );
       }
     }

@@ -223,9 +223,11 @@ export interface ModelMetadata {
   featureDependencies?: FeatureDependency[];
   tensorSpec?: TensorSpec;
   
-  /** Normalized Prisma schema SHA256 hash */
-  prismaSchemaHash: string;
-  
+  /** Adapter-agnostic schema hash at training time */
+  schemaHash: string;
+  /** @deprecated Use schemaHash — kept for backward-compatibility with Prisma artifacts produced before scheml 0.3.0 */
+  prismaSchemaHash?: string;
+
   trainingMetrics?: TrainingMetrics[];
   dataset?: TrainingDataset;
   

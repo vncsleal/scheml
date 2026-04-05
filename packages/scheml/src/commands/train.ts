@@ -15,7 +15,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import { createJiti } from 'jiti';
 import * as dotenv from 'dotenv';
@@ -23,7 +22,6 @@ import { Argv } from 'yargs';
 import ora from 'ora';
 import chalk from 'chalk';
 import {
-  hashPrismaModelSubset,
   VERSION,
   ModelMetadata,
   TrainingDataset,
@@ -31,7 +29,6 @@ import {
   TrainingMetrics,
   FeatureDependency,
   normalizeFeatureVector,
-  parseModelSchema,
 } from '..';
 import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
 import { validateTrainingModelDefinition } from '../contracts';
@@ -56,6 +53,8 @@ import {
   detectAuthor,
   nextArtifactVersion,
 } from '../history';
+import { getAdapter } from '../adapters';
+import type { ScheMLAdapter } from '../adapters/interface';
 
 type ResolvedModel = ModelDefinition & {
   output: {
@@ -138,7 +137,7 @@ export const trainCommand = {
       })
       .option('schema', {
         alias: 's',
-        description: 'Path to Prisma schema',
+        description: 'Path to schema source file',
         type: 'string',
         default: './prisma/schema.prisma',
       })
@@ -167,7 +166,7 @@ export const trainCommand = {
   handler: async (argv: any) => {
     const jsonMode = argv.json as boolean;
     const spinner = ora({ isSilent: jsonMode });
-    let prisma: any = null;
+    let adapterRef: ScheMLAdapter | null = null;
 
     try {
       dotenv.config();
@@ -180,11 +179,7 @@ export const trainCommand = {
         fs.mkdirSync(outputPath, { recursive: true });
       }
 
-      // 1. Load Prisma schema
-      spinner.start('Loading Prisma schema...');
-      const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
-      spinner.succeed('Schema loaded');
-      // 2. Load model definitions
+      // 1. Load model definitions
       spinner.start('Loading model definitions...');
 
       const configModule = await loadConfigModule(configPath);
@@ -217,7 +212,23 @@ export const trainCommand = {
 
       spinner.succeed(`Loaded ${modelDefinitions.length + traitDefinitions.length} definition(s)`);
 
-      // 3. Preflight validate model definitions before invoking Python or instantiating PrismaClient / extracting data via Prisma.
+      // Resolve adapter from config
+      const configAdapter = (configExports as any).adapter;
+      const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+      const adapter = getAdapter(adapterName);
+      if (!adapter.extractor) {
+        throw new ConfigurationError(
+          `Adapter "${adapterName}" does not support data extraction. Training requires an adapter with data extraction capability.`
+        );
+      }
+      adapterRef = adapter;
+
+      // 2. Load schema via adapter
+      spinner.start('Loading schema...');
+      const graph = await adapter.reader.readSchema(schemaPath);
+      spinner.succeed('Schema loaded');
+
+      // 3. Preflight validate model definitions before invoking Python or extracting data.
       spinner.start('Running preflight validation...');
       for (const model of modelDefinitions) {
         validateTrainingModelDefinition(model);
@@ -235,25 +246,16 @@ export const trainCommand = {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      // 6. Validate models and load PrismaClient
+      // 6. Validate models against schema graph
       spinner.start('Validating models...');
 
-      const requirePrisma = createRequire(
-        path.resolve(process.cwd(), 'node_modules/@prisma/client/package.json')
-      );
-      const { PrismaClient } = requirePrisma('@prisma/client');
-      prisma = new PrismaClient();
       const modelArtifacts: { metadata: ModelMetadata; onnxPath: string }[] = [];
 
-      const prismaModels =
-        schemaContent
-          .match(/model\s+(\w+)\s*{/g)
-          ?.map((match: string) => match.split(' ')[1]) || [];
       for (const model of modelDefinitions) {
-        if (!prismaModels.includes(model.modelName)) {
+        if (!graph.entities.has(model.modelName)) {
           throw new ModelDefinitionError(
             model.name,
-            `Prisma model "${model.modelName}" not found in schema`
+            `Entity "${model.modelName}" not found in schema`
           );
         }
         if (!model.output.resolver) {
@@ -267,30 +269,23 @@ export const trainCommand = {
         const entityName = typeof (trait as any).entity === 'string'
           ? (trait as any).entity
           : String((trait as any).entity);
-        if (!prismaModels.includes(entityName)) {
+        if (!graph.entities.has(entityName)) {
           throw new ModelDefinitionError(
             trait.name,
-            `Prisma model "${entityName}" not found in schema`
+            `Entity "${entityName}" not found in schema`
           );
         }
       }
       spinner.succeed('Models and traits validated');
 
       // 7. Extract training data and train
-      spinner.start('Extracting training data via Prisma...');
+      spinner.start('Extracting training data...');
 
       for (const model of modelDefinitions) {
-        const prismaDelegate = (prisma as any)[toCamelCase(model.modelName)];
-        if (!prismaDelegate || typeof prismaDelegate.findMany !== 'function') {
-          throw new ConfigurationError(
-            `PrismaClient does not expose model "${model.modelName}"`
-          );
-        }
-
         // ORDER BY primary key for deterministic row ordering across runs.
         // Without this, database row order is non-deterministic and the seeded
         // shuffle produces a different train/test split on every invocation.
-        const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
+        const entities = await adapter.extractor.extract(model.modelName, { orderBy: 'id' });
         if (!entities.length) {
           throw new ConfigurationError(`No records found for model "${model.modelName}"`);
         }
@@ -311,10 +306,9 @@ export const trainCommand = {
         const fittedContract = fitTrainingContract(model.name, featureNames, trainRows, rows);
         const { schema, featureStats, encodings, imputations, scalings } = fittedContract;
 
-        const prismaFields = parseModelSchema(schemaContent, model.modelName);
+        const entityFields = graph.entities.get(model.modelName)?.fields ?? {};
         const featureDependencies: FeatureDependency[] = featureStats.map((stat): FeatureDependency => {
-          const field = prismaFields[stat.name];
-          const extractable = !!field;
+          const extractable = stat.name in entityFields;
           const issues = extractable
             ? []
             : [
@@ -352,8 +346,8 @@ export const trainCommand = {
           materializedAt: new Date().toISOString(),
         };
 
-        // Per-model scoped schema hash: only hashes the relevant Prisma model block + its enums
-        const modelSchemaHash = hashPrismaModelSubset(schemaContent, model.modelName);
+        // Per-entity schema hash: adapter-specific, scoped to the model definition
+        const modelSchemaHash = adapter.reader.hashModel(graph, model.modelName);
         // Backfill schemaHash on the live model definition object
         (model as any).schemaHash = modelSchemaHash;
 
@@ -378,6 +372,7 @@ export const trainCommand = {
           stdio: 'pipe',
           encoding: 'utf-8',
         });
+        try { fs.unlinkSync(datasetPath); } catch {}
 
         if (result.error) {
           throw result.error;
@@ -387,7 +382,12 @@ export const trainCommand = {
           throw new Error(result.stderr || 'Python backend failed');
         }
 
-        const response = JSON.parse(result.stdout.trim());
+        let response: any;
+        try {
+          response = JSON.parse(result.stdout.trim());
+        } catch {
+          throw new Error(`Python backend returned invalid JSON: ${result.stdout.slice(0, 200)}`);
+        }
         const metrics: TrainingMetrics[] = response.metrics || [];
         const pendingOnnxPath: string = response.onnxPath;
         const bestEstimator: string = response.bestEstimator || algorithmName;
@@ -446,7 +446,7 @@ export const trainCommand = {
           encoding: encodings,
           imputation: imputations,
           scaling: scalings,
-          prismaSchemaHash: modelSchemaHash,
+          schemaHash: modelSchemaHash,
           trainingMetrics: metrics,
           dataset,
           compiledAt: new Date().toISOString(),
@@ -462,7 +462,7 @@ export const trainCommand = {
         appendHistoryRecord(outputDir, {
           trait: model.name,
           model: model.modelName,
-          adapter: 'prisma',
+          adapter: adapterName,
           schemaHash: modelSchemaHash,
           definedAt: new Date().toISOString(),
           definedBy: detectAuthor(),
@@ -482,15 +482,11 @@ export const trainCommand = {
           typeof (trait as any).entity === 'string'
             ? (trait as any).entity as string
             : String((trait as any).entity);
-        const prismaDelegate = (prisma as any)[toCamelCase(entityName)];
-        if (!prismaDelegate || typeof prismaDelegate.findMany !== 'function') {
-          throw new ConfigurationError(`PrismaClient does not expose model "${entityName}"`);
-        }
 
         if (trait.type === 'anomaly') {
           const features = trait.baseline;
           const contamination = SENSITIVITY_TO_CONTAMINATION[trait.sensitivity];
-          const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
+          const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
           if (!entities.length) {
             throw new ConfigurationError(
               `No records found for trait "${trait.name}" (entity "${entityName}")`
@@ -518,8 +514,13 @@ export const trainCommand = {
           if (anomResult.status !== 0) {
             throw new Error(anomResult.stderr || 'Python anomaly backend failed');
           }
-          const anomalyResponse = JSON.parse(anomResult.stdout.trim());
-          const anomalySchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          let anomalyResponse: any;
+          try {
+            anomalyResponse = JSON.parse(anomResult.stdout.trim());
+          } catch {
+            throw new Error(`Python anomaly backend returned invalid JSON: ${anomResult.stdout.slice(0, 200)}`);
+          }
+          const anomalySchemaHash = adapter.reader.hashModel(graph, entityName);
           const anomalyMetadata: AnomalyArtifactMetadata = {
             traitType: 'anomaly',
             traitName: trait.name,
@@ -546,7 +547,7 @@ export const trainCommand = {
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
-            adapter: 'prisma',
+            adapter: adapterName,
             schemaHash: anomalySchemaHash,
             definedAt: new Date().toISOString(),
             definedBy: detectAuthor(),
@@ -557,7 +558,7 @@ export const trainCommand = {
 
         } else if (trait.type === 'similarity') {
           const features = trait.on;
-          const entities = await prismaDelegate.findMany({ orderBy: { id: 'asc' } });
+          const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
           if (!entities.length) {
             throw new ConfigurationError(
               `No records found for trait "${trait.name}" (entity "${entityName}")`
@@ -583,8 +584,13 @@ export const trainCommand = {
           if (simResult.status !== 0) {
             throw new Error(simResult.stderr || 'Python similarity backend failed');
           }
-          const simResponse = JSON.parse(simResult.stdout.trim());
-          const simSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          let simResponse: any;
+          try {
+            simResponse = JSON.parse(simResult.stdout.trim());
+          } catch {
+            throw new Error(`Python similarity backend returned invalid JSON: ${simResult.stdout.slice(0, 200)}`);
+          }
+          const simSchemaHash = adapter.reader.hashModel(graph, entityName);
           const simMetadata: SimilarityArtifactMetadata = {
             traitType: 'similarity',
             traitName: trait.name,
@@ -612,7 +618,7 @@ export const trainCommand = {
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
-            adapter: 'prisma',
+            adapter: adapterName,
             schemaHash: simSchemaHash,
             definedAt: new Date().toISOString(),
             definedBy: detectAuthor(),
@@ -622,7 +628,7 @@ export const trainCommand = {
           });
 
         } else if (trait.type === 'sequential') {
-          const entities = await prismaDelegate.findMany({ orderBy: { [trait.orderBy]: 'asc' } });
+          const entities = await adapter.extractor.extract(entityName, { orderBy: trait.orderBy });
           if (entities.length <= DEFAULT_WINDOW_SIZE) {
             throw new ConfigurationError(
               `Trait "${trait.name}": need more than ${DEFAULT_WINDOW_SIZE} records (found ${entities.length})`
@@ -671,8 +677,13 @@ export const trainCommand = {
           if (seqResult.status !== 0) {
             throw new Error(seqResult.stderr || 'Python sequential backend failed');
           }
-          const seqResponse = JSON.parse(seqResult.stdout.trim());
-          const seqSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          let seqResponse: any;
+          try {
+            seqResponse = JSON.parse(seqResult.stdout.trim());
+          } catch {
+            throw new Error(`Python sequential backend returned invalid JSON: ${seqResult.stdout.slice(0, 200)}`);
+          }
+          const seqSchemaHash = adapter.reader.hashModel(graph, entityName);
           // Build FeatureSchema from the expanded feature names returned by Python
           const expandedNames: string[] = seqResponse.expandedFeatureNames ?? [];
           const seqFeatures = expandedNames.length > 0
@@ -713,7 +724,7 @@ export const trainCommand = {
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
-            adapter: 'prisma',
+            adapter: adapterName,
             schemaHash: seqSchemaHash,
             definedAt: new Date().toISOString(),
             definedBy: detectAuthor(),
@@ -723,10 +734,9 @@ export const trainCommand = {
           });
         // generative: no Python backend — compile-time template validation only
         } else if (trait.type === 'generative') {
-          const prismaFields = parseModelSchema(schemaContent, entityName);
-          const availableFields = new Set(Object.keys(prismaFields));
+          const availableFields = new Set(Object.keys(graph.entities.get(entityName)?.fields ?? {}));
           validateGenerativeTrait(trait, availableFields);
-          const genSchemaHash = hashPrismaModelSubset(schemaContent, entityName);
+          const genSchemaHash = adapter.reader.hashModel(graph, entityName);
           const genMetadata: GenerativeArtifactMetadata = {
             ...compileGenerativeTrait(trait, genSchemaHash, VERSION),
             entityName,
@@ -741,7 +751,7 @@ export const trainCommand = {
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
-            adapter: 'prisma',
+            adapter: adapterName,
             schemaHash: genSchemaHash,
             definedAt: new Date().toISOString(),
             definedBy: detectAuthor(),
@@ -753,9 +763,9 @@ export const trainCommand = {
       }
 
       spinner.start('Writing artifacts...');
-      // Copy the Prisma schema alongside the artifacts so runtime drift checks
+      // Copy the schema source alongside the artifacts so runtime drift checks
       // always use the same schema that was active at train time.
-      fs.copyFileSync(schemaPath, path.join(outputDir, 'schema.prisma'));
+      fs.copyFileSync(schemaPath, path.join(outputDir, 'schema.source'));
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
       if (jsonMode) {
@@ -798,9 +808,7 @@ export const trainCommand = {
         throw error;
       }
     } finally {
-      if (prisma) {
-        await prisma.$disconnect();
-      }
+      await adapterRef?.extractor?.disconnect?.();
     }
   },
 };

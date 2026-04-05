@@ -7,8 +7,7 @@ import * as path from 'path';
 import type { ScheMlConfig } from './defineConfig';
 import type { AnyTraitDefinition } from './traitTypes';
 import { PredictionSession } from './prediction';
-import { hashPrismaModelSubset } from './schema';
-import { PrismaQueryInterceptor } from './adapters/prisma';
+import { getAdapter } from './adapters';
 import { TTLCache } from './cache';
 
 export interface ExtendClientOptions {
@@ -21,10 +20,6 @@ export interface ExtendClientOptions {
 
 function getTraits(config: ScheMlConfig): AnyTraitDefinition[] {
   return (config.traits ?? []) as AnyTraitDefinition[];
-}
-
-function isPrismaConfig(config: ScheMlConfig): boolean {
-  return !config.adapter || config.adapter === 'prisma';
 }
 
 function entityNameFor(trait: AnyTraitDefinition): string | null {
@@ -49,8 +44,13 @@ export async function extendClient(
   config: ScheMlConfig,
   options: ExtendClientOptions = {}
 ): Promise<unknown> {
-  if (!isPrismaConfig(config)) {
-    throw new Error('extendClient currently supports only adapter: "prisma"');
+  const adapterName = typeof config.adapter === 'string' ? config.adapter : 'prisma';
+  const adapter = getAdapter(adapterName);
+  if (!adapter.createInterceptor) {
+    throw new Error(
+      `Adapter "${adapter.name}" does not support extendClient. ` +
+      `Only adapters that provide createInterceptor (e.g. "prisma") can extend clients.`
+    );
   }
 
   const traits = getTraits(config);
@@ -64,7 +64,7 @@ export async function extendClient(
 
   let predictionSession: PredictionSession | undefined;
   if (mode === 'live' || mode === 'hybrid') {
-    const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+    const graph = await adapter.reader.readSchema(schemaPath);
     predictionSession = new PredictionSession();
 
     for (const trait of traits) {
@@ -78,12 +78,12 @@ export async function extendClient(
         continue;
       }
 
-      const schemaHash = hashPrismaModelSubset(schemaContent, entityName);
+      const schemaHash = adapter.reader.hashModel(graph, entityName);
       await predictionSession.initializeModel(metadataPath, onnxPath, schemaHash);
     }
   }
 
-  const interceptor = new PrismaQueryInterceptor(
+  const interceptor = adapter.createInterceptor(
     traits
       .map((trait) => {
         const entityName = entityNameFor(trait);

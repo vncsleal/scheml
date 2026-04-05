@@ -440,9 +440,10 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
  */
 export function createPrismaAdapter(projectRoot: string = process.cwd()): ScheMLAdapter {
   return {
-    name:        'prisma',
-    reader:      new PrismaSchemaReader(),
-    extractor:   new PrismaDataExtractor(projectRoot),
-    interceptor: new PrismaQueryInterceptor([]),
+    name:             'prisma',
+    reader:           new PrismaSchemaReader(),
+    extractor:        new PrismaDataExtractor(projectRoot),
+    interceptor:      new PrismaQueryInterceptor([]),
+    createInterceptor: (traits, options) => new PrismaQueryInterceptor(traits, options as any),
   };
 }

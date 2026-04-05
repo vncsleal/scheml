@@ -15,7 +15,7 @@ import {
   PredictionSession,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
-import { PrismaDataExtractor } from '../adapters/prisma';
+import { getAdapter } from '../adapters';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
 import type { AnyTraitDefinition } from '../traitTypes';
 
@@ -125,28 +125,35 @@ export const materializeCommand = {
       }
       if (!jsonMode) spinner.succeed('Config loaded');
 
+      // Resolve adapter from config
+      const configAdapter = (configExports as any).adapter;
+      const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+      const adapter = getAdapter(adapterName);
+      if (!adapter.extractor) {
+        throw new Error(`Adapter "${adapterName}" does not support data extraction`);
+      }
+
       const metadataPath = path.join(outputDir, `${trait.name}.metadata.json`);
       const onnxPath = path.join(outputDir, `${trait.name}.onnx`);
       if (!fs.existsSync(metadataPath) || !fs.existsSync(onnxPath)) {
         throw new Error(`Artifact files not found for trait "${trait.name}" in ${outputDir}`);
       }
 
-      const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+      const schemaGraph = await adapter.reader.readSchema(schemaPath);
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
       const entityName =
         typeof (trait as any).entity === 'string'
           ? (trait as any).entity
           : String((trait as any).entity);
-      const schemaHash = computeSchemaHashForMetadata(schemaContent, metadata);
+      const schemaHash = computeSchemaHashForMetadata(schemaGraph, metadata, adapter.reader);
 
       if (!jsonMode) spinner.start('Initializing inference session...');
       const session = new PredictionSession();
       await session.initializeModel(metadataPath, onnxPath, schemaHash);
       if (!jsonMode) spinner.succeed('Inference session ready');
 
-      if (!jsonMode) spinner.start('Extracting rows via Prisma...');
-      const extractor = new PrismaDataExtractor(process.cwd());
-      const rows = await extractor.extract(entityName, { orderBy: 'id' });
+      if (!jsonMode) spinner.start(`Extracting rows via ${adapterName}...`);
+      const rows = await adapter.extractor.extract(entityName, { orderBy: 'id' });
       if (!rows.length) {
         throw new Error(`No rows found for entity "${entityName}"`);
       }
@@ -174,7 +181,7 @@ export const materializeCommand = {
           entityId: (batch[index] as any).id,
           prediction: prediction.prediction,
         }));
-        await extractor.write?.(entityName, results, outputField);
+        await adapter.extractor.write?.(entityName, results, outputField);
         written += results.length;
       }
 
@@ -182,7 +189,7 @@ export const materializeCommand = {
       appendHistoryRecord(outputDir, {
         trait: trait.name,
         model: entityName,
-        adapter: 'prisma',
+        adapter: adapterName,
         schemaHash,
         definedAt: new Date().toISOString(),
         definedBy: detectAuthor(),

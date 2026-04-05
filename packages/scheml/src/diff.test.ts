@@ -44,12 +44,12 @@ function writeRecord(
 describe('diff command — JSON mode', () => {
   it('returns ok:true with null from/to when no history exists', async () => {
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await diffCommand.handler({ trait: 'churnRisk', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());
@@ -63,12 +63,12 @@ describe('diff command — JSON mode', () => {
     writeRecord('churnRisk');
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await diffCommand.handler({ trait: 'churnRisk', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());
@@ -82,12 +82,12 @@ describe('diff command — JSON mode', () => {
     writeRecord('churnRisk', { schemaHash: 'hash2', artifactVersion: '2', status: 'drifted' });
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await diffCommand.handler({ trait: 'churnRisk', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());
@@ -111,12 +111,12 @@ describe('diff command — JSON mode', () => {
     writeRecord('ltv', { schemaHash: 'same', artifactVersion: '1', status: 'trained' });
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await diffCommand.handler({ trait: 'ltv', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());
@@ -127,12 +127,12 @@ describe('diff command — JSON mode', () => {
     writeRecord('myTrait');
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await diffCommand.handler({ trait: 'myTrait', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());

@@ -29,7 +29,7 @@ const DEMO_NOW = new Date('2026-03-08T12:00:00.000Z');
 const DAY_MS = 86_400_000;
 
 const artifactsDir = path.resolve(process.cwd(), 'demo-artifacts');
-const schemaPath = path.join(artifactsDir, 'schema.prisma');
+const schemaPath = path.join(artifactsDir, 'schema.source');
 
 export const churnModel = defineModel<User>({
   name: 'userChurn',

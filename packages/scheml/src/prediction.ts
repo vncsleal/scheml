@@ -26,6 +26,8 @@ import {
 import { computeSchemaHashForMetadata } from './contracts';
 import type { GenerativeTrait } from './traitTypes';
 import { detectOutputSchemaShape } from './generative';
+import type { ScheMLAdapter } from './adapters/interface';
+import { createPrismaAdapter } from './adapters/prisma';
 
 /**
  * Loads and caches ONNX model metadata
@@ -53,6 +55,9 @@ export class ModelMetadataLoader {
       if (raw.schemaHash && !raw.prismaSchemaHash) {
         raw.prismaSchemaHash = raw.schemaHash;
       }
+      if (raw.prismaSchemaHash && !raw.schemaHash) {
+        raw.schemaHash = raw.prismaSchemaHash;
+      }
       metadata = raw;
     } catch (error) {
       throw new ArtifactError(
@@ -75,10 +80,10 @@ export class ModelMetadataLoader {
       );
     }
 
-    if (!metadata.prismaSchemaHash) {
+    if (!metadata.schemaHash && !metadata.prismaSchemaHash) {
       throw new ArtifactError(
         metadata.modelName,
-        'Metadata missing Prisma schema hash'
+        'Metadata missing schema hash'
       );
     }
 
@@ -147,12 +152,13 @@ export class PredictionSession {
   async initializeModel(
     metadataPath: string,
     onnxPath: string,
-    prismaSchemaHash: string
+    schemaHash: string
   ): Promise<void> {
     const metadata = this.metadataLoader.loadMetadata(metadataPath);
 
-    if (metadata.prismaSchemaHash !== prismaSchemaHash) {
-      throw new SchemaDriftError(metadata.prismaSchemaHash, prismaSchemaHash);
+    const storedHash = metadata.schemaHash ?? metadata.prismaSchemaHash;
+    if (storedHash !== schemaHash) {
+      throw new SchemaDriftError(storedHash ?? '', schemaHash);
     }
 
     this.metadata.set(metadata.modelName, metadata);
@@ -175,19 +181,20 @@ export class PredictionSession {
    */
   async load(
     model: ModelDefinition,
-    opts?: { artifactsDir?: string; schemaPath?: string }
+    opts?: { artifactsDir?: string; schemaPath?: string; adapter?: ScheMLAdapter }
   ): Promise<void> {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
     const schemaFilePath =
       opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
     const metadataPath = path.resolve(dir, `${model.name}.metadata.json`);
     const onnxPath = path.resolve(dir, `${model.name}.onnx`);
-    const schema = fs.readFileSync(schemaFilePath, 'utf-8');
 
     // Backward-compatible hash: v1.1.0 artifacts used the full-schema hash;
     // v1.2.0+ artifacts use the model-scoped subset hash.
     const meta = this.metadataLoader.loadMetadata(metadataPath);
-    const hash = computeSchemaHashForMetadata(schema, meta);
+    const adapterImpl = opts?.adapter ?? createPrismaAdapter();
+    const graph = await adapterImpl.reader.readSchema(schemaFilePath);
+    const hash = computeSchemaHashForMetadata(graph, meta, adapterImpl.reader);
 
     await this.initializeModel(metadataPath, onnxPath, hash);
   }
@@ -208,7 +215,7 @@ export class PredictionSession {
    */
   async loadTrait(
     traitName: string,
-    opts?: { artifactsDir?: string; schemaPath?: string }
+    opts?: { artifactsDir?: string; schemaPath?: string; adapter?: ScheMLAdapter }
   ): Promise<void> {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
     const schemaFilePath =
@@ -218,8 +225,9 @@ export class PredictionSession {
     // Prefer the onnxFile path from metadata; fall back to convention.
     const onnxFile = (meta as any).onnxFile ?? `${traitName}.onnx`;
     const onnxPath = path.resolve(dir, onnxFile);
-    const schema = fs.readFileSync(schemaFilePath, 'utf-8');
-    const hash = computeSchemaHashForMetadata(schema, meta as any);
+    const adapterImpl = opts?.adapter ?? createPrismaAdapter();
+    const graph = await adapterImpl.reader.readSchema(schemaFilePath);
+    const hash = computeSchemaHashForMetadata(graph, meta as any, adapterImpl.reader);
     await this.initializeModel(metadataPath, onnxPath, hash);
   }
 

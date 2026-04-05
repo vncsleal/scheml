@@ -221,7 +221,7 @@ export class DrizzleDataExtractor implements DataExtractor {
     return query as Promise<Row[]>;
   }
 
-  async write(modelName: string, results: InferenceResult[]): Promise<void> {
+  async write(modelName: string, results: InferenceResult[], columnName = 'schemlPrediction'): Promise<void> {
     const table = this.tables[modelName];
     if (!table) {
       throw new Error(`DrizzleDataExtractor: no table registered for entity "${modelName}"`);
@@ -237,7 +237,7 @@ export class DrizzleDataExtractor implements DataExtractor {
       results.map((r) =>
         this.db
           .update(table)
-          .set({ schemlPrediction: r.prediction })
+          .set({ [columnName]: r.prediction })
           .where(eq((table as any).id, r.entityId))
       )
     );

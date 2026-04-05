@@ -78,12 +78,12 @@ describe('inspect command — JSON mode', () => {
     });
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await inspectCommand.handler({ trait: 'churnRisk', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());
@@ -135,12 +135,12 @@ describe('inspect command — JSON mode', () => {
     );
 
     let output = '';
-    const origLog = console.log;
-    console.log = (...args: any[]) => { output += args.join(' ') + '\n'; };
+    const origWrite = process.stdout.write.bind(process.stdout);
+    (process.stdout as any).write = (chunk: any) => { output += chunk.toString(); return true; };
     try {
       await inspectCommand.handler({ trait: 'ltv', output: tmpDir, json: true });
     } finally {
-      console.log = origLog;
+      (process.stdout as any).write = origWrite;
     }
 
     const parsed = JSON.parse(output.trim());

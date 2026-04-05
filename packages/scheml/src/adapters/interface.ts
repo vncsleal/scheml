@@ -114,6 +114,12 @@ export interface DataExtractor {
    * Only required for adapters that support materialisation.
    */
   write?(modelName: string, results: InferenceResult[], columnName?: string): Promise<void>;
+
+  /**
+   * Gracefully close the underlying data source connection.
+   * Called in `finally` blocks after training / materialisation.
+   */
+  disconnect?(): Promise<void>;
 }
 
 /**
@@ -132,7 +138,35 @@ export interface QueryInterceptor {
 export interface ScheMLAdapter {
   /** Unique adapter name, used in config and error messages */
   name: string;
+  /**
+   * Optional dialect hint (e.g. 'postgresql', 'mysql', 'sqlite').
+   * Adapters that derive it from the schema source (e.g. Prisma datasource block)
+   * may leave this undefined until after the first `reader.readSchema` call.
+   */
+  dialect?: string;
   reader: SchemaReader;
   extractor?: DataExtractor;
   interceptor?: QueryInterceptor;
+  /**
+   * Factory for a fully-configured `QueryInterceptor` for runtime client
+   * extension.  Adapters that support `extendClient` must implement this so
+   * that callers can provide trait configuration without importing the
+   * adapter-specific interceptor class directly.
+   */
+  createInterceptor?: (
+    traits: Array<{
+      traitName: string;
+      entityName: string;
+      featureNames: string[];
+      materializedColumn?: string;
+      supportsLiveInference?: boolean;
+    }>,
+    options: {
+      mode?: 'materialized' | 'live' | 'hybrid';
+      predictionSession?: unknown;
+      cache?: unknown;
+      cacheTtlMs?: number;
+      materializedColumnsPresent?: boolean;
+    }
+  ) => QueryInterceptor;
 }

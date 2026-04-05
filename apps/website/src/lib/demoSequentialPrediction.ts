@@ -2,7 +2,7 @@ import path from 'node:path';
 import { PredictionSession } from '../../../../packages/scheml/src/index';
 
 const artifactsDir = path.resolve(process.cwd(), 'demo-artifacts');
-const schemaPath = path.join(artifactsDir, 'schema.prisma');
+const schemaPath = path.join(artifactsDir, 'schema.source');
 
 let sessionPromise: Promise<PredictionSession> | undefined;
 

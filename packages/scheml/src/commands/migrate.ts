@@ -9,7 +9,7 @@ import { Argv } from 'yargs';
 import { createJiti } from 'jiti';
 import { pathToFileURL } from 'url';
 import chalk from 'chalk';
-import { parseModelSchema } from '../schema';
+import { getAdapter } from '../adapters';
 import type { AnyTraitDefinition } from '../traitTypes';
 
 function sanitizeTraitName(name: string): string {
@@ -94,6 +94,11 @@ export const migrateCommand = {
         type: 'string',
         default: 'scheml_traits',
       })
+      .option('migrations-dir', {
+        description: 'Path to migrations directory',
+        type: 'string',
+        default: './prisma/migrations',
+      })
       .option('json', {
         description: 'Emit structured JSON',
         type: 'boolean',
@@ -104,14 +109,19 @@ export const migrateCommand = {
     const configPath = path.resolve(argv.config);
     const schemaPath = path.resolve(argv.schema);
     const traitFilter = argv.trait ? sanitizeTraitName(argv.trait as string) : undefined;
+    const migrationsDir = path.resolve(argv['migrations-dir'] ?? './prisma/migrations');
     const jsonMode = argv.json as boolean;
 
-    const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
     const configModule = await loadConfigModule(configPath);
     const configExports =
       configModule.default && typeof configModule.default === 'object'
         ? { ...configModule, ...configModule.default }
         : configModule;
+
+    const configAdapter = (configExports as any).adapter;
+    const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+    const adapter = getAdapter(adapterName);
+    const schemaGraph = await adapter.reader.readSchema(schemaPath);
 
     const allTraits = Object.values(configExports).filter(isTraitDefinition) as AnyTraitDefinition[];
     const traits = traitFilter
@@ -130,7 +140,7 @@ export const migrateCommand = {
 
     const statements: string[] = [];
     const skipped: Array<{ trait: string; reason: string }> = [];
-    const provider = extractDatasourceProvider(schemaContent);
+    const provider = adapter.dialect ?? extractDatasourceProvider(schemaGraph.rawSource);
 
     for (const trait of traits) {
       const entityName =
@@ -139,17 +149,17 @@ export const migrateCommand = {
           : null;
 
       if (!entityName) {
-        skipped.push({ trait: trait.name, reason: 'non-prisma entity reference' });
+        skipped.push({ trait: trait.name, reason: 'entity name is not a string' });
         continue;
       }
 
-      const fields = parseModelSchema(schemaContent, entityName);
-      if (!Object.keys(fields).length) {
+      const entityDef = schemaGraph.entities.get(entityName);
+      if (!entityDef) {
         skipped.push({ trait: trait.name, reason: `entity "${entityName}" not found in schema` });
         continue;
       }
 
-      if (fields[trait.name]) {
+      if (entityDef.fields[trait.name]) {
         skipped.push({ trait: trait.name, reason: 'column already exists' });
         continue;
       }
@@ -161,7 +171,7 @@ export const migrateCommand = {
     }
 
     const migrationId = `${timestampId()}_${String(argv.name).replace(/[^\w-]/g, '_').slice(0, 100)}`;
-    const migrationDir = path.resolve(process.cwd(), 'prisma', 'migrations', migrationId);
+    const migrationDir = path.join(migrationsDir, migrationId);
     const migrationPath = path.join(migrationDir, 'migration.sql');
 
     let written = false;

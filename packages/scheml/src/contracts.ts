@@ -1,5 +1,6 @@
 import type { FeatureDependency, ModelDefinition, ModelMetadata, TaskType } from './types';
-import { hashPrismaModelSubset, hashPrismaSchema } from './schema';
+import { hashPrismaSchema } from './schema';
+import type { SchemaGraph, SchemaReader } from './adapters/interface';
 import { ModelDefinitionError } from './errors';
 
 const SUPPORTED_TASK_TYPES = new Set<TaskType>([
@@ -21,20 +22,20 @@ export function usesModelSubsetSchemaHash(metadataSchemaVersion?: string): boole
 }
 
 export function computeSchemaHashForMetadata(
-  schemaContent: string,
-  metadata: Pick<ModelMetadata, 'metadataSchemaVersion' | 'modelName' | 'featureDependencies'> & { entityName?: string }
+  graph: SchemaGraph,
+  metadata: Pick<ModelMetadata, 'metadataSchemaVersion' | 'modelName' | 'featureDependencies'> & { entityName?: string },
+  reader: SchemaReader
 ): string {
-  // New trait artifacts (anomaly, similarity, sequential) store entityName and
-  // always use the model-subset hash regardless of metadataSchemaVersion.
+  // Trait artifacts store entityName and always use the entity-scoped hash.
   if (metadata.entityName) {
-    return hashPrismaModelSubset(schemaContent, metadata.entityName);
+    return reader.hashModel(graph, metadata.entityName);
   }
-  const prismaModelName =
+  const entityName =
     metadata.featureDependencies?.find((dep: FeatureDependency) => dep.modelName)?.modelName ||
     metadata.modelName;
   return usesModelSubsetSchemaHash(metadata.metadataSchemaVersion)
-    ? hashPrismaModelSubset(schemaContent, prismaModelName)
-    : hashPrismaSchema(schemaContent);
+    ? reader.hashModel(graph, entityName)
+    : hashPrismaSchema(graph.rawSource);
 }
 
 function assertFiniteNumber(

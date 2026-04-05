@@ -58,24 +58,26 @@ export function registerAdapter(name: string, factory: () => ScheMLAdapter): voi
 export function getAdapter(name: string): ScheMLAdapter {
   // Lazy-load built-in adapters to avoid pulling in dependencies that the
   // consumer may not have installed (e.g. drizzle-orm is optional).
-  if (!_registry.has(name)) {
-    switch (name) {
-      case 'prisma':
-        return createPrismaAdapter();
-      case 'zod':
-        return createZodAdapter();
-      case 'drizzle':
-        return createDrizzleAdapter();
-      default:
-        throw new Error(
-          `ScheML: unknown adapter "${name}". ` +
-          `Built-in adapters: prisma, zod, drizzle. ` +
-          `Register custom adapters with registerAdapter().`
-        );
-    }
+  if (_registry.has(name)) {
+    return _registry.get(name)!();
   }
 
-  return _registry.get(name)!();
+  let factory: () => ScheMLAdapter;
+  switch (name) {
+    case 'prisma':  factory = () => createPrismaAdapter(); break;
+    case 'zod':     factory = () => createZodAdapter(); break;
+    case 'drizzle': factory = () => createDrizzleAdapter(); break;
+    default:
+      throw new Error(
+        `ScheML: unknown adapter "${name}". ` +
+        `Built-in adapters: prisma, zod, drizzle. ` +
+        `Register custom adapters with registerAdapter().`
+      );
+  }
+
+  // Cache built-in factory so listAdapters() reflects loaded built-ins.
+  _registry.set(name, factory);
+  return factory();
 }
 
 /**
