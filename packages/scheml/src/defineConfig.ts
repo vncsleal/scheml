@@ -38,6 +38,20 @@ export interface ScheMlConfig {
   adapter?: string | Record<string, unknown>;
 
   /**
+   * Path to the schema source file.
+   * Required unless passed via the `--schema` CLI flag on every command.
+   *
+   * @example
+   * ```ts
+   * // Prisma
+   * schema: './prisma/schema.prisma'
+   * // Drizzle
+   * schema: './src/db/schema.ts'
+   * ```
+   */
+  schema?: string;
+
+  /**
    * AI provider for generative traits.
    * Must satisfy the `LanguageModel` interface from the `ai` package (Vercel AI SDK v5+).
    * ScheML does not import the `ai` package directly — any conformant object works.

@@ -81,9 +81,8 @@ export const migrateCommand = {
       })
       .option('schema', {
         alias: 's',
-        description: 'Path to Prisma schema',
+        description: 'Path to schema source file (overrides scheml.config.ts schema field)',
         type: 'string',
-        default: './prisma/schema.prisma',
       })
       .option('trait', {
         description: 'Optional single trait filter',
@@ -107,7 +106,6 @@ export const migrateCommand = {
   },
   handler: async (argv: any) => {
     const configPath = path.resolve(argv.config);
-    const schemaPath = path.resolve(argv.schema);
     const traitFilter = argv.trait ? sanitizeTraitName(argv.trait as string) : undefined;
     const migrationsDir = path.resolve(argv['migrations-dir'] ?? './prisma/migrations');
     const jsonMode = argv.json as boolean;
@@ -120,6 +118,18 @@ export const migrateCommand = {
 
     const configAdapter = (configExports as any).adapter;
     const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+
+    // Resolve schema path: CLI flag > config field > error
+    const configSchemaField = typeof (configExports as any).schema === 'string'
+      ? (configExports as any).schema as string : undefined;
+    const rawSchemaArg = argv.schema as string | undefined;
+    if (!rawSchemaArg && !configSchemaField) {
+      throw new Error(
+        'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
+      );
+    }
+    const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+
     const adapter = getAdapter(adapterName);
     const schemaGraph = await adapter.reader.readSchema(schemaPath);
 

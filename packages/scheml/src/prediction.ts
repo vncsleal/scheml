@@ -184,8 +184,13 @@ export class PredictionSession {
     opts?: { artifactsDir?: string; schemaPath?: string; adapter?: ScheMLAdapter }
   ): Promise<void> {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
-    const schemaFilePath =
-      opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    if (!opts?.schemaPath) {
+      throw new Error(
+        'schemaPath is required. Pass opts.schemaPath to session.load() \u2014 ' +
+        'or set schema in scheml.config.ts and use the programmatic API that reads it.'
+      );
+    }
+    const schemaFilePath = path.resolve(opts.schemaPath);
     const metadataPath = path.resolve(dir, `${model.name}.metadata.json`);
     const onnxPath = path.resolve(dir, `${model.name}.onnx`);
 
@@ -218,12 +223,17 @@ export class PredictionSession {
     opts?: { artifactsDir?: string; schemaPath?: string; adapter?: ScheMLAdapter }
   ): Promise<void> {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
-    const schemaFilePath =
-      opts?.schemaPath ?? path.resolve(process.cwd(), 'prisma', 'schema.prisma');
+    if (!opts?.schemaPath) {
+      throw new Error(
+        'schemaPath is required. Pass opts.schemaPath to session.loadTrait() — ' +
+        'or set schema in scheml.config.ts and use the programmatic API that reads it.'
+      );
+    }
+    const schemaFilePath = path.resolve(opts.schemaPath);
     const metadataPath = path.resolve(dir, `${traitName}.metadata.json`);
     const meta = this.metadataLoader.loadMetadata(metadataPath);
     // Prefer the onnxFile path from metadata; fall back to convention.
-    const onnxFile = (meta as any).onnxFile ?? `${traitName}.onnx`;
+    const onnxFile = (meta as { onnxFile?: string }).onnxFile ?? `${traitName}.onnx`;
     const onnxPath = path.resolve(dir, onnxFile);
     const adapterImpl = opts?.adapter ?? createPrismaAdapter();
     const graph = await adapterImpl.reader.readSchema(schemaFilePath);

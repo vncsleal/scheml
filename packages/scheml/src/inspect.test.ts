@@ -115,7 +115,6 @@ describe('inspect command — JSON mode', () => {
     }
 
     expect(exitCode).toBe(1);
-    // Note: JSON error goes to console.log in --json mode (captured via console.error mock above)
   });
 
   it('feedbackCount reflects feedback records on disk', async () => {

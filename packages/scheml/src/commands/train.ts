@@ -95,10 +95,6 @@ const SENSITIVITY_TO_CONTAMINATION: Record<'low' | 'medium' | 'high', number> = 
 const DEFAULT_WINDOW_SIZE = 5;
 const DEFAULT_AGGREGATIONS: string[] = ['mean', 'sum', 'min', 'max'];
 
-function toCamelCase(name: string): string {
-  return name ? name[0].toLowerCase() + name.slice(1) : name;
-}
-
 async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
   const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
   return (await jiti.import(configPath)) as Record<string, unknown>;
@@ -137,9 +133,8 @@ export const trainCommand = {
       })
       .option('schema', {
         alias: 's',
-        description: 'Path to schema source file',
+        description: 'Path to schema source file (overrides scheml.config.ts schema field)',
         type: 'string',
-        default: './prisma/schema.prisma',
       })
       .option('output', {
         alias: 'o',
@@ -172,7 +167,6 @@ export const trainCommand = {
       dotenv.config();
 
       const configPath = path.resolve(argv.config);
-      const schemaPath = path.resolve(argv.schema);
       const outputPath = path.resolve(argv.output);
 
       if (!fs.existsSync(outputPath)) {
@@ -215,6 +209,17 @@ export const trainCommand = {
       // Resolve adapter from config
       const configAdapter = (configExports as any).adapter;
       const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+
+      // Resolve schema path: CLI flag > config field > error
+      const configSchemaField = typeof (configExports as any).schema === 'string'
+        ? (configExports as any).schema as string : undefined;
+      const rawSchemaArg = argv.schema as string | undefined;
+      if (!rawSchemaArg && !configSchemaField) {
+        throw new ConfigurationError(
+          'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
+        );
+      }
+      const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
       const adapter = getAdapter(adapterName);
       if (!adapter.extractor) {
         throw new ConfigurationError(
@@ -327,10 +332,10 @@ export const trainCommand = {
 
         const toVector = (row: TrainingRow) =>
           normalizeFeatureVector(row.features, schema, encodings, imputations, scalings);
-        const toLabel = (row: TrainingRow) => {
+        const toLabel = (row: TrainingRow): number | string => {
           const label = row.label;
           if (typeof label === 'boolean') return label ? 1 : 0;
-          return label as any;
+          return label;
         };
 
         const X_train = trainRows.map(toVector);
@@ -348,8 +353,7 @@ export const trainCommand = {
 
         // Per-entity schema hash: adapter-specific, scoped to the model definition
         const modelSchemaHash = adapter.reader.hashModel(graph, model.modelName);
-        // Backfill schemaHash on the live model definition object
-        (model as any).schemaHash = modelSchemaHash;
+        model.schemaHash = modelSchemaHash;
 
         const datasetPath = path.join(outputDir, `${model.name}.dataset.json`);
         const algorithmName = model.algorithm?.name ?? 'automl';

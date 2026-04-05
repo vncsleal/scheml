@@ -75,6 +75,7 @@ export const churnRisk = defineTrait<User>('User', {
 
 export default defineConfig({
   adapter: '${adapter}',
+  schema: ${adapter === 'prisma' ? "'./prisma/schema.prisma'" : adapter === 'drizzle' ? "'./src/db/schema.ts'" : "'./path/to/schema'"},
   traits: [churnRisk],
 });
 `;

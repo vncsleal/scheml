@@ -64,3 +64,12 @@
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T19:03:28.656Z"}
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T19:03:28.657Z"}
 {"entityId":"cust_2","actual":false,"recordedAt":"2026-04-05T19:03:28.657Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T21:22:33.012Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T21:22:33.012Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-05T21:22:33.012Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T22:03:45.279Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T22:03:45.284Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-05T22:03:45.284Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T22:04:36.741Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-05T22:04:36.741Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-05T22:04:36.742Z"}

@@ -92,9 +92,8 @@ export const checkCommand = {
       })
       .option('schema', {
         alias: 's',
-        description: 'Path to schema source file',
+        description: 'Path to schema source file (overrides scheml.config.ts schema field)',
         type: 'string',
-        default: './prisma/schema.prisma',
       })
       .option('output', {
         alias: 'o',
@@ -114,13 +113,9 @@ export const checkCommand = {
       });
   },
   handler: async (argv: any) => {
-    const schemaPath = path.resolve(argv.schema);
-    const outputDir = path.resolve(argv.output);
-    const modelFilter = argv.model as string | undefined;
-    const jsonMode = argv.json as boolean;
-
-    // Resolve adapter from config (gracefully falls back to 'prisma')
+    // Resolve adapter and schema path from config (gracefully falls back where possible)
     let adapterName = 'prisma';
+    let configSchema: string | undefined;
     try {
       const configPath = path.resolve(argv.config ?? './scheml.config.ts');
       if (fs.existsSync(configPath)) {
@@ -131,8 +126,20 @@ export const checkCommand = {
             : configModule;
         const configAdapter = (configExports as any).adapter;
         if (typeof configAdapter === 'string') adapterName = configAdapter;
+        if (typeof (configExports as any).schema === 'string') configSchema = (configExports as any).schema;
       }
-    } catch { /* config load failure — default to prisma */ }
+    } catch { /* config load failure — fall back to defaults */ }
+
+    const rawSchemaArg = argv.schema as string | undefined;
+    if (!rawSchemaArg && !configSchema) {
+      throw new Error(
+        'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
+      );
+    }
+    const schemaPath = path.resolve(rawSchemaArg ?? configSchema!);
+    const outputDir = path.resolve(argv.output);
+    const modelFilter = argv.model as string | undefined;
+    const jsonMode = argv.json as boolean;
 
     const adapter = getAdapter(adapterName);
     const reader = adapter.reader;

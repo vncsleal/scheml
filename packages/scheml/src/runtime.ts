@@ -60,10 +60,16 @@ export async function extendClient(
 
   const mode = options.mode ?? 'materialized';
   const artifactsDir = path.resolve(options.artifactsDir ?? path.resolve(process.cwd(), '.scheml'));
-  const schemaPath = path.resolve(options.schemaPath ?? path.resolve(process.cwd(), 'prisma/schema.prisma'));
 
   let predictionSession: PredictionSession | undefined;
   if (mode === 'live' || mode === 'hybrid') {
+    if (!options.schemaPath) {
+      throw new Error(
+        'schemaPath is required in ExtendClientOptions when using live or hybrid mode. ' +
+        'Set schema in scheml.config.ts or pass options.schemaPath to extendClient().'
+      );
+    }
+    const schemaPath = path.resolve(options.schemaPath);
     const graph = await adapter.reader.readSchema(schemaPath);
     predictionSession = new PredictionSession();
 

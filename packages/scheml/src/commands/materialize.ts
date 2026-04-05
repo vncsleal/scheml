@@ -40,10 +40,6 @@ function isPredictiveTrait(value: AnyTraitDefinition): value is PredictiveTraitL
   return value.type === 'predictive';
 }
 
-function toCamelCase(name: string): string {
-  return name ? name[0].toLowerCase() + name.slice(1) : name;
-}
-
 async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
   const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
   return (await jiti.import(configPath)) as Record<string, unknown>;
@@ -70,9 +66,8 @@ export const materializeCommand = {
       })
       .option('schema', {
         alias: 's',
-        description: 'Path to Prisma schema',
+        description: 'Path to schema source file (overrides scheml.config.ts schema field)',
         type: 'string',
-        default: './prisma/schema.prisma',
       })
       .option('output', {
         alias: 'o',
@@ -102,7 +97,6 @@ export const materializeCommand = {
 
     const traitName = argv.trait as string;
     const configPath = path.resolve(argv.config);
-    const schemaPath = path.resolve(argv.schema);
     const outputDir = path.resolve(argv.output);
     const batchSize = Number(argv['batch-size'] ?? 200);
 
@@ -128,6 +122,18 @@ export const materializeCommand = {
       // Resolve adapter from config
       const configAdapter = (configExports as any).adapter;
       const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
+
+      // Resolve schema path: CLI flag > config field > error
+      const configSchemaField = typeof (configExports as any).schema === 'string'
+        ? (configExports as any).schema as string : undefined;
+      const rawSchemaArg = argv.schema as string | undefined;
+      if (!rawSchemaArg && !configSchemaField) {
+        throw new Error(
+          'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
+        );
+      }
+      const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+
       const adapter = getAdapter(adapterName);
       if (!adapter.extractor) {
         throw new Error(`Adapter "${adapterName}" does not support data extraction`);
@@ -177,10 +183,17 @@ export const materializeCommand = {
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
         const predictions = await session.predictBatch(modelDef, batch);
-        const results = predictions.results.map((prediction, index) => ({
-          entityId: (batch[index] as any).id,
-          prediction: prediction.prediction,
-        }));
+        const results = predictions.results.map((prediction, index) => {
+          const row = batch[index] as Record<string, unknown>;
+          const entityId = row['id'] ?? row['_id'];
+          if (entityId == null) {
+            throw new Error(
+              `Row at index ${i + index} has no 'id' or '_id' field. ` +
+              `Ensure entity "${entityName}" exposes a primary key named 'id'.`
+            );
+          }
+          return { entityId, prediction: prediction.prediction };
+        });
         await adapter.extractor.write?.(entityName, results, outputField);
         written += results.length;
       }
