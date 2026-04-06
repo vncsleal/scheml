@@ -281,7 +281,7 @@ interface HistoryRecord {
 | `scheml history --trait <name>` | Version history for one trait |
 | `scheml migrate` | Generate schema migration for materialized trait columns |
 | `scheml materialize --trait <name>` | Batch inference → write to DB column |
-| `scheml generate` | Write `scheml.d.ts` extending ORM types with trait properties |
+| `scheml generate` | Write `scheml.d.ts` with trait property declarations. Prisma: `ScheML` global namespace + `@prisma/client` module augmentation. Zod/Drizzle: `ScheML` global namespace only (Drizzle entity names resolved via `getTableName` from drizzle-orm at runtime) |
 | `scheml audit` | Export full history as verifiable JSON |
 
 `--json` flag: when present, suppress all `ora` spinners and chalk output, write a single JSON object to stdout on success or `{ error: string, code: string }` on failure. Makes every command pipeable and agent-operable.
@@ -323,7 +323,7 @@ The `trait:` filter syntax (`findMany({ trait: { churnRisk: { gt: 0.75 } } })`) 
 - `src/adapters/prisma.ts` extended with `QueryInterceptor`
 - `src/cache.ts` (TTL cache for live trait values)
 - `src/runtime.ts` (`extendClient(client, config)` helper, adapter-agnostic)
-- Type generation: `scheml generate` command writes `scheml.d.ts` that extends the ORM's generated types with trait properties
+- Type generation: `scheml generate` writes `scheml.d.ts`. Prisma emits both a `ScheML` global namespace and a `@prisma/client` module augmentation. Zod and Drizzle emit the `ScheML` namespace only; Drizzle entity names are resolved dynamically via `getTableName` from drizzle-orm.
 
 ---
 

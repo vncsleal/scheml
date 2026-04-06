@@ -41,6 +41,26 @@ function traitValueType(type: AnyTraitDefinition['type']): string {
 }
 
 /**
+ * Attempts to resolve the table name from a Drizzle table object using
+ * drizzle-orm's `getTableName` helper. Resolved dynamically so that
+ * drizzle-orm does not need to be a hard dependency of scheml.
+ * Returns null if drizzle-orm is not installed or the value is not a table.
+ */
+function tryGetDrizzleTableName(entity: unknown): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getTableName } = require('drizzle-orm');
+    if (typeof getTableName === 'function') {
+      const name = getTableName(entity);
+      return typeof name === 'string' && name.length > 0 ? name : null;
+    }
+  } catch {
+    // drizzle-orm not installed or entity is not a Drizzle table
+  }
+  return null;
+}
+
+/**
  * Resolves the adapter name from a config export value.
  * Accepts either a string ('prisma') or an adapter object with a `name` field.
  */
@@ -56,9 +76,12 @@ function buildDeclaration(traits: AnyTraitDefinition[], adapterName: string | un
   const grouped = new Map<string, Array<{ name: string; tsType: string }>>();
 
   for (const trait of traits) {
-    // Only string-named entities (Prisma/Zod) can be augmented by name.
-    // Drizzle traits use a table object as entity and are skipped here.
-    const entityName = typeof (trait as any).entity === 'string' ? (trait as any).entity : null;
+    // Prefer a string entity name (Prisma/Zod). For Drizzle, fall back to
+    // getTableName() from drizzle-orm resolved dynamically at runtime.
+    const entityName =
+      typeof (trait as any).entity === 'string'
+        ? (trait as any).entity
+        : tryGetDrizzleTableName((trait as any).entity);
     if (!entityName) continue;
     const list = grouped.get(entityName) ?? [];
     list.push({ name: trait.name, tsType: traitValueType(trait.type) });
