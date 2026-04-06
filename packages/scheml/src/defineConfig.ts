@@ -18,7 +18,7 @@
  * });
  *
  * export default defineConfig({
- *   adapter: 'prisma',
+ *   adapter: 'drizzle',
  *   generativeProvider: openai('gpt-4o'),
  *   traits: [churnRisk],
  * });
@@ -26,6 +26,7 @@
  */
 
 import type { AnyTraitDefinition } from './traitTypes';
+import type { ScheMLAdapter } from './adapters/interface';
 
 /**
  * ScheML project configuration.
@@ -33,10 +34,9 @@ import type { AnyTraitDefinition } from './traitTypes';
 export interface ScheMLConfig {
   /**
    * Adapter to use for data extraction and schema reading.
-   * Pass `'prisma'`, `'drizzle'`, `'zod'`, or a custom adapter instance.
-   * If omitted, the adapter is inferred from the `schema` file extension.
+  * Pass `'prisma'`, `'drizzle'`, `'zod'`, `'typeorm'`, or a configured adapter instance.
    */
-  adapter?: string | Record<string, unknown>;
+  adapter: string | ScheMLAdapter;
 
   /**
    * Path to the schema source file.
@@ -67,8 +67,7 @@ export interface ScheMLConfig {
 
   /**
    * Trait definitions to compile and train.
-   * Alternatively, export them as named exports from `scheml.config.ts` —
-   * both approaches work.
+   * This is the canonical trait source used by ScheML commands.
    */
   traits?: AnyTraitDefinition[];
 }

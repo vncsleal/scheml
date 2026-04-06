@@ -10,9 +10,25 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
-import type { ArtifactMetadata } from '../artifacts';
+import { parseArtifactMetadata, type ArtifactMetadata } from '../artifacts';
 import { readLatestHistoryRecord } from '../history';
 import { readFeedbackRecords } from '../feedback';
+
+interface InspectArgs {
+  trait?: string;
+  output?: string;
+  json?: boolean;
+}
+
+type MetricRecord = Record<string, string | number | boolean | null | undefined> & {
+  split?: string;
+};
+
+type QualityGateRecord = {
+  metric?: string;
+  operator?: string;
+  threshold?: string | number;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -35,10 +51,18 @@ function loadMetadata(outputDir: string, traitName: string): ArtifactMetadata | 
   const file = metadataPath(outputDir, traitName);
   if (!fs.existsSync(file)) return null;
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as ArtifactMetadata;
+    return parseArtifactMetadata(JSON.parse(fs.readFileSync(file, 'utf-8')));
   } catch {
     return null;
   }
+}
+
+function asMetricRecord(value: unknown): MetricRecord | null {
+  return value && typeof value === 'object' ? (value as MetricRecord) : null;
+}
+
+function asQualityGateRecord(value: unknown): QualityGateRecord | null {
+  return value && typeof value === 'object' ? (value as QualityGateRecord) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +106,7 @@ function printInspect(traitName: string, meta: ArtifactMetadata, feedbackCount: 
       for (const m of meta.trainingMetrics) {
         const entries = Object.entries(m).filter(([k]) => k !== 'split');
         const formatted = entries.map(([k, v]) => `${k}=${typeof v === 'number' ? v.toFixed(4) : v}`).join('  ');
-        const split = (m as unknown as Record<string, unknown>).split ?? 'test';
+        const split = asMetricRecord(m)?.split ?? 'test';
         console.log(`  ${chalk.dim(String(split).padEnd(18))} ${formatted}`);
       }
     }
@@ -94,9 +118,10 @@ function printInspect(traitName: string, meta: ArtifactMetadata, feedbackCount: 
     console.log(chalk.bold('  Quality Gates'));
     console.log(chalk.dim('  ' + '─'.repeat(48)));
     for (const gate of meta.qualityGates) {
-      const op = (gate as unknown as Record<string, unknown>).operator ?? '>=';
-      const threshold = (gate as unknown as Record<string, unknown>).threshold;
-      const metric = (gate as unknown as Record<string, unknown>).metric ?? gate;
+      const qualityGate = asQualityGateRecord(gate);
+      const op = qualityGate?.operator ?? '>=';
+      const threshold = qualityGate?.threshold;
+      const metric = qualityGate?.metric ?? gate;
       console.log(`  ${chalk.dim(String(metric).padEnd(18))} ${op} ${threshold}`);
     }
   }
@@ -135,10 +160,14 @@ export const inspectCommand = {
         default: false,
       }),
 
-  handler: async (argv: any) => {
-    const traitName = sanitizeTraitName(argv.trait as string);
-    const outputDir = path.resolve(argv.output as string);
-    const jsonMode = argv.json as boolean;
+  handler: async (argv: InspectArgs) => {
+    if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
+      throw new Error('Trait name is required. Usage: scheml inspect <trait>');
+    }
+
+    const traitName = sanitizeTraitName(argv.trait);
+    const outputDir = path.resolve(argv.output ?? './.scheml');
+    const jsonMode = argv.json ?? false;
 
     const meta = loadMetadata(outputDir, traitName);
 

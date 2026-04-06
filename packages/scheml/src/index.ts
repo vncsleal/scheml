@@ -32,13 +32,24 @@ export * from './errors';
 
 // Schema utilities
 export {
-  normalizePrismaSchema,
-  hashPrismaSchema,
-  hashPrismaModelSubset,
+  normalizeSchemaText,
+  hashSchemaText,
+  hashSchemaEntitySubset,
   validateSchemaHash,
   extractModelNames,
   parseModelSchema,
 } from './schema';
+
+export type { SchemaHashComparison } from './schemaHash';
+export {
+  hashSchemaGraph,
+  hashSchemaGraphEntity,
+  hashSchemaEntity,
+  hashSchemaSource,
+  resolveSchemaEntityName,
+  computeMetadataSchemaHash,
+  compareSchemaHashes,
+} from './schemaHash';
 
 // Feature analysis
 export type { AccessPath, FeatureAnalysis, AnalysisIssue } from './analysis';
@@ -86,7 +97,14 @@ export {
   createDrizzleAdapter,
 } from './adapters/drizzle';
 
-export { getAdapter, registerAdapter, listAdapters, inferAdapterFromSchema } from './adapters/index';
+export {
+  TypeOrmSchemaReader,
+  TypeOrmDataExtractor,
+  TypeOrmQueryInterceptor,
+  createTypeOrmAdapter,
+} from './adapters/typeorm';
+
+export { getAdapter, registerAdapter, listAdapters } from './adapters/index';
 
 // Artifact type contracts (used by train.ts writer and PredictionSession loader)
 export type {

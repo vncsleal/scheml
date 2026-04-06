@@ -1,11 +1,13 @@
 # ScheML — Implementation Plan
 
+> Historical roadmap snapshot. Phases 1–9 referenced below are complete; treat this file as design history, not as the active source of truth for package behavior.
+
 > Transforming PrisML into ScheML: trait as a property of the type system.
 
 **Written:** March 31, 2026  
-**Updated:** April 5, 2026  
-**Status:** Phases 1–9 complete — 338 tests passing across 19 test files  
-**Last commit:** uncommitted (backward-compat scaffolding removed — `prismaSchemaHash`, `defineModel`, `artifactFormat?`)
+**Updated:** April 6, 2026  
+**Status:** Archived after Phases 1–9 completion  
+**Current source of truth:** `README.md`, `docs/ARCHITECTURE.md`, `docs/GUIDE.md`, `docs/API.md`, `CHANGELOG.md`
 
 ---
 
@@ -26,7 +28,7 @@ None of this gets thrown away. The transformation is architectural expansion, no
 
 ## Phase 1 — Complete the current IMPLEMENTATION_SPEC work ✅
 
-**What:** The in-progress work (ONNX parity, FLAML default, one-hot encoding, schema hash scoping, preflight validation) is already partially implemented in the codebase but flagged as TODO. Finish it before anything else.
+**What:** The in-progress work at the time (ONNX parity, FLAML default, one-hot encoding, schema hash scoping, preflight validation) was completed before the later trait-system phases shipped.
 
 **Why first:** Every later phase stacks on this. If the training pipeline isn't stable, signal composition and adapters will inherit broken foundations.
 
@@ -42,12 +44,12 @@ None of this gets thrown away. The transformation is architectural expansion, no
 
 ## Phase 2 — `defineTrait()` API + trait type system ✅
 
-**What:** Introduce `defineTrait()` alongside `defineModel()` (keep `defineModel` as a deprecated alias, don't break existing users). Define the TypeScript types for all five trait classes.
+**What:** Introduce `defineTrait()` as the canonical API and remove `defineModel()` instead of preserving it as a backward-compat alias. Define the TypeScript types for all five trait classes.
 
 **Types to define:**
 
 ```ts
-type TraitType = 'predictive' | 'anomaly' | 'similarity' | 'sequential' | 'generative'
+type TraitType = 'predictive' | 'anomaly' | 'similarity' | 'temporal' | 'generative'
 
 interface BaseTraitDefinition {
   type: TraitType
@@ -74,8 +76,8 @@ interface SimilarityTrait<T> extends BaseTraitDefinition {
   on: (keyof T)[]
 }
 
-interface SequentialTrait<T> extends BaseTraitDefinition {
-  type: 'sequential'
+interface TemporalTrait<T> extends BaseTraitDefinition {
+  type: 'temporal'
   sequence: keyof T
   orderBy: keyof T
   target: keyof T
@@ -108,7 +110,7 @@ A `resolveTraitGraph()` function builds the dependency DAG and runs both checks 
 - `src/defineTrait.ts`
 - `src/traitTypes.ts` (union type for all five)
 - `src/traitGraph.ts` (DAG builder + cycle detection)
-- `defineModel` re-exported as deprecated alias
+- `defineModel` removed from the public API and from implementation/docs/examples
 - Full test coverage for composition and cycle detection
 
 ---
@@ -174,9 +176,9 @@ export default defineConfig({
 
 ---
 
-## Phase 4 — Python backend: anomaly + similarity + sequential trait types ✅
+## Phase 4 — Python backend: anomaly + similarity + temporal trait types ✅
 
-**What:** Extend the Python backend to handle the two new trainable tabular trait types, plus sequential v1.
+**What:** Extend the Python backend to handle the two new trainable tabular trait types, plus temporal v1.
 
 **Anomaly:** Isolation Forest (scikit-learn) for dataset-level anomaly scoring. FLAML doesn't natively support unsupervised tasks, so this is a direct sklearn path. Output: a float score in `[0, 1]` (higher = more anomalous), plus a binary threshold at inference time based on the configured `sensitivity`.
 
@@ -190,7 +192,7 @@ export default defineConfig({
 
 Artifact loading in `PredictionSession` must detect trait type and load the correct artifact format. The `src/artifacts.ts` contract defines all artifact shapes.
 
-**Sequential v1 (fixed-window):** Not a sequence model — window-based feature aggregation over the N most recent events. This converts sequential data into a fixed-width tabular input, feeding the existing FLAML → ONNX pipeline. True sequence models (LSTM/Transformer) are explicitly out of scope for v1 and documented as such. This is technically honest.
+**Temporal v1 (fixed-window):** Not a sequence model — window-based feature aggregation over the N most recent events. This converts ordered temporal data into a fixed-width tabular input, feeding the existing FLAML → ONNX pipeline. True sequence models (LSTM/Transformer) are explicitly out of scope for v1 and documented as such. This is technically honest.
 
 **New Python modules:**
 

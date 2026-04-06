@@ -4,7 +4,7 @@
 
 - [README.md](../README.md) - product overview and quickstart
 - [ROADMAP.md](../ROADMAP.md) - project direction, milestones, OSS path, monetization path
-- [MANIFEST.md](../MANIFEST.md) - project stance and values
+- [CHANGELOG.md](../CHANGELOG.md) - shipped history and current release notes
 
 ## Core Docs
 
@@ -16,7 +16,6 @@
 
 ## Project Docs
 
-- [CHANGELOG.md](../CHANGELOG.md) - shipped history
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - contribution guide
 
 ## Examples

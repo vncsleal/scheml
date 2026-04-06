@@ -1,70 +1,23 @@
 # ScheML API Reference
 
-## @vncsleal/scheml
+## Package
 
-Single production dependency. Includes the runtime prediction engine, type system, CLI (`scheml train`, `scheml check`), and Python training backend.
+`@vncsleal/scheml` is the single runtime and build-time package. It contains:
+
+- the trait definition API
+- adapter abstractions and built-in adapters
+- schema hashing and contract validation utilities
+- runtime inference via `PredictionSession`
+- CLI commands such as `train`, `check`, `inspect`, `status`, `diff`, `audit`, `migrate`, and `init`
+- the Python training backend used by `scheml train`
 
 ```bash
 npm install @vncsleal/scheml
 ```
 
-### Types
+## Core Types
 
-#### `ModelDefinition<TModel>`
-
-Complete specification of a predictive model.
-
-```typescript
-interface ModelDefinition<TModel = any> {
-  // Name of the model
-  name: string;
-  
-  // Target Prisma model (e.g., 'User', 'Expense')
-  modelName: string;
-  
-  // Output field specification
-  output: {
-    field: string;
-    taskType: 'regression' | 'binary_classification' | 'multiclass_classification';
-    resolver?: OutputResolver<TModel>;
-  };
-  
-  // Named feature resolvers (pure functions over entities)
-  features: Record<string, FeatureResolver<TModel>>;
-  
-  // Algorithm choice (pinned version)
-  algorithm: AlgorithmConfig;
-  
-  // Build-time quality gates
-  qualityGates?: QualityGate[];
-  
-  // Computed at compile time
-  schemaHash?: string;
-}
-```
-
-#### `TaskType`
-
-```typescript
-type TaskType = 'regression' | 'binary_classification' | 'multiclass_classification';
-```
-
-#### `AlgorithmConfig`
-
-```typescript
-interface AlgorithmConfig {
-  /**
-   * Algorithm name. Use 'automl' (default) to let FLAML choose automatically.
-   * Explicit options: 'linear', 'tree', 'forest', 'gbm'.
-   */
-  name: string;
-
-  // Optional hyperparameter overrides (not valid for 'automl')
-  hyperparameters?: Record<string, unknown>;
-}
-```
-
-#### `QualityGate`
+### `QualityGate`
 
 ```typescript
 interface QualityGate {
@@ -75,7 +28,7 @@ interface QualityGate {
 }
 ```
 
-#### `ImputationRule`
+### `ImputationRule`
 
 ```typescript
 interface ImputationRule {
@@ -84,256 +37,364 @@ interface ImputationRule {
 }
 ```
 
-#### `CategoryEncoding`
+### `CategoryEncoding`
 
 ```typescript
 interface CategoryEncoding {
-  type: 'label' | 'hash';
+  type: 'label' | 'hash' | 'onehot';
   mapping?: Record<string, number>;
+  categories?: string[];
 }
 ```
 
-#### `ModelMetadata`
-
-Immutable contract generated at compile time.
+### `PredictionOutput`
 
 ```typescript
-interface ModelMetadata {
-  version: string;
-  metadataSchemaVersion: string;
-  
+interface PredictionOutput {
   modelName: string;
-  taskType: TaskType;
-  
-  algorithm: AlgorithmConfig;
-  
-  features: {
-    features: EncodedFeature[];
-    count: number;
-    order: string[];
-  };
-  
-  output: {
-    field: string;
-    shape: number[];
-  };
-  
-  encoding: Record<string, CategoryEncoding | undefined>;
-  imputation: Record<string, ImputationRule | undefined>;
-  
-  // Normalized Prisma schema SHA256 hash
-  prismaSchemaHash: string;
-  
-  trainingMetrics?: TrainingMetrics[];
-  dataset?: TrainingDataset;
-  
-  compiledAt: string; // ISO timestamp
+  prediction: number | string;
+  confidence?: number;
+  timestamp: string;
 }
 ```
 
-### Functions
+### `SimilarityPredictionOutput`
 
-#### `defineTrait(entity, config)`
+```typescript
+interface SimilarityPredictionOutput {
+  traitName: string;
+  matches: Array<{
+    entityId: unknown;
+    score: number;
+    rank: number;
+  }>;
+  timestamp: string;
+}
+```
 
-Declares an intelligence trait on an entity type. Returns a `ResolvedTrait` with the config plus `record()` / `recordBatch()` feedback methods. Supports five trait types: `predictive`, `anomaly`, `similarity`, `sequential`, `generative`.
+### Artifact Metadata
+
+ScheML emits trait-specific artifact metadata rather than one Prisma-only metadata shape. Common fields include:
+
+```typescript
+interface ArtifactMetadataBase {
+  version: string;
+  metadataSchemaVersion: string;
+  traitType: 'predictive' | 'anomaly' | 'similarity' | 'temporal' | 'generative';
+  traitName: string;
+  schemaHash: string;
+  compiledAt: string;
+  entityName?: string;
+}
+```
+
+Predictive and temporal ONNX artifacts include feature contract data such as `features`, `encoding`, `imputation`, `scaling`, `tensorSpec`, and `output`.
+
+Anomaly artifacts include baseline feature names and normalization statistics.
+
+Similarity artifacts include the embedding index format and index paths.
+
+Generative artifacts include prompt shape metadata rather than ONNX files.
+
+## Definition API
+
+### `defineTrait(entity, config)`
+
+Declares a trait and returns a resolved trait object with feedback helpers. The entity can be:
+
+- a string entity name for string-name adapters such as Prisma and TypeORM
+- a runtime object such as a Drizzle table or a Zod schema object for runtime-object adapters
 
 ```typescript
 import { defineTrait } from '@vncsleal/scheml';
 
-const userValue = defineTrait('User', {
+const churnRisk = defineTrait('User', {
   type: 'predictive',
-  name: 'userValue',
-  target: 'estimatedLTV',
-  features: ['createdAt', 'plan', 'totalSpend'],
+  name: 'churnRisk',
+  target: 'churned',
+  features: ['plan', 'totalSpend', 'daysSinceLogin'],
   output: {
-    field: 'estimatedLTV',
-    taskType: 'regression',
+    field: 'churnScore',
+    taskType: 'binary_classification',
   },
   qualityGates: [
     {
-      metric: 'rmse',
-      threshold: 500,
-      comparison: 'lte',
-      description: 'Must predict within $500 RMSE',
+      metric: 'f1',
+      threshold: 0.85,
+      comparison: 'gte',
     },
   ],
 });
+
+await churnRisk.record('user_123', { actual: true, predicted: 0.92 });
+await churnRisk.recordBatch([
+  { id: 'user_123', actual: true, predicted: 0.92 },
+  { id: 'user_456', actual: false, predicted: 0.13 },
+]);
 ```
 
-#### `defineModel(config: ModelDefinition): ModelDefinition`
+Supported trait kinds:
 
-> **Deprecated.** Use `defineTrait` for new code. `defineModel` is kept for backward compatibility.
+- `predictive`
+- `anomaly`
+- `similarity`
+- `temporal`
+- `generative`
 
-#### `hashPrismaSchema(schema: string): string`
+### `defineConfig(config)`
 
-Compute SHA256 hash of normalized Prisma schema.
+Typed factory for `scheml.config.ts`.
 
 ```typescript
-import { hashPrismaSchema } from '@vncsleal/scheml';
+import { defineConfig } from '@vncsleal/scheml';
 
-const hash = hashPrismaSchema(schemaContent);
-// "abc123def456..."
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [churnRisk],
+});
 ```
 
-#### `validateSchemaHash(expected: string, actual: string): { valid: boolean }`
+`adapter` is required. It can be a built-in adapter name or a configured adapter instance.
 
-Validate schema hash consistency.
+## Adapter API
 
-```typescript
-const result = validateSchemaHash(expected, actual);
-if (!result.valid) {
-  throw new SchemaDriftError(expected, actual);
-}
-```
-
-#### `analyzeFeatureResolver(sourceCode: string, functionName?: string): FeatureAnalysis`
-
-Analyze feature resolver for static extractability.
-
-```typescript
-import { analyzeFeatureResolver } from '@vncsleal/scheml';
-
-const analysis = analyzeFeatureResolver(
-  'const resolver = (user) => user.profile?.name;',
-  'resolver'
-);
-
-if (!analysis.isExtractable) {
-  console.warn(`Analysis issues:`, analysis.issues);
-}
-```
-
-#### `normalizeFeatureVector(features, schema, encodings, imputations): number[]`
-
-Normalize feature dictionary to numeric vector.
-
-```typescript
-import { normalizeFeatureVector } from '@vncsleal/scheml';
-
-const vector = normalizeFeatureVector(
-  { age: 30, isPremium: true },
-  schema,
-  encodings,
-  imputations
-);
-// [30, 1]
-```
-
-### Errors
-
-All errors extend `ScheMLError` and include structured context.
+Built-in factories:
 
 ```typescript
 import {
-  ScheMLError,
-  SchemaDriftError,
-  FeatureExtractionError,
-  UnseenCategoryError,
-  QualityGateError,
+  createPrismaAdapter,
+  createDrizzleAdapter,
+  createTypeOrmAdapter,
+  createZodAdapter,
 } from '@vncsleal/scheml';
+```
 
-try {
-  // ...
-} catch (error) {
-  if (error instanceof SchemaDriftError) {
-    console.error('Schema mismatch:', error.context);
-  }
+Registry helpers:
+
+```typescript
+import { getAdapter, registerAdapter, listAdapters } from '@vncsleal/scheml';
+```
+
+`inferAdapterFromSchema` is no longer part of the public API. Adapter selection is explicit.
+
+## Schema Contract API
+
+ScheML now uses adapter-neutral schema hashing. Runtime and build-time code compare the current adapter-normalized entity shape against the artifact's stored `schemaHash`.
+
+### `hashSchemaGraph(graph)`
+
+Hashes the full normalized schema graph.
+
+### `hashSchemaGraphEntity(graph, entityName)`
+
+Hashes a single normalized entity from a schema graph.
+
+### `hashSchemaEntity(graph, entityName, reader?)`
+
+Returns the primary entity-scoped hash. When a `reader` is provided, the adapter's own `hashModel()` implementation is used.
+
+### `hashSchemaSource(source, reader, entityName?)`
+
+Reads a schema source through an adapter reader and returns either a graph hash or an entity hash.
+
+### `computeMetadataSchemaHash(graph, metadata, reader)`
+
+Computes the current runtime hash for an artifact metadata object.
+
+### `resolveSchemaEntityName(metadata)`
+
+Resolves the entity name used for hashing from metadata.
+
+### `compareSchemaHashes(expected, actual)`
+
+Returns:
+
+```typescript
+{
+  valid: boolean;
+  expectedHash: string;
+  actualHash: string;
 }
 ```
+
+### Text Schema Helpers
+
+These remain useful for text-schema workflows and tests:
+
+```typescript
+import {
+  normalizeSchemaText,
+  hashSchemaText,
+  hashSchemaEntitySubset,
+  validateSchemaHash,
+  extractModelNames,
+  parseModelSchema,
+} from '@vncsleal/scheml';
+```
+
+`hashSchemaEntitySubset()` is the entity-scoped text-schema helper that replaced the old Prisma-specific subset hash surface.
+
+## Analysis And Encoding API
+
+### `analyzeFeatureResolver(sourceCode, functionName?)`
+
+Inspects a resolver for static extractability and returns access-path analysis.
+
+### `validateHydration(accessPaths, entity, allowNull?)`
+
+Checks whether an entity shape satisfies the access paths expected by a feature resolver.
+
+### `normalizeFeatureVector(features, schema, encodings, imputations)`
+
+Compiles feature values into the numeric vector expected by the trained artifact.
+
+### `buildCategoryMapping(values)` and `buildCategories(values)`
+
+Helpers for deterministic categorical contract construction.
+
+## Runtime API
+
+### `new PredictionSession()`
+
+Creates a reusable runtime inference session.
+
+### `session.loadTrait(traitName, options)`
+
+Loads a trait artifact from disk and validates it against the current schema using an explicit adapter.
+
+```typescript
+import { PredictionSession } from '@vncsleal/scheml';
+
+const session = new PredictionSession();
+
+await session.loadTrait('productSales', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+```
+
+Rules:
+
+- `adapter` is required
+- `schemaPath` is required for schema-backed runtime validation
+- predictive and temporal traits load ONNX sessions
+- anomaly traits load metadata-backed runtime scoring state
+- similarity traits load the similarity index and use `predictSimilarity()`
+
+### `session.initializeModel(metadataPath, onnxPath, schemaHash)`
+
+Low-level initializer for ONNX-backed predictive and temporal artifacts.
+
+### `session.predict(traitName, entity, resolvers)`
+
+Runs a single prediction.
+
+- predictive traits return the trained prediction
+- temporal traits return the trained sequence-window prediction
+- anomaly traits return a numeric anomaly score
+
+Similarity traits do not use this method.
+
+### `session.predictBatch(traitName, entities, resolvers)`
+
+Runs batch inference with atomic validation.
+
+### `session.predictSimilarity(traitName, entity, resolvers, options?)`
+
+Runs nearest-neighbour retrieval for similarity traits.
+
+```typescript
+const result = await session.predictSimilarity('productSimilarity', product, {
+  price: (row) => row.price,
+  rating: (row) => row.rating,
+}, { limit: 5 });
+```
+
+### `session.dispose(traitName)` and `session.disposeAll()`
+
+Clears loaded runtime state.
+
+## Client Extension API
+
+### `extendClient(client, config, options?)`
+
+Extends an adapter client with trait fields when the adapter implements a query interceptor.
+
+```typescript
+import { extendClient } from '@vncsleal/scheml';
+
+const extended = await extendClient(prisma, config, {
+  mode: 'materialized',
+  cacheTtlMs: 30_000,
+  materializedColumnsPresent: true,
+});
+```
+
+Supported runtime modes:
+
+- `materialized`
+- `live`
+
+`hybrid` is no longer supported.
+
+In live mode, ScheML now fails loudly if any live-capable trait is missing its required artifact metadata.
 
 ## CLI
 
 ### `scheml train`
 
-Compiler driver: loads models, trains, exports artifacts.
+Runs the compile-time pipeline.
 
 ```bash
-scheml train \
-  --config ./scheml.config.ts \
-  --schema ./prisma/schema.prisma \
-  --output ./.scheml \
-  --python local
+scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
-**Options:**
-- `--config, -c` — Path to model definitions (default: `./scheml.config.ts`)
-- `--schema, -s` — Path to Prisma schema (default: `./prisma/schema.prisma`)
-- `--output, -o` — Output directory (default: `./.scheml`)
-- `--python` — Backend: `local` (default: `local`)
+Responsibilities:
 
-**Output:**
-- `{output}/{modelName}.metadata.json` — Metadata contract
-- `{output}/{modelName}.onnx` — ONNX binary
+- load config and traits
+- resolve the explicit adapter
+- read and hash the schema
+- extract training data
+- fit the feature contract
+- invoke the Python backend
+- evaluate quality gates
+- emit immutable artifacts
 
 ### `scheml check`
 
-Schema-only validation. Validates feature dependencies against the Prisma schema without running training. Fast CI-friendly check (no Python required).
+Validates current schema compatibility against existing artifacts without retraining.
 
 ```bash
-scheml check --schema ./prisma/schema.prisma --output ./.scheml
+scheml check --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
-## `PredictionSession`
+### Other Commands
 
-Manages ONNX model sessions and predictions.
+- `scheml status` lists discovered artifacts and summaries
+- `scheml inspect <trait>` prints metadata and history for one trait
+- `scheml diff <trait>` compares the latest history states for one trait
+- `scheml audit` summarizes artifact history state
+- `scheml migrate` writes schema migrations for materialized trait columns on migration-capable adapters
+- `scheml init` scaffolds a starter config and `.scheml/` directory
 
-#### Constructor
+## Errors
 
-```typescript
-const session = new PredictionSession();
-```
+All public failures use `ScheMLError` subclasses with structured context when applicable.
 
-#### `session.load(model, opts?)`
+Common categories include:
 
-Load a trained model by resolving `.scheml/{name}.{onnx,metadata.json}` and hashing `prisma/schema.prisma` automatically.
-
-```typescript
-import { userLTVModel } from './scheml.config';
-
-await session.load(userLTVModel);
-// or with path overrides:
-await session.load(userLTVModel, {
-  artifactsDir: './.scheml',           // default
-  schemaPath: 'prisma/schema.prisma',  // default
-});
-```
-
-**Throws:**
-- `SchemaDriftError` — if schema hash doesn't match the compiled artifacts
-- `ArtifactError` — if artifacts are missing or invalid
-
-#### `session.initializeModel(metadataPath, onnxPath, prismaSchemaHash)` _(low-level)_
-
-Explicit path-based initializer. Prefer `session.load()` for most use cases.
-
-```typescript
-await session.initializeModel(
-  './artifacts/model.metadata.json',
-  './artifacts/model.onnx',
-  'abc123...'
-);
-```
-
-**Throws:**
-- `SchemaDriftError` — if schema hash doesn't match
-- `ArtifactError` — if artifacts missing or invalid
-
-#### `session.predict<T>(model, entity): Promise<PredictionOutput>`
-
-Run prediction on a single entity using the resolvers declared in `model.features`.
-
-```typescript
-const result = await session.predict(userLTVModel, user);
-console.log(result.prediction); // e.g., 1500
-```
-
-#### `session.predict<T>(modelName, entity, resolvers): Promise<PredictionOutput>` _(low-level)_
-
-String-based overload. Requires the model to be initialized via `initializeModel()` first.
-
-```typescript
-const result = await session.predict('userLTV', user, {
-  accountAge: (u) => Date.now() - u.createdAt.getTime(),
+- `SchemaDriftError`
+- `ModelDefinitionError`
+- `FeatureExtractionError`
+- `HydrationError`
+- `UnseenCategoryError`
+- `ArtifactError`
+- `QualityGateError`
+- `ONNXRuntimeError`
+- `EncodingError`
+- `ConfigurationError`
   isPremium: (u) => u.plan === 'premium',
 });
 ```
@@ -388,51 +449,3 @@ Release ONNX session for a model.
 await session.dispose('userLTV');
 ```
 
-#### `session.disposeAll(): Promise<void>`
-
-Release all sessions.
-
-```typescript
-await session.disposeAll();
-```
-
-## Error Examples
-
-### Schema Drift
-
-```typescript
-try {
-  await session.load(userLTVModel);
-} catch (error) {
-  if (error instanceof SchemaDriftError) {
-    console.error('Schema mismatch since model compilation');
-    console.error('Expected:', error.context.expectedHash);
-    console.error('Actual:', error.context.actualHash);
-  }
-}
-```
-
-### Feature Extraction
-
-```typescript
-try {
-  const result = await session.predict(userLTVModel, user);
-} catch (error) {
-  if (error instanceof FeatureExtractionError) {
-    console.error(`Feature "${error.context.featureName}" failed`);
-    console.error(`Reason: ${error.context.reason}`);
-  }
-}
-```
-
-### Unseen Category
-
-```typescript
-try {
-  const result = await session.predict(userLTVModel, user);
-} catch (error) {
-  if (error instanceof UnseenCategoryError) {
-    console.error(`Unseen category "${error.context.value}" for feature "${error.context.featureName}"`);
-  }
-}
-```

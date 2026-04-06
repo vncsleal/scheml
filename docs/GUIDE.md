@@ -4,326 +4,285 @@
 
 ### Node.js
 
-Node.js **18 or higher** is required.
+Node.js 18 or higher is required.
 
-### Python (build-time only)
+### Python
 
-`scheml train` shells out to a Python backend to produce ONNX artifacts. Python is **not** required at runtime \u2014 only during the training/compilation step.
+`scheml train` uses the bundled Python backend to produce ONNX models and other training artifacts. Python is required for training, not for normal predictive runtime use.
 
 | Requirement | Version |
 |---|---|
-| Python | ≥ 3.9 |
+| Python | >= 3.9 |
 | numpy | 1.26.4 |
 | scikit-learn | 1.5.2 |
 | skl2onnx | 1.16.0 |
 | onnx | 1.16.0 |
 
-Install the Python dependencies once, before your first `scheml train`:
+Install the Python dependencies once before your first training run:
 
 ```bash
-pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
+scheml check --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
-You can confirm everything is available by running:
+This validates that the current schema still matches the emitted artifact contract.
 
-```bash
-python - <<'EOF'
-import numpy, sklearn, skl2onnx, onnx
-print(f"numpy        {numpy.__version__}")
-print(f"scikit-learn {sklearn.__version__}")
-print(f"skl2onnx     {skl2onnx.__version__}")
-print(f"onnx         {onnx.__version__}")
-EOF
-```
+### 4. Run Predictions
 
-This same check runs automatically in CI on every push via the [`ci.yml`](../.github/workflows/ci.yml) workflow.
-
----
-
-## Installation
-
-```bash
-npm install @vncsleal/scheml
-```
-
-`@vncsleal/scheml` is the only package — it includes the runtime prediction engine, CLI (`scheml train`, `scheml check`), and Python training backend.
-
----
-
-## Quick Start
-
-### 1. Define Models
-
-Create `scheml.config.ts` with your model definitions:
-
-```typescript
-import { defineModel } from '@vncsleal/scheml';
-
-export const userLTVModel = defineModel<User>({
-  name: 'userLTV',
-  modelName: 'User',
-  output: {
-    field: 'estimatedLTV',
-    taskType: 'regression',
-    resolver: (user) => user.actualLTV,
-  },
-  features: {
-    // Account age in days
-    accountAge: (user) => {
-      const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      return Math.floor(days);
-    },
-
-    // Categorical: one-hot encoded by default
-    source: (user) => user.signupSource,
-
-    // Boolean: converted to 0/1
-    isPremium: (user) => user.plan === 'premium',
-  },
-  qualityGates: [
-    {
-      metric: 'rmse',
-      threshold: 500,
-      comparison: 'lte',
-      description: 'Must predict within $500',
-    },
-  ],
-});
-```
-
-### 2. Train
-
-Compile models to immutable artifacts:
-
-```bash
-npm run train
-```
-
-This:
-1. Loads Prisma schema
-2. Validates model definitions
-3. Extracts training data via Prisma
-4. Fits the feature contract from the training split
-5. Invokes Python backend
-6. Evaluates quality gates
-7. Exports `<modelName>.onnx` + `<modelName>.metadata.json` into `.scheml/`
-
-Artifacts are **immutable** and intended to be **committed to git**.
-
-Encoding categories, imputation values, and numeric scaling statistics are part of the compiled feature contract. They are fit during training and stored in `<modelName>.metadata.json` so runtime prediction can reuse the exact same contract.
-
-### 2.5. Validate Schema Contract
-
-Run a schema-only validation in CI or locally:
-
-```bash
-scheml check --schema ./prisma/schema.prisma --output ./.scheml
-```
-
-This fails on field type or nullability mismatches and warns on dynamic feature paths.
-
-### 3. Run Predictions
-
-Use trained models in your application:
+Use `PredictionSession` directly:
 
 ```typescript
 import { PredictionSession } from '@vncsleal/scheml';
-import { userLTVModel } from './scheml.config';
 
 const session = new PredictionSession();
-await session.load(userLTVModel);
-// Automatically resolves .scheml/userLTV.{onnx,metadata.json} and hashes prisma/schema.prisma
 
-// Single prediction
-const result = await session.predict(userLTVModel, user);
-console.log(result.prediction); // e.g., 1500
+await session.loadTrait('userLTV', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+const result = await session.predict('userLTV', user, {
+  createdAt: (u) => u.createdAt,
+  signupSource: (u) => u.signupSource,
+  plan: (u) => u.plan,
+});
+
+console.log(result.prediction);
 ```
 
-## Feature Resolvers
+## Choosing A Runtime Surface
 
-Feature resolvers are pure functions that extract values from entities.
+### `PredictionSession`
 
-### Scalar Types
+Use this when you want explicit runtime control or you are on an adapter without a query interceptor.
 
-```typescript
-features: {
-  // Numeric
-  revenue: (user) => user.monthlySpend,
+Current runtime coverage:
 
-  // Boolean → encoded as 0/1
-  isActive: (user) => user.lastActiveAt > new Date(Date.now() - 30 * 86400000),
+- predictive via `predict()` and `predictBatch()`
+- temporal via `predict()` and `predictBatch()`
+- anomaly via `predict()` and `predictBatch()`
+- similarity via `predictSimilarity()`
 
-  // String → categorical encoding (one-hot by default)
-  region: (user) => user.country,
+### `extendClient()`
 
-  // Date → converted to Unix timestamp
-  createdAt: (user) => user.createdAt,
+Use this when you want traits exposed as fields on your ORM client.
 
-  // Null handling
-  memberSince: (user) => user.joinDate || null,
-}
-```
+Current interceptor-backed adapters:
 
-### Supported Patterns
+- Prisma
+- TypeORM
 
-**Direct property access:**
-```typescript
-name: (user) => user.name
-```
+Current modes:
 
-**Optional chaining:**
-```typescript
-bio: (user) => user.profile?.bio
-```
+- `materialized`
+- `live`
 
-**Nested property:**
-```typescript
-tier: (user) => user.account.subscription.tier
-```
+Live mode now fails loudly if a live-capable trait is missing its metadata artifact.
 
-**Array length:**
-```typescript
-tagCount: (user) => user.tags.length
-```
+## Adapter Examples
 
-**Computed values:**
-```typescript
-accountAge: (user) => {
-  const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-  return Math.floor(days);
-}
-```
-
-### Unsupported Patterns
-
-[UNSUPPORTED] Dynamic keys:
-```typescript
-value: (user) => user[fieldName] // NOT EXTRACTABLE
-```
-
-[UNSUPPORTED] Array indexing:
-```typescript
-firstTag: (user) => user.tags[0] // NOT EXTRACTABLE
-```
-
-[UNSUPPORTED] Iteration:
-```typescript
-totalTags: (user) => user.tags.map(t => t.length).sum() // NOT EXTRACTABLE
-```
-
-[UNSUPPORTED] Opaque function calls:
-```typescript
-processed: (user) => processValue(user.value) // NOT EXTRACTABLE
-```
-
-## Categorical Features
-
-String features default to one-hot encoding, with training-time categories stored in metadata:
+### Prisma
 
 ```typescript
-features: {
-  region: (user) => user.country, // 'US', 'EU', 'APAC'
-}
-
-// In metadata (auto-discovered at training time):
-encoding: {
-  region: {
-    type: 'onehot',
-    categories: ['APAC', 'EU', 'US']
-  }
-}
-```
-
-**One-hot encoding:**
-- Categories sorted alphabetically
-- Category list serialized in metadata
-- Unseen categories at runtime → all-zero columns
-- No false ordinal relationship between categories
-
-## Null Handling
-
-Nulls must be declared and imputed:
-
-```typescript
-features: {
-  // OK: value can be null, will use imputation
-  bio: {
-    resolver: (user) => user.profile?.bio,
-    imputation: {
-      strategy: 'constant',
-      value: 'unknown',
-    },
-  },
-
-  // ERROR: resolver can return null but no imputation
-  revenue: (user) => user.revenue, // Could be null!
-}
-```
-
-**Imputation strategies:**
-- `constant` — use fixed value
-- `mean` — use training set mean
-- `median` — use training set median
-- `mode` — use training set mode
-
-## Quality Gates
-
-Define minimum acceptable model quality:
-
-```typescript
-qualityGates: [
-  {
-    metric: 'rmse',
-    threshold: 500,
-    comparison: 'lte',
-    description: 'Regression error must be < $500',
-  },
-  {
-    metric: 'precision',
-    threshold: 0.8,
-    comparison: 'gte',
-    description: 'Precision must be >= 80%',
-  },
-]
-```
-
-**Metrics:**
-- Regression: `mse`, `rmse`, `mae`, `r2`
-- Classification: `accuracy`, `precision`, `recall`, `f1`
-
-If any gate fails during training:
-- Artifact generation **aborts**
-- `scheml train` exits with **non-zero code**
-- No model is exported
-- You must fix the model and retrain
-
-## Batch Predictions
-
-Process multiple entities efficiently with atomic validation:
-
-```typescript
-const users = await db.user.findMany({ take: 1000 });
-
-try {
-  const result = await session.predictBatch('userLTV', users, {
-    accountAge: (u) => ...,
-    source: (u) => ...,
-  });
-
-  console.log(`All ${result.successCount} predictions succeeded`);
-
-  result.results.forEach((r, i) => {
-    console.log(`User ${i}:`, r.prediction);
-  });
-} catch (error) {
-  // Entire batch failed - no partial results
-  console.error('Batch validation failed:', error);
-}
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [userLTV],
 });
 ```
 
-**Behavior:**
-- Validates all entities before prediction
+### Drizzle
+
+```typescript
+import { users } from './db/schema';
+
+const churnRisk = defineTrait(users, {
+  type: 'predictive',
+  name: 'churnRisk',
+  target: 'churned',
+  features: ['signupDays', 'planTier'],
+  output: { field: 'churnScore', taskType: 'binary_classification' },
+});
+
+export default defineConfig({
+  adapter: 'drizzle',
+  schema: './src/db/schema.ts',
+  traits: [churnRisk],
+});
+```
+
+### TypeORM
+
+```typescript
+const accountHealth = defineTrait('Account', {
+  type: 'predictive',
+  name: 'accountHealth',
+  target: 'healthScore',
+  features: ['seatCount', 'lastInvoiceDays'],
+  output: { field: 'healthScore', taskType: 'regression' },
+});
+
+export default defineConfig({
+  adapter: 'typeorm',
+  schema: './src/data-source.ts',
+  traits: [accountHealth],
+});
+```
+
+### Zod
+
+```typescript
+export default defineConfig({
+  adapter: 'zod',
+  schema: './src/schema.ts',
+  traits: [someTrait],
+});
+```
+
+Zod provides schema reading, not ORM extraction or query interception.
+
+## Trait Kinds
+
+### Predictive
+
+Use for regression or classification outputs backed by ONNX.
+
+### Temporal
+
+Use for windowed sequence traits that compile to ONNX-backed inference.
+
+### Anomaly
+
+Use for anomaly scoring against a baseline feature set.
+
+```typescript
+const userAnomaly = defineTrait('User', {
+  type: 'anomaly',
+  name: 'userAnomaly',
+  baseline: ['spend', 'sessions', 'refundRate'],
+  sensitivity: 'medium',
+});
+```
+
+### Similarity
+
+Use for nearest-neighbour retrieval.
+
+```typescript
+const productSimilarity = defineTrait('Product', {
+  type: 'similarity',
+  name: 'productSimilarity',
+  on: ['price', 'rating', 'categoryAffinity'],
+});
+```
+
+Runtime usage:
+
+```typescript
+const matches = await session.predictSimilarity('productSimilarity', product, {
+  price: (p) => p.price,
+  rating: (p) => p.rating,
+  categoryAffinity: (p) => p.categoryAffinity,
+}, { limit: 5 });
+```
+
+### Generative
+
+Use for prompt-contract metadata. These traits describe context and output shape; they are not loaded through ONNX runtime prediction APIs.
+
+## Feature Resolvers
+
+Feature resolvers are pure functions that extract scalar values from entities.
+
+Supported scalar outputs:
+
+- `number`
+- `boolean`
+- `string`
+- `Date`
+- `null` or `undefined` when covered by imputation
+
+Examples:
+
+```typescript
+createdAt: (user) => user.createdAt
+region: (user) => user.country
+isActive: (user) => user.lastActiveAt > thirtyDaysAgo
+bio: (user) => user.profile?.bio ?? null
+```
+
+Patterns that remain problematic for static extraction:
+
+- dynamic property keys
+- opaque helper calls
+- array indexing with unstable semantics
+- iterative aggregation hidden inside unrelated helper functions
+
+ScheML provides `analyzeFeatureResolver()` for conservative static analysis and `validateHydration()` for shape validation.
+
+## Categorical Features
+
+String features compile into a stored categorical contract. Depending on the trait and contract fitting path, ScheML may use label, hash, or one-hot encoding.
+
+The important rule is that runtime normalization reuses the exact compiled contract from metadata.
+
+## Null Handling
+
+Nullable values need a valid imputation path in the compiled contract. Common strategies are:
+
+- `constant`
+- `mean`
+- `median`
+- `mode`
+
+## Quality Gates
+
+Quality gates define the minimum acceptable model quality.
+
+```typescript
+qualityGates: [
+  { metric: 'rmse', threshold: 500, comparison: 'lte' },
+  { metric: 'precision', threshold: 0.8, comparison: 'gte' },
+]
+```
+
+If a gate fails during training:
+
+- artifact generation aborts
+- `scheml train` exits non-zero
+- no new artifact should be treated as valid
+
+## Batch Predictions
+
+Batch inference validates the full batch before execution and fails atomically.
+
+```typescript
+const result = await session.predictBatch('userLTV', users, {
+  createdAt: (u) => u.createdAt,
+  signupSource: (u) => u.signupSource,
+  plan: (u) => u.plan,
+});
+```
+
+## Troubleshooting
+
+### Schema Drift
+
+If runtime loading throws `SchemaDriftError`, the current adapter-resolved entity hash does not match the stored artifact `schemaHash`.
+
+Typical fixes:
+
+1. Regenerate the artifact with `scheml train` after intentional schema changes.
+2. Verify you are loading the correct schema source for the selected adapter.
+3. Verify the runtime is using the same adapter and entity identity the artifact was compiled with.
+
+### Missing Live Artifacts In `extendClient()`
+
+In live mode, ScheML now treats missing trait metadata as an error. Train the trait or switch to `materialized` mode.
+
+### Similarity Trait Misuse
+
+Similarity traits use `predictSimilarity()`, not `predict()`.
 - Any error aborts the entire batch
 - No partial results are returned
 - Large batches block (you must chunk)
@@ -418,37 +377,6 @@ jobs:
           node-version: 20
       - run: pnpm install --frozen-lockfile
       - run: pnpm run train
-      - run: git add .scheml/
-      - run: git commit -m "Update ML artifacts" || true
-      - run: git push
-```
-
-This ensures models are always trained on latest code and data.
-
-## Troubleshooting
-
-### `SchemaDriftError`
-
-```
-Error: Prisma schema hash mismatch: expected abc123, got def456
-```
-
-**Solution:** Retrain your models.
-```bash
-npm run train
-```
-
-### `UnseenCategoryError`
-
-```
-Model "userLTV", feature "region": unseen category "JP"
-```
-
-**Solution:** Model was trained on limited set of categories. Retrain with new data.
-
-### `FeatureExtractionError`
-
-```
 Model "userLTV", feature "accountAge": Resolver threw: Cannot read property 'createdAt' of null
 ```
 

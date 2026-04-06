@@ -5,217 +5,240 @@
 This document defines the technical boundaries of ScheML.
 
 It explains:
+
 - what the system does
 - how build-time and runtime responsibilities are separated
-- what guarantees the architecture is trying to uphold
-- where the current pressure points are
+- which guarantees the architecture is intended to uphold
+- which implementation constraints are deliberate rather than accidental
 
-It does not define roadmap sequencing or business strategy.
+It does not define roadmap sequencing.
 
 ## System Model
 
-ScheML is a compiler-first ML workflow for TypeScript + Prisma applications.
+ScheML is a compiler-first ML workflow for TypeScript applications with explicit schema adapters.
 
 The high-level flow is:
 
 ```text
-defineModel() declarations
+defineTrait() declarations
         ->
 scheml train
         ->
-model.onnx + model.metadata.json
+trait artifacts (.metadata.json + optional runtime binary/index)
         ->
-PredictionSession.load()
+PredictionSession.loadTrait()
         ->
-PredictionSession.predict()
+PredictionSession.predict() / predictBatch() / predictSimilarity()
 ```
 
-The core architectural boundary is simple:
+The core architectural split is:
+
 - training happens at build time
 - inference happens at runtime
-- artifacts connect the two
+- artifacts are the only contract between them
+
+## Adapter Model
+
+ScheML is no longer modeled as a Prisma-specialized runtime with adapter inference layered on top. The architecture assumes explicit adapter selection.
+
+An adapter is responsible for some or all of the following:
+
+- reading a schema into a normalized `SchemaGraph`
+- hashing entities for artifact compatibility checks
+- extracting rows for training and materialization
+- intercepting client queries for trait field access at runtime
+
+Built-in adapter roles today:
+
+- Prisma: schema reader, extractor, runtime interceptor
+- Drizzle: schema reader, optional extractor, no production query interceptor contract yet
+- TypeORM: schema reader, extractor, runtime interceptor
+- Zod: schema reader only
 
 ## Build-Time Boundary
 
 Build-time work is responsible for:
-- loading model definitions
-- loading and hashing the Prisma schema
-- extracting rows through Prisma
-- running feature resolvers on those rows
-- encoding features into deterministic vectors
-- invoking the Python trainer
+
+- loading `scheml.config.ts`
+- resolving the explicit adapter
+- reading the source schema
+- computing the entity-scoped schema hash used by the artifact contract
+- extracting rows through the adapter when training requires database access
+- evaluating feature resolvers on extracted rows
+- fitting the feature contract
+- invoking the Python trainer when required
 - evaluating quality gates
-- writing immutable artifacts
+- writing immutable artifacts and history records
 
 The build-time path is entered through `scheml train`.
 
 ### Build-Time Inputs
 
 - `scheml.config.ts`
-- `prisma/schema.prisma`
-- a reachable Prisma-backed dataset
+- an explicit adapter configuration
+- a schema source compatible with that adapter
+- a reachable dataset for training-capable adapters
 - Python dependencies required by the training backend
 
 ### Build-Time Outputs
 
-- `model.onnx`
-- `model.metadata.json`
+- `<traitName>.metadata.json`
+- trait-specific runtime artifacts such as `.onnx`, `.embeddings.npy`, `.faiss`, or embedded metadata-only payloads
 
 These outputs are intended to be treated as immutable build artifacts.
 
 ## Runtime Boundary
 
 Runtime work is responsible for:
+
 - loading artifacts
-- validating the current schema hash against the compiled metadata
-- extracting features from application entities
+- reading the current schema through the explicit adapter
+- recomputing the current entity hash
+- rejecting runtime execution when the current schema does not match the artifact contract
+- extracting feature values from application entities
 - normalizing those features with the compiled contract
-- running ONNX inference
+- running inference or similarity lookup
 - returning prediction results
 
-The runtime path is entered through `PredictionSession`.
+The runtime path is entered through `PredictionSession` or `extendClient()`.
 
 Runtime is not responsible for:
+
 - retraining
 - mutating artifacts
-- experimenting with alternate live models
-- discovering new schema meaning dynamically
+- silently degrading around missing artifacts
+- guessing the adapter from a schema path
+- treating legacy fallback behavior as part of the contract
 
 ## Core Invariants
 
 ## 1. Training And Inference Are Separate Phases
 
-ScheML is designed around a hard split between compilation and execution.
+ScheML is built around a hard split between compilation and execution.
 
-Training may use Python and external ML libraries.
-Runtime should consume the compiled result, not recreate training behavior ad hoc.
+Training may use Python and ML libraries.
+Runtime consumes the compiled result and must not reconstruct training decisions dynamically.
 
 ## 2. Artifacts Are The Contract
 
-The ONNX file alone is not enough.
+The runtime contract is carried by artifact metadata, plus the runtime artifact where applicable.
 
-`model.metadata.json` carries the semantic contract required for safe inference:
-- model identity
-- task type
-- feature order
+Metadata carries the semantic contract required for safe execution:
+
+- trait identity and type
+- entity identity
+- feature order and contract shape
 - encoding rules
 - imputation rules
+- scaling or normalization data
 - schema hash
-- training metadata
+- artifact format
+- optional metrics and provenance
 
-If artifacts and runtime expectations diverge, inference should fail loudly.
+If artifacts and runtime expectations diverge, ScheML should fail loudly.
 
-## 3. Schema Safety Is A First-Class Constraint
+## 3. Schema Safety Is Adapter-Neutral
 
-Models are bound to a normalized Prisma schema hash.
+Artifacts are bound to an adapter-normalized entity hash, stored as `schemaHash`.
 
-The system should reject predictions when the runtime schema does not match the compiled schema contract.
+That hash is no longer described as a Prisma-only concept in the architecture. Text-schema helpers still exist, but the primary runtime contract is the adapter-neutral schema graph and entity hash.
 
-This is one of the main protections against silent training-serving skew.
+This is the main defense against silent training-serving skew.
 
-## 4. Determinism Matters More Than Flexibility
+## 4. Explicitness Beats Heuristics
 
-The architecture is optimized for:
-- explicit inputs
+The architecture favors:
+
+- explicit adapters
+- explicit schema paths
 - explicit artifacts
 - reviewable behavior
 
-It is not optimized for:
-- live adaptation
-- dynamic runtime model routing
-- continuously mutating model state
+It is intentionally hostile to silent fallback behavior because hidden fallback paths weaken correctness guarantees.
 
 ## 5. The Feature Path Must Stay Coherent
 
-Feature extraction at training time and feature normalization at runtime must describe the same contract.
+Feature extraction at training time and runtime normalization must describe the same contract.
 
-Any gap here is a correctness risk.
+Any mismatch here is a correctness failure, not just a degraded experience.
 
 ## Artifact Model
 
-Each trained model produces two files:
+Each trait emits a metadata file and, when applicable, a runtime artifact:
 
-### `model.onnx`
+- predictive: metadata + ONNX
+- temporal: metadata + ONNX
+- anomaly: metadata with normalization and model payload
+- similarity: metadata + embedding or index artifact
+- generative: metadata only
 
-The executable prediction artifact.
-
-### `model.metadata.json`
-
-The compatibility and semantics artifact.
-
-Metadata currently includes the information needed for runtime validation and feature normalization, including:
-- package version
-- metadata schema version
-- model name
-- task type
-- algorithm configuration
-- feature schema
-- encoding rules
-- imputation rules
-- Prisma schema hash
-- optional training metrics and dataset metadata
-- compilation timestamp
+The artifact contract is immutable once emitted.
 
 ## Compile-Time Versus Runtime Responsibilities
 
 ### Compile-Time
 
-- resolve model definitions
+- resolve trait definitions
 - validate configuration shape
+- validate adapter compatibility
 - materialize and encode training data
-- train the model
+- train the model or build the index
 - enforce quality gates
 - emit artifacts
 
 ### Runtime
 
-- load artifacts
+- load trait artifacts
 - validate schema compatibility
 - evaluate resolvers on application entities
 - normalize feature vectors
-- run predictions
+- run inference or nearest-neighbour lookup
+- expose trait fields through adapter interceptors when supported
 
 ### Out Of Runtime Scope
 
-- training orchestration beyond artifact loading
-- feedback loops
 - online learning
 - traffic splitting
 - rollout control planes
+- hosted control-plane inference orchestration
 
-## Current Technical Pressure Points
+## Runtime Surfaces
 
-These are architecture pressure points, not promises:
+### `PredictionSession`
 
-### 1. Preprocessing Contract Correctness
+`PredictionSession` is the low-level runtime API. It supports:
 
-The product depends on training-time preprocessing and runtime normalization staying aligned.
+- predictive inference
+- temporal inference
+- anomaly scoring
+- similarity lookup
 
-Any mismatch here weakens the compile-first guarantee.
+Generative traits compile into metadata describing prompt/output structure, but they are not ONNX-backed runtime sessions.
 
-### 2. Auditability Depth
+### `extendClient()`
 
-The current artifact contract is useful, but the architecture can support richer provenance and inspection metadata.
+`extendClient()` is the higher-level runtime API for adapters that implement query interception.
 
-### 3. Multi-Model Growth
+Supported modes are:
 
-The current system supports the core single-model path cleanly.
-If multi-model workflows become central, artifact organization and API boundaries will need to stay explicit.
+- `materialized`
+- `live`
 
-### 4. Source Specificity
+`hybrid` is intentionally absent from the architecture because it weakens the contract by hiding which source of truth is actually serving the trait.
 
-ScheML is currently built around Prisma.
-Any future generalization would need to preserve the same level of schema clarity and build-time contract discipline.
+In live mode, the runtime must fail loudly when required live artifacts are missing.
 
 ## Architectural Limits
 
 ScheML intentionally does not optimize for:
+
 - online learning
 - dynamic experimentation platforms
-- runtime model control planes
-- opaque hosted inference as the primary product shape
+- runtime model routing layers
+- mutable artifact state
+- implicit adapter discovery
 
-Those directions introduce state and operational complexity that conflict with the current architecture.
+These directions add state and ambiguity that conflict with the current architecture.
 
 ## Repo Surface
 
@@ -225,20 +248,23 @@ The main implementation lives in:
 packages/scheml/src
 ```
 
-The main build and runtime surfaces are:
+Important surfaces:
+
 - `src/commands/train.ts`
 - `src/commands/check.ts`
+- `src/runtime.ts`
 - `src/prediction.ts`
 - `src/schema.ts`
-- `src/encoding.ts`
-- `src/types.ts`
+- `src/schemaHash.ts`
+- `src/adapterResolution.ts`
+- `src/adapters/*`
 
 ## Reading Order
 
 If you are new to the repo, use this order:
 
-1. `README.md`
-2. `ROADMAP.md`
-3. `docs/ARCHITECTURE.md`
-4. `docs/GUIDE.md`
-5. `docs/API.md`
+1. `packages/scheml/README.md`
+2. `docs/ARCHITECTURE.md`
+3. `docs/GUIDE.md`
+4. `docs/API.md`
+5. `SCHEML_IMPLEMENTATION_PLAN.md`

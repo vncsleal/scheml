@@ -6,25 +6,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
-import { createJiti } from 'jiti';
-import { pathToFileURL } from 'url';
 import chalk from 'chalk';
+import { requireTraitEntityName, resolveConfiguredAdapter } from '../adapterResolution';
 import type { AnyTraitDefinition } from '../traitTypes';
+import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
 
-function isTraitDefinition(value: any): value is AnyTraitDefinition {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.name === 'string' &&
-    typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
-  );
-}
-
-async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
-  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
-  return (await jiti.import(configPath)) as Record<string, unknown>;
-}
+type GenerateArgs = {
+  config: string;
+  output: string;
+  json?: boolean;
+};
 
 function traitValueType(type: AnyTraitDefinition['type']): string {
   switch (type) {
@@ -40,49 +31,11 @@ function traitValueType(type: AnyTraitDefinition['type']): string {
   }
 }
 
-/**
- * Attempts to resolve the table name from a Drizzle table object using
- * drizzle-orm's `getTableName` helper. Resolved dynamically so that
- * drizzle-orm does not need to be a hard dependency of scheml.
- * Returns null if drizzle-orm is not installed or the value is not a table.
- */
-function tryGetDrizzleTableName(entity: unknown): string | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getTableName } = require('drizzle-orm');
-    if (typeof getTableName === 'function') {
-      const name = getTableName(entity);
-      return typeof name === 'string' && name.length > 0 ? name : null;
-    }
-  } catch {
-    // drizzle-orm not installed or entity is not a Drizzle table
-  }
-  return null;
-}
-
-/**
- * Resolves the adapter name from a config export value.
- * Accepts either a string ('prisma') or an adapter object with a `name` field.
- */
-function resolveAdapterName(adapter: unknown): string | undefined {
-  if (typeof adapter === 'string') return adapter;
-  if (adapter && typeof adapter === 'object' && typeof (adapter as any).name === 'string') {
-    return (adapter as any).name;
-  }
-  return undefined;
-}
-
-function buildDeclaration(traits: AnyTraitDefinition[], adapterName: string | undefined): string {
+function buildDeclaration(traits: AnyTraitDefinition[], adapterName: string): string {
   const grouped = new Map<string, Array<{ name: string; tsType: string }>>();
 
   for (const trait of traits) {
-    // Prefer a string entity name (Prisma/Zod). For Drizzle, fall back to
-    // getTableName() from drizzle-orm resolved dynamically at runtime.
-    const entityName =
-      typeof (trait as any).entity === 'string'
-        ? (trait as any).entity
-        : tryGetDrizzleTableName((trait as any).entity);
-    if (!entityName) continue;
+    const entityName = requireTraitEntityName(trait, adapterName);
     const list = grouped.get(entityName) ?? [];
     list.push({ name: trait.name, tsType: traitValueType(trait.type) });
     grouped.set(entityName, list);
@@ -127,7 +80,7 @@ function buildDeclaration(traits: AnyTraitDefinition[], adapterName: string | un
 
 export const generateCommand = {
   command: 'generate',
-  description: 'Write scheml.d.ts extending ORM types with trait properties',
+  description: 'Write scheml.d.ts extending adapter entity types with trait properties',
   builder: (yargs: Argv) => {
     return yargs
       .option('config', {
@@ -148,19 +101,16 @@ export const generateCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
+  handler: async (argv: GenerateArgs) => {
     const configPath = path.resolve(argv.config);
     const outputPath = path.resolve(argv.output);
     const jsonMode = argv.json as boolean;
 
     const configModule = await loadConfigModule(configPath);
-    const configExports =
-      configModule.default && typeof configModule.default === 'object'
-        ? { ...configModule, ...configModule.default }
-        : configModule;
+    const configExports = normalizeConfigExports(configModule);
 
-    const traits = Object.values(configExports).filter(isTraitDefinition) as AnyTraitDefinition[];
-    const adapterName = resolveAdapterName((configExports as any).adapter);
+    const traits = extractTraitDefinitions(configExports);
+    const adapterName = resolveConfiguredAdapter((configExports as { adapter?: unknown }).adapter).name;
     const declaration = buildDeclaration(traits, adapterName);
 
     fs.writeFileSync(outputPath, declaration, 'utf-8');

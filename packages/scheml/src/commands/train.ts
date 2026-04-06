@@ -2,9 +2,9 @@
  * scheml train command
  * Acts as compiler driver:
  * 1. Load model definitions
- * 2. Validate Prisma schemas and feature declarations
+ * 2. Validate adapter schemas and feature declarations
  * 3. Resolve defaults deterministically
- * 4. Extract historical data via Prisma
+ * 4. Extract historical data via the configured adapter
  * 5. Split rows and fit a train-derived feature contract
  * 6. Convert train/test rows to feature vectors
  * 7. Invoke Python backend
@@ -15,8 +15,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { pathToFileURL } from 'url';
-import { createJiti } from 'jiti';
 import * as dotenv from 'dotenv';
 import { Argv } from 'yargs';
 import ora from 'ora';
@@ -24,14 +22,15 @@ import chalk from 'chalk';
 import {
   VERSION,
 } from '..';
-import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
-import { AnyTraitDefinition } from '../traitTypes';
+import { ModelDefinitionError, ConfigurationError } from '..';
 import type {
+  PredictiveArtifactMetadata,
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
   TemporalArtifactMetadata,
   GenerativeArtifactMetadata,
 } from '../artifacts';
+import { normalizeFeatureVector } from '../encoding';
 import {
   validateGenerativeTrait,
   compileGenerativeTrait,
@@ -41,18 +40,14 @@ import {
   detectAuthor,
   nextArtifactVersion,
 } from '../history';
-import { getAdapter, inferAdapterFromSchema } from '../adapters';
+import {
+  requireTraitEntityName,
+  resolveConfiguredAdapter,
+  resolveSchemaPath,
+} from '../adapterResolution';
 import type { ScheMLAdapter } from '../adapters/interface';
-
-function isTraitDefinition(value: any): value is AnyTraitDefinition {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.name === 'string' &&
-    typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
-  );
-}
+import { fitTrainingContract, splitTrainingRows, type TrainingRow } from '../trainingContract';
+import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
 
 const SENSITIVITY_TO_CONTAMINATION: Record<'low' | 'medium' | 'high', number> = {
   low: 0.05,
@@ -63,9 +58,110 @@ const SENSITIVITY_TO_CONTAMINATION: Record<'low' | 'medium' | 'high', number> = 
 const DEFAULT_WINDOW_SIZE = 5;
 const DEFAULT_AGGREGATIONS: string[] = ['mean', 'sum', 'min', 'max'];
 
-async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
-  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
-  return (await jiti.import(configPath)) as Record<string, unknown>;
+type TrainCommandArgs = {
+  config: string;
+  output: string;
+  schema?: string;
+  trait?: string;
+  python?: string;
+  json?: boolean;
+};
+
+type ExtractedEntityRow = Record<string, unknown>;
+
+type PythonAnomalyResponse = {
+  modelBase64: string;
+  featureCount: number;
+  threshold: number;
+  normalization: AnomalyArtifactMetadata['normalization'];
+  featureNames: string[];
+  contamination: number;
+  normScoreStats?: NonNullable<AnomalyArtifactMetadata['normScoreStats']>;
+};
+
+type PythonSimilarityResponse = {
+  strategy: SimilarityArtifactMetadata['strategy'];
+  entityCount: number;
+  embeddingDim: number;
+  featureNames: string[];
+  normalization: SimilarityArtifactMetadata['normalization'];
+  indexFile: string;
+  entityIds?: unknown[];
+  idsFile?: string;
+};
+
+type PythonTemporalResponse = {
+  expandedFeatureNames?: string[];
+  windowSize: number;
+  aggregations: TemporalArtifactMetadata['aggregations'];
+  onnxPath: string;
+  bestEstimator?: string;
+};
+
+type PythonPredictiveResponse = {
+  metrics: PredictiveArtifactMetadata['trainingMetrics'];
+  onnxPath: string;
+  bestEstimator: string;
+};
+
+function getNumericField(row: ExtractedEntityRow, field: string): number {
+  return Number(row[field] ?? 0);
+}
+
+function getEntityId(row: ExtractedEntityRow, traitName: string): unknown {
+  if (!Object.prototype.hasOwnProperty.call(row, 'id')) {
+    throw new ConfigurationError(`Trait "${traitName}" requires extracted rows to include an id field`);
+  }
+
+  return row.id;
+}
+
+function getPredictiveFeatureValue(
+  entity: ExtractedEntityRow,
+  featureName: string,
+  featureResolver?: (entity: ExtractedEntityRow) => unknown,
+): unknown {
+  if (!featureResolver) {
+    return entity[featureName];
+  }
+
+  try {
+    return featureResolver(entity);
+  } catch (error) {
+    throw new ConfigurationError(
+      `Feature resolver for "${featureName}" failed: ${(error as Error).message}`
+    );
+  }
+}
+
+function getPredictiveLabelValue(
+  entity: ExtractedEntityRow,
+  traitName: string,
+  target: string,
+  labelResolver?: (entity: ExtractedEntityRow) => unknown,
+): number | string | boolean {
+  const label = labelResolver ? labelResolver(entity) : entity[target];
+  if (typeof label === 'number' || typeof label === 'string' || typeof label === 'boolean') {
+    return label;
+  }
+
+  throw new ConfigurationError(
+    `Trait "${traitName}" requires scalar labels. Received ${label === null ? 'null' : typeof label} for target "${target}"`
+  );
+}
+
+function compactDefinedRecord<T>(record: Record<string, T | undefined>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(record).filter((entry): entry is [string, T] => entry[1] !== undefined)
+  );
+}
+
+function parsePythonResponse<T>(stdout: string, backendName: string): T {
+  try {
+    return JSON.parse(stdout.trim()) as T;
+  } catch {
+    throw new Error(`${backendName} returned invalid JSON: ${stdout.slice(0, 200)}`);
+  }
 }
 
 function checkPythonEnvironment(): void {
@@ -126,7 +222,7 @@ export const trainCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
+  handler: async (argv: TrainCommandArgs) => {
     const jsonMode = argv.json as boolean;
     const spinner = ora({ isSilent: jsonMode });
     let adapterRef: ScheMLAdapter | null = null;
@@ -145,13 +241,8 @@ export const trainCommand = {
       spinner.start('Loading model definitions...');
 
       const configModule = await loadConfigModule(configPath);
-      const configExports =
-        configModule.default && typeof configModule.default === 'object'
-          ? { ...configModule, ...configModule.default }
-          : configModule;
-      let traitDefinitions = Object.values(configExports).filter(
-        isTraitDefinition
-      ) as AnyTraitDefinition[];
+      const configExports = normalizeConfigExports(configModule);
+      let traitDefinitions = extractTraitDefinitions(configExports);
 
       const traitFilter = argv.trait as string | undefined;
       if (traitFilter) {
@@ -171,28 +262,17 @@ export const trainCommand = {
       spinner.succeed(`Loaded ${traitDefinitions.length} definition(s)`);
 
       // Resolve adapter from config
-      const configAdapter = (configExports as any).adapter;
-
-      // Resolve schema path: CLI flag > config field > error
-      const configSchemaField = typeof (configExports as any).schema === 'string'
-        ? (configExports as any).schema as string : undefined;
-      const rawSchemaArg = argv.schema as string | undefined;
-      if (!rawSchemaArg && !configSchemaField) {
+      const configAdapter = (configExports as { adapter?: unknown }).adapter;
+      const schemaSource = resolveSchemaPath((configExports as { schema?: unknown }).schema, argv.schema);
+      if (!schemaSource && typeof configAdapter === 'string') {
         throw new ConfigurationError(
           'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
         );
       }
-      const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+      const schemaPath = schemaSource ? path.resolve(schemaSource) : undefined;
 
-      const adapterName = typeof configAdapter === 'string'
-        ? configAdapter
-        : inferAdapterFromSchema(schemaPath) ?? (() => {
-          throw new ConfigurationError(
-            `Cannot infer adapter from schema path "${schemaPath}". ` +
-            `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
-          );
-        })();
-      const adapter = getAdapter(adapterName);
+      const adapter = resolveConfiguredAdapter(configAdapter);
+      const adapterName = adapter.name;
       if (!adapter.extractor) {
         throw new ConfigurationError(
           `Adapter "${adapterName}" does not support data extraction. Training requires an adapter with data extraction capability.`
@@ -202,7 +282,7 @@ export const trainCommand = {
 
       // 2. Load schema via adapter
       spinner.start('Loading schema...');
-      const graph = await adapter.reader.readSchema(schemaPath);
+      const graph = await adapter.reader.readSchema(schemaPath ?? '');
       spinner.succeed('Schema loaded');
 
       // 3. Verify Python environment before doing any heavy work
@@ -220,9 +300,7 @@ export const trainCommand = {
       spinner.start('Validating traits...');
 
       for (const trait of traitDefinitions) {
-        const entityName = typeof (trait as any).entity === 'string'
-          ? (trait as any).entity
-          : String((trait as any).entity);
+        const entityName = requireTraitEntityName(trait, adapterName);
         if (!graph.entities.has(entityName)) {
           throw new ModelDefinitionError(
             trait.name,
@@ -241,12 +319,164 @@ export const trainCommand = {
       // -----------------------------------------------------------------------
       const traitArtifactNames: string[] = [];
       for (const trait of traitDefinitions) {
-        const entityName =
-          typeof (trait as any).entity === 'string'
-            ? (trait as any).entity as string
-            : String((trait as any).entity);
+        const entityName = requireTraitEntityName(trait, adapterName);
 
-        if (trait.type === 'anomaly') {
+        if (trait.type === 'predictive') {
+          const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
+          if (!entities.length) {
+            throw new ConfigurationError(
+              `No records found for trait "${trait.name}" (entity "${entityName}")`
+            );
+          }
+
+          const allRows: TrainingRow[] = entities.map((entity) => ({
+            features: Object.fromEntries(
+              trait.features.map((featureName) => [
+                featureName,
+                getPredictiveFeatureValue(
+                  entity,
+                  String(featureName),
+                  trait.featureResolvers?.[String(featureName)] as
+                    | ((entity: ExtractedEntityRow) => unknown)
+                    | undefined,
+                ),
+              ])
+            ),
+            label: getPredictiveLabelValue(
+              entity,
+              trait.name,
+              String(trait.target),
+              trait.output.resolver as ((entity: ExtractedEntityRow) => unknown) | undefined,
+            ),
+          }));
+
+          const { trainRows, testRows } = splitTrainingRows(allRows, 42, 0.2);
+          const featureNames = trait.features.map((featureName) => String(featureName));
+          const contract = fitTrainingContract(
+            trait.name,
+            featureNames,
+            trainRows,
+            allRows,
+          );
+          const X_train = trainRows.map((row) =>
+            normalizeFeatureVector(
+              row.features,
+              contract.schema,
+              contract.encodings,
+              contract.imputations,
+              contract.scalings,
+            )
+          );
+          const X_test = testRows.map((row) =>
+            normalizeFeatureVector(
+              row.features,
+              contract.schema,
+              contract.encodings,
+              contract.imputations,
+              contract.scalings,
+            )
+          );
+          const y_train = trainRows.map((row) => row.label);
+          const y_test = testRows.map((row) => row.label);
+
+          const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
+          fs.writeFileSync(
+            datasetPath,
+            JSON.stringify({
+              X_train,
+              y_train,
+              X_test,
+              y_test,
+              taskType: trait.output.taskType,
+              algorithm: trait.algorithm?.name ?? 'automl',
+              hyperparameters: trait.algorithm?.hyperparameters ?? {},
+            })
+          );
+
+          spinner.text = `Training predictive trait ${trait.name}...`;
+          const predictiveScript = path.resolve(__dirname, '../../python/train.py');
+          const predictiveResult = spawnSync(
+            'python3',
+            [
+              predictiveScript,
+              '--dataset', datasetPath,
+              '--output', outputDir,
+              '--model-name', trait.name,
+            ],
+            { stdio: 'pipe', encoding: 'utf-8' }
+          );
+          fs.rmSync(datasetPath, { force: true });
+          if (predictiveResult.error) throw predictiveResult.error;
+          if (predictiveResult.status !== 0) {
+            throw new Error(predictiveResult.stderr || 'Python predictive backend failed');
+          }
+
+          const predictiveResponse = parsePythonResponse<PythonPredictiveResponse>(
+            predictiveResult.stdout,
+            'Python predictive backend'
+          );
+          const predictiveSchemaHash = adapter.reader.hashModel(graph, entityName);
+          const predictiveMetadata: PredictiveArtifactMetadata = {
+            traitType: 'predictive',
+            artifactFormat: 'onnx',
+            traitName: trait.name,
+            schemaHash: predictiveSchemaHash,
+            entityName,
+            compiledAt: new Date().toISOString(),
+            version: VERSION,
+            metadataSchemaVersion: '1.0.0',
+            qualityGates: trait.qualityGates,
+            taskType: trait.output.taskType,
+            bestEstimator: predictiveResponse.bestEstimator,
+            features: contract.schema,
+            output: { field: trait.output.field, shape: [1] },
+            tensorSpec: {
+              inputShape: [1, contract.schema.count],
+              outputShape: [1],
+            },
+            featureDependencies: featureNames.map((featureName) => {
+              const field = graph.entities.get(entityName)?.fields[featureName];
+              return {
+                modelName: entityName,
+                path: `${entityName}.${featureName}`,
+                scalarType: field?.scalarType ?? 'unknown',
+                nullable: field?.nullable ?? true,
+                encoding: contract.encodings[featureName],
+                extractable: !trait.featureResolvers?.[featureName],
+              };
+            }),
+            encoding: compactDefinedRecord(contract.encodings),
+            imputation: compactDefinedRecord(contract.imputations),
+            scaling: compactDefinedRecord(contract.scalings),
+            trainingMetrics: predictiveResponse.metrics,
+            dataset: {
+              size: allRows.length,
+              splitSeed: 42,
+              trainSize: trainRows.length,
+              testSize: testRows.length,
+              materializedAt: new Date().toISOString(),
+            },
+            onnxFile: path.basename(predictiveResponse.onnxPath),
+          };
+          fs.writeFileSync(
+            path.join(outputDir, `${trait.name}.metadata.json`),
+            JSON.stringify(predictiveMetadata, null, 2)
+          );
+          spinner.succeed(`Trained predictive trait ${chalk.bold(trait.name)}`);
+          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          appendHistoryRecord(outputDir, {
+            trait: trait.name,
+            model: entityName,
+            adapter: adapterName,
+            schemaHash: predictiveSchemaHash,
+            definedAt: new Date().toISOString(),
+            definedBy: detectAuthor(),
+            trainedAt: new Date().toISOString(),
+            artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            status: 'trained',
+          });
+
+        } else if (trait.type === 'anomaly') {
           const features = trait.baseline;
           const contamination = SENSITIVITY_TO_CONTAMINATION[trait.sensitivity];
           const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
@@ -255,7 +485,7 @@ export const trainCommand = {
               `No records found for trait "${trait.name}" (entity "${entityName}")`
             );
           }
-          const X_train = entities.map((e: any) => features.map((f: string) => Number(e[f] ?? 0)));
+          const X_train = entities.map((entity) => features.map((feature) => getNumericField(entity, feature)));
           const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
           fs.writeFileSync(datasetPath, JSON.stringify({ X_train, feature_names: features }));
 
@@ -272,17 +502,15 @@ export const trainCommand = {
             ],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
-          try { fs.unlinkSync(datasetPath); } catch {}
+          fs.rmSync(datasetPath, { force: true });
           if (anomResult.error) throw anomResult.error;
           if (anomResult.status !== 0) {
             throw new Error(anomResult.stderr || 'Python anomaly backend failed');
           }
-          let anomalyResponse: any;
-          try {
-            anomalyResponse = JSON.parse(anomResult.stdout.trim());
-          } catch {
-            throw new Error(`Python anomaly backend returned invalid JSON: ${anomResult.stdout.slice(0, 200)}`);
-          }
+          const anomalyResponse = parsePythonResponse<PythonAnomalyResponse>(
+            anomResult.stdout,
+            'Python anomaly backend'
+          );
           const anomalySchemaHash = adapter.reader.hashModel(graph, entityName);
           const anomalyMetadata: AnomalyArtifactMetadata = {
             traitType: 'anomaly',
@@ -328,8 +556,8 @@ export const trainCommand = {
               `No records found for trait "${trait.name}" (entity "${entityName}")`
             );
           }
-          const X_train = entities.map((e: any) => features.map((f: string) => Number(e[f] ?? 0)));
-          const entityIds = entities.map((e: any) => e.id);
+          const X_train = entities.map((entity) => features.map((feature) => getNumericField(entity, feature)));
+          const entityIds = entities.map((entity) => getEntityId(entity, trait.name));
           const datasetPath = path.join(outputDir, `${trait.name}.dataset.json`);
           fs.writeFileSync(
             datasetPath,
@@ -343,17 +571,15 @@ export const trainCommand = {
             [simScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
-          try { fs.unlinkSync(datasetPath); } catch {}
+          fs.rmSync(datasetPath, { force: true });
           if (simResult.error) throw simResult.error;
           if (simResult.status !== 0) {
             throw new Error(simResult.stderr || 'Python similarity backend failed');
           }
-          let simResponse: any;
-          try {
-            simResponse = JSON.parse(simResult.stdout.trim());
-          } catch {
-            throw new Error(`Python similarity backend returned invalid JSON: ${simResult.stdout.slice(0, 200)}`);
-          }
+          const simResponse = parsePythonResponse<PythonSimilarityResponse>(
+            simResult.stdout,
+            'Python similarity backend'
+          );
           const simSchemaHash = adapter.reader.hashModel(graph, entityName);
           const simMetadata: SimilarityArtifactMetadata = {
             traitType: 'similarity',
@@ -399,9 +625,9 @@ export const trainCommand = {
               `Trait "${trait.name}": need more than ${DEFAULT_WINDOW_SIZE} records (found ${entities.length})`
             );
           }
-          const seqValues: number[] = entities.map((e: any) => Number(e[trait.sequence] ?? 0));
-          const allLabels = entities.map((e: any) => {
-            const label = e[trait.target];
+          const seqValues: number[] = entities.map((entity) => getNumericField(entity, trait.sequence));
+          const allLabels = entities.map((entity) => {
+            const label = entity[trait.target];
             if (typeof label === 'boolean') return label ? 1 : 0;
             return Number(label ?? 0);
           });
@@ -437,17 +663,15 @@ export const trainCommand = {
             [seqScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
             { stdio: 'pipe', encoding: 'utf-8' }
           );
-          try { fs.unlinkSync(datasetPath); } catch {}
+          fs.rmSync(datasetPath, { force: true });
           if (seqResult.error) throw seqResult.error;
           if (seqResult.status !== 0) {
             throw new Error(seqResult.stderr || 'Python temporal backend failed');
           }
-          let seqResponse: any;
-          try {
-            seqResponse = JSON.parse(seqResult.stdout.trim());
-          } catch {
-            throw new Error(`Python temporal backend returned invalid JSON: ${seqResult.stdout.slice(0, 200)}`);
-          }
+          const seqResponse = parsePythonResponse<PythonTemporalResponse>(
+            seqResult.stdout,
+            'Python temporal backend'
+          );
           const seqSchemaHash = adapter.reader.hashModel(graph, entityName);
           // Build FeatureSchema from the expanded feature names returned by Python
           const expandedNames: string[] = seqResponse.expandedFeatureNames ?? [];
@@ -531,7 +755,11 @@ export const trainCommand = {
       spinner.start('Writing artifacts...');
       // Copy the schema source alongside the artifacts so runtime drift checks
       // always use the same schema that was active at train time.
-      fs.copyFileSync(schemaPath, path.join(outputDir, 'schema.source'));
+      if (schemaPath && fs.existsSync(schemaPath)) {
+        fs.copyFileSync(schemaPath, path.join(outputDir, 'schema.source'));
+      } else if (graph.rawSource) {
+        fs.writeFileSync(path.join(outputDir, 'schema.source'), graph.rawSource, 'utf-8');
+      }
       spinner.succeed(`Artifacts written to ${chalk.cyan(outputDir)}`);
 
       if (jsonMode) {

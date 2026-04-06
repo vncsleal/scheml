@@ -15,6 +15,12 @@ import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 
+interface InitArgs {
+  adapter?: string;
+  output?: string;
+  json?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Config template
 // ---------------------------------------------------------------------------
@@ -22,7 +28,7 @@ import chalk from 'chalk';
 function configTemplate(adapter: string | undefined): string {
   const adapterLine = adapter
     ? `adapter: '${adapter}',`
-    : `// adapter: 'prisma', // Required: set to 'prisma', 'drizzle', or 'zod'`;
+    : `// adapter: 'drizzle', // Required: set to 'prisma', 'drizzle', 'typeorm', or 'zod'`;
   const schemaLine = adapter === 'prisma'
     ? `schema: './prisma/schema.prisma',`
     : adapter === 'drizzle'
@@ -31,7 +37,7 @@ function configTemplate(adapter: string | undefined): string {
   return `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
 // ---------------------------------------------------------------------------
-// Data shape (replace with your actual Prisma/Drizzle/Zod entity type)
+// Data shape (replace with your actual entity type)
 // ---------------------------------------------------------------------------
 
 type User = {
@@ -40,7 +46,7 @@ type User = {
   monthsActive: number;
   monthlySpend: number;
   plan: 'free' | 'pro' | 'enterprise';
-  willChurn?: boolean;
+  churned: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -54,17 +60,13 @@ type User = {
 export const churnRisk = defineTrait<User>('User', {
   name: 'churnRisk',
   type: 'predictive',
+  target: 'churned',
+
+  features: ['monthsActive', 'monthlySpend', 'plan'],
 
   output: {
     field: 'predictedChurn',
     taskType: 'binary_classification',
-    resolver: (user) => user.willChurn ?? false,
-  },
-
-  features: {
-    monthsActive: (user) => user.monthsActive,
-    monthlySpend: (user) => user.monthlySpend,
-    isPremium: (user) => user.plan === 'pro' || user.plan === 'enterprise',
   },
 
   qualityGates: [
@@ -109,7 +111,7 @@ export const initCommand = {
   builder: (yargs: Argv) =>
     yargs
       .option('adapter', {
-        description: 'Adapter to use (prisma | drizzle | zod)',
+        description: 'Adapter to use (prisma | drizzle | typeorm | zod)',
         type: 'string',
       })
       .option('output', {
@@ -124,7 +126,7 @@ export const initCommand = {
         default: false,
       }),
 
-  handler: async (argv: any) => {
+  handler: async (argv: InitArgs) => {
     const adapter = argv.adapter as string;
     const outputDir = path.resolve(argv.output as string);
     const jsonMode = argv.json as boolean;

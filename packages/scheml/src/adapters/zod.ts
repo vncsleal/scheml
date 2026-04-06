@@ -39,30 +39,54 @@ type ZodTypeDef = { typeName: string; [key: string]: unknown };
 type ZodTypeAny = { _def: ZodTypeDef; isOptional?: () => boolean };
 type ZodObjectShape = Record<string, ZodTypeAny>;
 type ZodObjectLike = { _def: { typeName: 'ZodObject'; shape: () => ZodObjectShape } };
+type ZodWrappedTypeDef = ZodTypeDef & { innerType?: ZodTypeAny };
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isZodTypeDef(value: unknown): value is ZodTypeDef {
+  return isObjectRecord(value) && typeof value.typeName === 'string';
+}
+
+function getInnerWrappedType(typeDef: ZodTypeDef): ZodTypeAny | null {
+  const wrapped = typeDef as ZodWrappedTypeDef;
+  return wrapped.innerType ?? null;
+}
 
 function isZodObject(schema: unknown): schema is ZodObjectLike {
-  return (
-    typeof schema === 'object' &&
-    schema !== null &&
-    '_def' in schema &&
-    (schema as any)._def?.typeName === 'ZodObject'
-  );
+  if (!isObjectRecord(schema) || !('_def' in schema) || !isZodTypeDef(schema._def)) {
+    return false;
+  }
+
+  return schema._def.typeName === 'ZodObject';
 }
 
 /** Resolve the innermost type of ZodOptional / ZodNullable / ZodDefault wrappers */
 function unwrapZodType(zodType: ZodTypeAny): { inner: ZodTypeAny; nullable: boolean } {
   let inner = zodType;
   let nullable = false;
+  let keepUnwrapping = true;
 
-  while (true) {
+  while (keepUnwrapping) {
     const typeName: string = inner._def.typeName;
     if (typeName === 'ZodOptional' || typeName === 'ZodNullable') {
       nullable = true;
-      inner = (inner._def as any).innerType as ZodTypeAny;
+      const nested = getInnerWrappedType(inner._def);
+      if (!nested) {
+        keepUnwrapping = false;
+        continue;
+      }
+      inner = nested;
     } else if (typeName === 'ZodDefault') {
-      inner = (inner._def as any).innerType as ZodTypeAny;
+      const nested = getInnerWrappedType(inner._def);
+      if (!nested) {
+        keepUnwrapping = false;
+        continue;
+      }
+      inner = nested;
     } else {
-      break;
+      keepUnwrapping = false;
     }
   }
 

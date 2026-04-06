@@ -2,7 +2,7 @@
  * Adapter Registry
  *
  * Centralised lookup for named adapters so that `scheml.config.ts` can specify
- * `adapter: 'prisma'` (a string) and the training pipeline resolves the right
+ * `adapter: 'drizzle'` (or another built-in adapter name) and the training pipeline resolves the right
  * implementation without importing all adapters unconditionally.
  *
  * Custom adapters can be registered at runtime before the pipeline runs.
@@ -12,6 +12,7 @@ import type { ScheMLAdapter } from './interface';
 import { createPrismaAdapter } from './prisma';
 import { createZodAdapter } from './zod';
 import { createDrizzleAdapter } from './drizzle';
+import { createTypeOrmAdapter } from './typeorm';
 
 // Re-export all interfaces and adapter factories for convenience
 export type {
@@ -30,6 +31,7 @@ export type {
 export { PrismaSchemaReader, PrismaDataExtractor, PrismaQueryInterceptor, createPrismaAdapter } from './prisma';
 export { ZodSchemaReader, createZodAdapter } from './zod';
 export { DrizzleSchemaReader, DrizzleDataExtractor, createDrizzleAdapter } from './drizzle';
+export { TypeOrmSchemaReader, TypeOrmDataExtractor, TypeOrmQueryInterceptor, createTypeOrmAdapter } from './typeorm';
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -41,7 +43,7 @@ const _registry = new Map<string, () => ScheMLAdapter>();
  * Register a named adapter factory.
  * The factory is called lazily on the first `getAdapter(name)` call.
  *
- * Built-in adapters ('prisma', 'zod', 'drizzle') are registered automatically
+ * Built-in adapters ('prisma', 'zod', 'drizzle', 'typeorm') are registered automatically
  * the first time this module is imported.
  */
 export function registerAdapter(name: string, factory: () => ScheMLAdapter): void {
@@ -67,10 +69,11 @@ export function getAdapter(name: string): ScheMLAdapter {
     case 'prisma':  factory = () => createPrismaAdapter(); break;
     case 'zod':     factory = () => createZodAdapter(); break;
     case 'drizzle': factory = () => createDrizzleAdapter(); break;
+    case 'typeorm': factory = () => createTypeOrmAdapter(); break;
     default:
       throw new Error(
         `ScheML: unknown adapter "${name}". ` +
-        `Built-in adapters: prisma, zod, drizzle. ` +
+        `Built-in adapters: prisma, zod, drizzle, typeorm. ` +
         `Register custom adapters with registerAdapter().`
       );
   }
@@ -87,20 +90,3 @@ export function listAdapters(): string[] {
   return Array.from(_registry.keys());
 }
 
-/**
- * Infer the adapter name from a schema file path when the user has not
- * explicitly set `adapter` in their config.
- *
- * Rules:
- *   *.prisma          → 'prisma'
- *   *.ts / *.js / *.mts etc. → 'drizzle'  (Drizzle schemas are TypeScript/JS files)
- *
- * Returns `undefined` when the extension is unrecognised — callers should
- * surface a clear error asking the user to set `adapter` explicitly.
- */
-export function inferAdapterFromSchema(schemaPath: string): string | undefined {
-  const ext = schemaPath.split('.').pop()?.toLowerCase();
-  if (ext === 'prisma') return 'prisma';
-  if (ext === 'ts' || ext === 'mts' || ext === 'cts' || ext === 'js' || ext === 'mjs' || ext === 'cjs') return 'drizzle';
-  return undefined;
-}

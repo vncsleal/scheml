@@ -83,29 +83,29 @@ function appendFeedback(traitName: string, entry: object): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Prisma adapter: entity name as string
+ * String-name adapters: entity name as string
  */
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: string,
   config: Omit<PredictiveTrait<TEntity>, 'entity'>
 ): ResolvedTrait<PredictiveTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: string,
   config: Omit<AnomalyTrait<TEntity>, 'entity'>
 ): ResolvedTrait<AnomalyTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: string,
   config: Omit<SimilarityTrait<TEntity>, 'entity'>
 ): ResolvedTrait<SimilarityTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: string,
   config: Omit<TemporalTrait<TEntity>, 'entity'>
 ): ResolvedTrait<TemporalTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: string,
   config: Omit<GenerativeTrait<TEntity>, 'entity'>
 ): ResolvedTrait<GenerativeTrait<TEntity>>;
@@ -113,27 +113,27 @@ export function defineTrait<TEntity = any>(
 /**
  * Drizzle / Zod adapter: entity as runtime object
  */
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: TEntity,
   config: Omit<PredictiveTrait<TEntity>, 'entity'>
 ): ResolvedTrait<PredictiveTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: TEntity,
   config: Omit<AnomalyTrait<TEntity>, 'entity'>
 ): ResolvedTrait<AnomalyTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: TEntity,
   config: Omit<SimilarityTrait<TEntity>, 'entity'>
 ): ResolvedTrait<SimilarityTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: TEntity,
   config: Omit<TemporalTrait<TEntity>, 'entity'>
 ): ResolvedTrait<TemporalTrait<TEntity>>;
 
-export function defineTrait<TEntity = any>(
+export function defineTrait<TEntity = Record<string, unknown>>(
   entity: TEntity,
   config: Omit<GenerativeTrait<TEntity>, 'entity'>
 ): ResolvedTrait<GenerativeTrait<TEntity>>;
@@ -142,7 +142,7 @@ export function defineTrait<TEntity = any>(
 // Implementation
 // ---------------------------------------------------------------------------
 
-export function defineTrait<TEntity = any>(
+export function defineTrait(
   entity: unknown,
   config: Omit<AnyTraitDefinition, 'entity'>
 ): ResolvedTrait {

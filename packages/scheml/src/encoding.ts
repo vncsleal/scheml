@@ -6,7 +6,6 @@
 import {
   CategoryEncoding,
   ImputationRule,
-  EncodedFeature,
   FeatureSchema,
   ScalingSpec,
 } from './types';
@@ -129,7 +128,8 @@ function encodeCategoryValue(
     return cats.map((cat) => (cat === value ? 1 : 0));
   }
 
-  throw new Error(`${featureName}: unknown encoding type ${(encoding as any).type}`);
+  const unexpectedType = (encoding as { type?: unknown }).type;
+  throw new Error(`${featureName}: unknown encoding type ${String(unexpectedType)}`);
 }
 
 /**

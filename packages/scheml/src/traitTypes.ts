@@ -79,7 +79,7 @@ export interface BaseTraitDefinition {
 // Predictive trait — FLAML → ONNX inference
 // ---------------------------------------------------------------------------
 
-export interface PredictiveTrait<TEntity = any> extends BaseTraitDefinition {
+export interface PredictiveTrait<TEntity = Record<string, unknown>> extends BaseTraitDefinition {
   readonly type: 'predictive';
 
   /** Prisma / Drizzle / Zod entity reference (adapter-specific) */
@@ -107,7 +107,7 @@ export interface PredictiveTrait<TEntity = any> extends BaseTraitDefinition {
 // Anomaly trait — Isolation Forest scoring
 // ---------------------------------------------------------------------------
 
-export interface AnomalyTrait<TEntity = any> extends BaseTraitDefinition {
+export interface AnomalyTrait<TEntity = Record<string, unknown>> extends BaseTraitDefinition {
   readonly type: 'anomaly';
   readonly entity: string | TEntity;
 
@@ -122,7 +122,7 @@ export interface AnomalyTrait<TEntity = any> extends BaseTraitDefinition {
 // Similarity trait — cosine / FAISS nearest neighbours
 // ---------------------------------------------------------------------------
 
-export interface SimilarityTrait<TEntity = any> extends BaseTraitDefinition {
+export interface SimilarityTrait<TEntity = Record<string, unknown>> extends BaseTraitDefinition {
   readonly type: 'similarity';
   readonly entity: string | TEntity;
 
@@ -139,7 +139,7 @@ export interface SimilarityTrait<TEntity = any> extends BaseTraitDefinition {
  * from ordered event sequences (similar to tsfresh / tslearn). Not a true
  * RNN/Transformer sequence model — the `type` discriminant is `'temporal'`.
  */
-export interface TemporalTrait<TEntity = any> extends BaseTraitDefinition {
+export interface TemporalTrait<TEntity = Record<string, unknown>> extends BaseTraitDefinition {
   readonly type: 'temporal';
   readonly entity: string | TEntity;
 
@@ -175,7 +175,7 @@ export interface ZodLike {
   safeParse(data: unknown): { success: boolean; data?: unknown; error?: unknown };
 }
 
-export interface GenerativeTrait<TEntity = any> extends BaseTraitDefinition {
+export interface GenerativeTrait<TEntity = Record<string, unknown>> extends BaseTraitDefinition {
   readonly type: 'generative';
   readonly entity: string | TEntity;
 
@@ -208,7 +208,7 @@ export type AnyTraitDefinition =
  * A resolved trait definition: the raw definition plus the feedback API.
  * This is what `defineTrait` returns.
  */
-export type ResolvedTrait<T extends AnyTraitDefinition = AnyTraitDefinition> =
+export type ResolvedTrait<T extends BaseTraitDefinition = AnyTraitDefinition> =
   T & TraitFeedbackApi;
 
 

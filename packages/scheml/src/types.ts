@@ -215,6 +215,23 @@ export interface PredictionOutput {
   timestamp: string;
 }
 
+export interface AnomalyPredictionOutput extends PredictionOutput {
+  prediction: number;
+  confidence: number;
+}
+
+export interface SimilarityMatch {
+  entityId: unknown;
+  score: number;
+  rank: number;
+}
+
+export interface SimilarityPredictionOutput {
+  traitName: string;
+  matches: SimilarityMatch[];
+  timestamp: string;
+}
+
 /**
  * Batch prediction result
  * 
@@ -232,7 +249,7 @@ export interface BatchPredictionResult {
  * Feature extraction result
  */
 export interface ExtractedFeatures {
-  values: number[];
+  values: unknown[];
   featureNames: string[];
 }
 

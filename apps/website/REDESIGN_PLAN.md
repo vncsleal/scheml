@@ -13,7 +13,7 @@
 | Package | `@vncsleal/scheml` v0.3.1 |
 | CLI | `scheml train` / `scheml check` |
 | Artifact dir | `.scheml/` |
-| Trait types | `predictive`, `anomaly`, `similarity`, `sequential`, `generative` |
+| Trait types | `predictive`, `anomaly`, `similarity`, `temporal`, `generative` |
 | Adapters | Prisma (entity as model string), Drizzle (entity as table object), Zod (entity as schema object) |
 | Positioning | *"ScheML is to machine learning what Prisma is to databases"* |
 
@@ -22,7 +22,7 @@
 | Trait type | Binary output | Metadata |
 |---|---|---|
 | `predictive` | `<name>.onnx` | `<name>.predictive.json` |
-| `sequential` | `<name>.onnx` | `<name>.sequential.json` |
+| `temporal` | `<name>.onnx` | `<name>.metadata.json` |
 | `anomaly` | *(none — model embedded as base64 in JSON)* | `<name>.anomaly.json` |
 | `similarity` | `<name>.faiss` (≥50k rows) or `<name>.embeddings.npy` (<50k rows) | `<name>.similarity.json` |
 | `generative` | *(none — compiled prompt template + AI SDK config in JSON)* | `<name>.generative.json` |
@@ -79,12 +79,12 @@ The three bars also visually echo the three-step compile pipeline (define → co
 
 **Lead copy:**
 - Current: `"Define predictive models in TypeScript. Compile to immutable ONNX artifacts at build time."`
-- Proposed: `"Define intelligence traits — predictive, anomaly, similarity, sequential, or generative — in TypeScript. ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure."`
+- Proposed: `"Define intelligence traits — predictive, anomaly, similarity, temporal, or generative — in TypeScript. ScheML compiles them to versioned build artifacts and runs them in-process with zero infrastructure."`
 
 **Trait pill row** (add below the lead, above the install command):
 Five small non-interactive pills using `--amber-90` bg / `--amber-40` text to show breadth at a glance:
 ```
-predictive  ·  anomaly  ·  similarity  ·  sequential  ·  generative
+predictive  ·  anomaly  ·  similarity  ·  temporal  ·  generative
 ```
 
 **Install command:** Keep as-is — `npm install @vncsleal/scheml`.
@@ -114,7 +114,7 @@ predictive  ·  anomaly  ·  similarity  ·  sequential  ·  generative
 
 **Major change: Trait type selector strip**
 
-Add 5 pill buttons above the code tabs: `predictive` (default active) / `anomaly` / `similarity` / `sequential` / `generative`. Selecting a trait type swaps the content of the **Define** code panel. Compile and Infer tabs stay identical for all types.
+Add 5 pill buttons above the code tabs: `predictive` (default active) / `anomaly` / `similarity` / `temporal` / `generative`. Selecting a trait type swaps the content of the **Define** code panel. Compile and Infer tabs stay identical for all types.
 
 **5 Define snippets:**
 
@@ -174,21 +174,21 @@ export default defineConfig({ traits: [productRecommend] });
 </details>
 
 <details>
-<summary>sequential</summary>
+<summary>temporal</summary>
 
 ```ts
 import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const sessionNext = defineTrait('SessionEvent', {
-  type: 'sequential',
-  name: 'sessionNext',
-  features: ['eventType', 'pageUrl', 'dwellMs'],
+const engagementTrend = defineTrait('SessionEvent', {
+  type: 'temporal',
+  name: 'engagementTrend',
+  sequence: 'engagementScore',
   orderBy: 'createdAt',
-  sequenceLength: 8,
-  algorithm: { name: 'lstm' },
+  target: 'willChurn',
+  output: { field: 'predictedChurn', taskType: 'binary_classification' },
 });
 
-export default defineConfig({ traits: [sessionNext] });
+export default defineConfig({ traits: [engagementTrend] });
 ```
 </details>
 
@@ -217,7 +217,7 @@ export default defineConfig({ traits: [productDescription] });
 | `predictive` | `db.scheml.predict('userChurn', user)` | `{ prediction: "1" \| "0" }` |
 | `anomaly` | `db.scheml.predict('orderFraud', order)` | `{ score: 0.87, isAnomaly: true }` |
 | `similarity` | `db.scheml.findSimilar('productRecommend', seed, { limit: 10 })` | `Entity[]` ranked by similarity |
-| `sequential` | `db.scheml.predict('sessionNext', sequence)` | `{ next: "checkout_page" }` |
+| `temporal` | `db.scheml.predict('engagementTrend', sessionWindow)` | `{ prediction: "1" }` |
 | `generative` | `db.scheml.generate('productDescription', product)` | `{ description: "..." }` |
 
 ---
@@ -229,7 +229,7 @@ Replace 8 cards. Drop "Deterministic encoding" (rolled into drift guard), "Typed
 | # | Title | Body summary |
 |---|---|---|
 | 1 | **Compiler-first** | Trait definitions → versioned build artifacts. No model registry, no train/inference drift. Artifacts are deterministic across machines. |
-| 2 | **Five trait types** | Predictive, anomaly, similarity, sequential, generative — one `defineTrait()` API. Each compiles to the right artifact format for its inference strategy. |
+| 2 | **Five trait types** | Predictive, anomaly, similarity, temporal, generative — one `defineTrait()` API. Each compiles to the right artifact format for its inference strategy. |
 | 3 | **Three adapters** | Prisma (model string), Drizzle (table object), Zod (schema object). Same trait definition, swap the entity declaration. |
 | 4 | **In-process inference** | ONNX Runtime, FAISS, and AI SDK calls run in-process. No serialization, no network hop. Predictive trait latency typically <1 ms. |
 | 5 | **Schema drift guard** | Every artifact carries a SHA-256 hash of the schema at compile time. `db.scheml.predict()` re-hashes on every call — `SchemaDriftError` before a single inference runs. |
@@ -266,7 +266,7 @@ Expand from 3 columns to 4.
 **Task types** (add below existing 3):
 - ✓ Anomaly detection
 - ✓ Similarity / nearest-neighbour
-- ✓ Sequential prediction
+- ✓ Temporal prediction
 - ✓ Generative (AI SDK)
 
 **Add new column — Adapters:**
@@ -298,7 +298,7 @@ All `PrisML` → `ScheML`, breadcrumb `prisml/demo` → `scheml/demo`, version `
 
 **Add:** Trait type pills row below the meta pills, showing where this demo sits:
 ```
-[ predictive ✓ ]  [ anomaly ]  [ similarity ]  [ sequential ]  [ generative ]
+[ predictive ✓ ]  [ anomaly ]  [ similarity ]  [ temporal ]  [ generative ]
 ```
 Active = amber, others = dimmed with "coming soon" tooltip on hover. Communicates product breadth without requiring additional demo infrastructure.
 
@@ -820,7 +820,7 @@ Steps are sequenced so later steps don't break earlier ones.
 
 ## 7. Open questions
 
-- [ ] Confirm `sequential` `defineTrait` option names (`orderBy`, `sequenceLength`) against actual types
+- [ ] Confirm `temporal` `defineTrait` option names (`sequence`, `orderBy`, `target`, `output`) against actual types
 - [ ] Confirm `generative` `defineTrait` option names (`contextFields`, `provider.sdk`, `provider.model`) against actual types
 - [ ] Confirm `anomaly` quality gate metric name (`roc_auc` vs `rocAuc` or similar)
 - [ ] Confirm `db.scheml.findSimilar` is the actual method name for similarity traits

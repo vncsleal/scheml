@@ -3,7 +3,7 @@
  * Demonstrates how to use trained models in an application
  */
 
-import { PredictionSession, hashPrismaSchema } from '@vncsleal/scheml';
+import { PredictionSession, hashSchemaText } from '@vncsleal/scheml';
 import * as fs from 'fs';
 
 type SampleUser = {
@@ -45,7 +45,7 @@ async function main() {
     const session = new PredictionSession();
 
     // Initialize model (in real app, paths point to compiled artifacts)
-    const schemaHash = hashPrismaSchema(sampleSchema);
+    const schemaHash = hashSchemaText(sampleSchema);
     const metadataPath = './.scheml/userLTV.metadata.json';
     const onnxPath = './.scheml/userLTV.onnx';
 

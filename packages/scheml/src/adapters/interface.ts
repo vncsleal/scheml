@@ -162,7 +162,7 @@ export interface ScheMLAdapter {
       supportsLiveInference?: boolean;
     }>,
     options: {
-      mode?: 'materialized' | 'live' | 'hybrid';
+      mode?: 'materialized' | 'live';
       predictionSession?: unknown;
       cache?: unknown;
       cacheTtlMs?: number;

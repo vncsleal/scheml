@@ -49,18 +49,18 @@ const productRecommend = defineTrait('Product', {
 
 export default defineConfig({ traits: [productRecommend] });`;
 
-const defineCodeSequential = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+const defineCodeTemporal = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const sessionNext = defineTrait('SessionEvent', {
-  type: 'sequential',
-  name: 'sessionNext',
-  features: ['eventType', 'pageUrl', 'dwellMs'],
+const engagementTrend = defineTrait('SessionEvent', {
+  type: 'temporal',
+  name: 'engagementTrend',
+  sequence: 'engagementScore',
   orderBy: 'createdAt',
-  sequenceLength: 8,
-  algorithm: { name: 'lstm' },
+  target: 'willChurn',
+  output: { field: 'predictedChurn', taskType: 'binary_classification' },
 });
 
-export default defineConfig({ traits: [sessionNext] });`;
+export default defineConfig({ traits: [engagementTrend] });`;
 
 const defineCodeGenerative = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
@@ -116,8 +116,8 @@ const inferCodeSimilarity = `const results = await db.scheml.findSimilar(
 );
 // → Product[] ranked by cosine similarity`;
 
-const inferCodeSequential = `const result = await db.scheml.predict('sessionNext', sessionEvents);
-// → { next: "checkout_page", confidence: 0.91 }`;
+const inferCodeTemporal = `const result = await db.scheml.predict('engagementTrend', sessionWindow);
+// → { prediction: "1", timestamp: "2026-04-02T..." }`;
 
 const inferCodeGenerative = `const result = await db.scheml.generate(
   'productDescription',
@@ -182,7 +182,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
           </h1>
 
           <p class="hero__lead">
-            Define intelligence traits — predictive, anomaly, similarity, sequential, or generative — in TypeScript.
+            Define intelligence traits — predictive, anomaly, similarity, temporal, or generative — in TypeScript.
             ScheML compiles them to versioned build artefacts and runs each one in-process — no model registry, no microservices.
           </p>
 
@@ -284,7 +284,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
           <button class="trait-btn active" role="tab" aria-selected="true" data-trait="predictive">predictive</button>
           <button class="trait-btn" role="tab" aria-selected="false" data-trait="anomaly">anomaly</button>
           <button class="trait-btn" role="tab" aria-selected="false" data-trait="similarity">similarity</button>
-          <button class="trait-btn" role="tab" aria-selected="false" data-trait="sequential">sequential</button>
+          <button class="trait-btn" role="tab" aria-selected="false" data-trait="temporal">temporal</button>
           <button class="trait-btn" role="tab" aria-selected="false" data-trait="generative">generative</button>
         </div>
 
@@ -317,8 +317,8 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             <div class="code-panel" id="panel-define-similarity" role="tabpanel" data-trait-panel="similarity">
               <Code code={defineCodeSimilarity} lang="ts" theme="github-dark" />
             </div>
-            <div class="code-panel" id="panel-define-sequential" role="tabpanel" data-trait-panel="sequential">
-              <Code code={defineCodeSequential} lang="ts" theme="github-dark" />
+            <div class="code-panel" id="panel-define-temporal" role="tabpanel" data-trait-panel="temporal">
+              <Code code={defineCodeTemporal} lang="ts" theme="github-dark" />
             </div>
             <div class="code-panel" id="panel-define-generative" role="tabpanel" data-trait-panel="generative">
               <Code code={defineCodeGenerative} lang="ts" theme="github-dark" />
@@ -337,8 +337,8 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             <div class="code-panel" id="panel-infer-similarity" role="tabpanel" data-trait-infer-panel="similarity">
               <Code code={inferCodeSimilarity} lang="ts" theme="github-dark" />
             </div>
-            <div class="code-panel" id="panel-infer-sequential" role="tabpanel" data-trait-infer-panel="sequential">
-              <Code code={inferCodeSequential} lang="ts" theme="github-dark" />
+            <div class="code-panel" id="panel-infer-temporal" role="tabpanel" data-trait-infer-panel="temporal">
+              <Code code={inferCodeTemporal} lang="ts" theme="github-dark" />
             </div>
             <div class="code-panel" id="panel-infer-generative" role="tabpanel" data-trait-infer-panel="generative">
               <Code code={inferCodeGenerative} lang="ts" theme="github-dark" />
@@ -378,7 +378,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Five trait types</h3>
-            <p class="feature-card__desc">Predictive, anomaly, similarity, sequential, generative — one <code>defineTrait()</code> API. Each compiles to the right artefact format for its inference strategy.</p>
+            <p class="feature-card__desc">Predictive, anomaly, similarity, temporal, generative — one <code>defineTrait()</code> API. Each compiles to the right artefact format for its inference strategy.</p>
           </div>
 
           <div class="feature-card">
@@ -530,7 +530,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               <li><span class="supported__check">&#10003;</span> Multiclass classification</li>
               <li><span class="supported__check">&#10003;</span> Anomaly detection</li>
               <li><span class="supported__check">&#10003;</span> Similarity / nearest-neighbour</li>
-              <li><span class="supported__check">&#10003;</span> Sequential prediction</li>
+              <li><span class="supported__check">&#10003;</span> Temporal prediction</li>
               <li><span class="supported__check">&#10003;</span> Generative (AI SDK)</li>
             </ul>
           </div>
@@ -673,7 +673,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
           b.setAttribute('aria-selected', String(active));
         });
         // determine direction based on trait order
-        const order = ['predictive','anomaly','similarity','sequential','generative'];
+        const order = ['predictive','anomaly','similarity','temporal','generative'];
         const newIdx = order.indexOf(trait);
         const oldIdx = order.indexOf(currentTrait);
         showPanel(getActivePanel(), newIdx >= oldIdx ? 1 : -1);

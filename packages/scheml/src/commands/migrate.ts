@@ -1,16 +1,30 @@
 /**
  * scheml migrate command
- * Generates Prisma SQL migration for materialized trait columns.
+ * Generates SQL migration files for materialized trait columns.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
-import { createJiti } from 'jiti';
-import { pathToFileURL } from 'url';
 import chalk from 'chalk';
-import { getAdapter, inferAdapterFromSchema } from '../adapters';
+import type { ScheMLAdapter, SchemaGraph } from '../adapters/interface';
+import {
+  requireTraitEntityName,
+  resolveConfiguredAdapter,
+  resolveSchemaPath,
+} from '../adapterResolution';
 import type { AnyTraitDefinition } from '../traitTypes';
+import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
+
+interface MigrateArgs {
+  config?: string;
+  schema?: string;
+  trait?: string;
+  name?: string;
+  dialect?: string;
+  json?: boolean;
+  'migrations-dir'?: string;
+}
 
 function sanitizeTraitName(name: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
@@ -21,24 +35,45 @@ function sanitizeTraitName(name: string): string {
   return name;
 }
 
-function isTraitDefinition(value: any): value is AnyTraitDefinition {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.name === 'string' &&
-    typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
-  );
-}
-
-async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
-  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
-  return (await jiti.import(configPath)) as Record<string, unknown>;
-}
-
 function extractDatasourceProvider(schemaContent: string): string {
   const match = /datasource\s+\w+\s*\{[^}]*provider\s*=\s*"([^"]+)"/s.exec(schemaContent);
   return match ? match[1].toLowerCase() : 'postgresql';
+}
+
+function resolveDefaultMigrationsDir(adapterName: string, schemaPath?: string): string {
+  if (adapterName === 'zod') {
+    throw new Error('Adapter "zod" does not support schema migrations. Use a database-backed adapter instead.');
+  }
+
+  if (!schemaPath) {
+    throw new Error(
+      'Migrations directory cannot be inferred without a schema path. ' +
+      'Pass --migrations-dir <path> or set schema in scheml.config.ts.'
+    );
+  }
+
+  return path.join(path.dirname(schemaPath), 'migrations');
+}
+
+function resolveDialect(
+  requestedDialect: string | undefined,
+  adapter: ScheMLAdapter,
+  adapterName: string,
+  schemaGraph: SchemaGraph,
+): string {
+  if (requestedDialect) {
+    return requestedDialect.toLowerCase();
+  }
+
+  if (adapter.dialect) {
+    return adapter.dialect.toLowerCase();
+  }
+
+  if (adapterName === 'prisma' && schemaGraph.rawSource) {
+    return extractDatasourceProvider(schemaGraph.rawSource);
+  }
+
+  return 'postgresql';
 }
 
 function escapeSqlId(name: string): string {
@@ -93,6 +128,10 @@ export const migrateCommand = {
         type: 'string',
         default: 'scheml_traits',
       })
+      .option('dialect', {
+        description: 'SQL dialect override (postgresql | mysql | sqlite)',
+        type: 'string',
+      })
       .option('migrations-dir', {
         description: 'Path to migrations directory',
         type: 'string',
@@ -103,50 +142,38 @@ export const migrateCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
-    const configPath = path.resolve(argv.config);
-    const traitFilter = argv.trait ? sanitizeTraitName(argv.trait as string) : undefined;
-    const rawMigrationsDir = argv['migrations-dir'] as string | undefined;
-    if (!rawMigrationsDir) {
-      throw new Error(
-        'Migrations directory not configured. Pass --migrations-dir <path> (e.g. --migrations-dir ./prisma/migrations).'
-      );
-    }
-    const migrationsDir = path.resolve(rawMigrationsDir);
-    const jsonMode = argv.json as boolean;
+  handler: async (argv: MigrateArgs) => {
+    const configPath = path.resolve(argv.config ?? './scheml.config.ts');
+    const traitFilter = argv.trait ? sanitizeTraitName(argv.trait) : undefined;
+    const rawMigrationsDir = argv['migrations-dir'];
+    const rawDialect = typeof argv.dialect === 'string' ? argv.dialect : undefined;
+    const jsonMode = argv.json ?? false;
 
     const configModule = await loadConfigModule(configPath);
-    const configExports =
-      configModule.default && typeof configModule.default === 'object'
-        ? { ...configModule, ...configModule.default }
-        : configModule;
+    const configExports = normalizeConfigExports(configModule);
 
-    const configAdapter = (configExports as any).adapter;
+    // Resolve schema path: CLI flag > config field
+    const configSchemaField = typeof configExports.schema === 'string'
+      ? configExports.schema
+      : undefined;
+    const schemaSource = resolveSchemaPath(configSchemaField, argv.schema);
+    const schemaPath = schemaSource ? path.resolve(schemaSource) : undefined;
 
-    // Resolve schema path: CLI flag > config field > error
-    const configSchemaField = typeof (configExports as any).schema === 'string'
-      ? (configExports as any).schema as string : undefined;
-    const rawSchemaArg = argv.schema as string | undefined;
-    if (!rawSchemaArg && !configSchemaField) {
+    const adapter = resolveConfiguredAdapter(configExports.adapter);
+    const adapterName = adapter.name;
+    const schemaGraph = await adapter.reader.readSchema(schemaPath ?? '');
+    if ((adapterName === 'drizzle' || adapterName === 'typeorm') && schemaGraph.entities.size === 0) {
       throw new Error(
-        'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
+        `Adapter "${adapterName}" produced an empty schema graph. ` +
+        'Pass a configured adapter instance in scheml.config.ts or verify the schema module exports loadable schema objects.'
       );
     }
-    const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+    const migrationsDir = path.resolve(
+      rawMigrationsDir
+        ?? resolveDefaultMigrationsDir(adapterName, schemaPath)
+    );
 
-    const adapterName = typeof configAdapter === 'string'
-      ? configAdapter
-      : inferAdapterFromSchema(schemaPath) ?? (() => {
-        throw new Error(
-          `Cannot infer adapter from schema path "${schemaPath}". ` +
-          `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
-        );
-      })();
-
-    const adapter = getAdapter(adapterName);
-    const schemaGraph = await adapter.reader.readSchema(schemaPath);
-
-    const allTraits = Object.values(configExports).filter(isTraitDefinition) as AnyTraitDefinition[];
+    const allTraits = extractTraitDefinitions(configExports);
     const traits = traitFilter
       ? allTraits.filter((trait) => trait.name === traitFilter)
       : allTraits;
@@ -163,18 +190,10 @@ export const migrateCommand = {
 
     const statements: string[] = [];
     const skipped: Array<{ trait: string; reason: string }> = [];
-    const provider = adapter.dialect ?? extractDatasourceProvider(schemaGraph.rawSource);
+    const provider = resolveDialect(rawDialect, adapter, adapterName, schemaGraph);
 
     for (const trait of traits) {
-      const entityName =
-        typeof (trait as any).entity === 'string'
-          ? (trait as any).entity
-          : null;
-
-      if (!entityName) {
-        skipped.push({ trait: trait.name, reason: 'entity name is not a string' });
-        continue;
-      }
+      const entityName = requireTraitEntityName(trait, adapterName);
 
       const entityDef = schemaGraph.entities.get(entityName);
       if (!entityDef) {
@@ -210,6 +229,9 @@ export const migrateCommand = {
 
     const payload = {
       ok: true,
+      adapter: adapterName,
+      dialect: provider,
+      migrationsDir,
       migrationId,
       written,
       migrationPath: written ? migrationPath : null,

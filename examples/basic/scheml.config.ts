@@ -1,7 +1,7 @@
-// This file is used by ScheML at compile time to discover models
-// Models are discovered via AST analysis and should use defineModel()
+// This file is used by ScheML at compile time to discover traits.
+// Traits are discovered via AST analysis and should use defineTrait().
 
-import { defineModel, defineTrait } from '@vncsleal/scheml';
+import { defineTrait } from '@vncsleal/scheml';
 
 type User = {
   id: string;
@@ -14,24 +14,15 @@ type User = {
   actualLifetimeValue?: number;
 };
 
-export const userLTVModel = defineModel<User>({
+export const userLTVTrait = defineTrait<User>('User', {
+  type: 'predictive',
   name: 'userLTV',
-  modelName: 'User',
+  target: 'actualLifetimeValue',
+  features: ['createdAt', 'source', 'monthlySpend', 'monthsActive', 'plan'],
   output: {
     field: 'estimatedLTV',
     taskType: 'regression',
     resolver: (user: User) => user.actualLifetimeValue || 0,
-  },
-  features: {
-    accountAge: (user: User) => {
-      if (!user.createdAt) return null;
-      const days = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      return Math.floor(days);
-    },
-    signupSource: (user: User) => user.source,
-    monthlySpend: (user: User) =>
-      user.monthsActive > 0 ? user.monthlySpend / user.monthsActive : 0,
-    isPremium: (user: User) => user.plan === 'pro' || user.plan === 'enterprise',
   },
   qualityGates: [
     { metric: 'rmse', threshold: 500, comparison: 'lte', description: 'Must predict within $500 RMSE on test set' },
@@ -48,21 +39,15 @@ type ChurnUser = {
   willChurn?: boolean;
 };
 
-export const userChurnModel = defineModel<ChurnUser>({
+export const userChurnTrait = defineTrait<ChurnUser>('User', {
+  type: 'predictive',
   name: 'userChurn',
-  modelName: 'User',
+  target: 'willChurn',
+  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
   output: {
     field: 'predictedChurn',
     taskType: 'binary_classification',
     resolver: (user: ChurnUser) => user.willChurn || false,
-  },
-  features: {
-    daysSinceActive: (user: ChurnUser) => {
-      const days = (Date.now() - user.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24);
-      return Math.max(0, Math.floor(days));
-    },
-    monthlySpend: (user: ChurnUser) => Math.max(0, user.monthlySpend),
-    supportTickets: (user: ChurnUser) => user.supportTickets,
   },
   algorithm: {
     name: 'gbm',
@@ -94,7 +79,7 @@ export const productSimilarityTrait = defineTrait('Product', {
 
 // predict willChurn from a sliding window of weekly engagementScore values
 export const engagementSequenceTrait = defineTrait('EngagementEvent', {
-  type: 'sequential',
+  type: 'temporal',
   name: 'engagementSequence',
   sequence: 'engagementScore',
   orderBy: 'occurredAt',

@@ -3,7 +3,7 @@
 Compiler-first machine learning for TypeScript + Prisma.
 
 ScheML is for developers who want a narrow, local, reviewable ML workflow:
-- define models in TypeScript
+- define traits in TypeScript
 - train them at build time
 - commit immutable ONNX + metadata artifacts
 - run predictions in process with schema checks
@@ -21,7 +21,7 @@ ScheML is aimed at TypeScript and Prisma teams that want:
 ## Current Promise
 
 The current package provides:
-- `defineTrait()` for typed trait definitions (predictive, anomaly, similarity, sequential, generative)
+- `defineTrait()` for typed trait definitions (predictive, anomaly, similarity, temporal, generative)
 - `defineConfig()` for project configuration
 - `scheml train` for build-time training
 - `scheml check` for schema-only validation

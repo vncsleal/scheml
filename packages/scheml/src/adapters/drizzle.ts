@@ -28,6 +28,7 @@
  */
 
 import * as crypto from 'crypto';
+import { createRequire } from 'module';
 import type {
   SchemaGraph,
   EntitySchema,
@@ -62,28 +63,74 @@ type DrizzleTable = {
   [key: string]: unknown;
 };
 
+type DrizzlePredicate = unknown;
+type DrizzleQueryLike = {
+  from(table: DrizzleTable): DrizzleQueryLike;
+  where(condition: DrizzlePredicate): DrizzleQueryLike;
+  limit(count: number): DrizzleQueryLike;
+} & PromiseLike<Row[]>;
+
+type DrizzleDbLike = {
+  select(): DrizzleQueryLike;
+  update(table: DrizzleTable): {
+    set(values: Record<string, unknown>): {
+      where(condition: DrizzlePredicate): Promise<unknown>;
+    };
+  };
+};
+
+type DrizzleOrmModule = {
+  eq(left: unknown, right: unknown): DrizzlePredicate;
+  and(...conditions: DrizzlePredicate[]): DrizzlePredicate;
+  Table?: {
+    Symbol?: {
+      Columns?: symbol;
+    };
+  };
+};
+
 const DRIZZLE_COLUMNS_SYMBOL = Symbol.for('drizzle:Columns');
+const moduleRequire = createRequire(__filename);
+
+function isObjectRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function getTableColumn(table: DrizzleTable, key: string): unknown {
+  return table[key];
+}
+
+function hasDrizzleOrmModule(value: unknown): value is DrizzleOrmModule {
+  return isObjectRecord(value) && typeof value.eq === 'function' && typeof value.and === 'function';
+}
+
+function loadDrizzleOrmModule(): DrizzleOrmModule | null {
+  try {
+    const drizzleOrm = moduleRequire('drizzle-orm') as unknown;
+    return hasDrizzleOrmModule(drizzleOrm) ? drizzleOrm : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Extract named columns from a Drizzle table object */
+function getDrizzleColumnsSymbol(): symbol {
+  const drizzleOrm = loadDrizzleOrmModule();
+  const moduleSymbol = drizzleOrm?.Table?.Symbol?.Columns;
+  return typeof moduleSymbol === 'symbol' ? moduleSymbol : DRIZZLE_COLUMNS_SYMBOL;
+}
+
 function extractDrizzleColumns(table: DrizzleTable): Record<string, DrizzleColumn> {
-  // Modern drizzle-orm (≥0.29) stores columns under the Symbol
-  const symbolCols = (table as any)[DRIZZLE_COLUMNS_SYMBOL];
+  const columnsSymbol = getDrizzleColumnsSymbol();
+  const symbolCols = isObjectRecord(table) ? table[columnsSymbol] : undefined;
   if (symbolCols && typeof symbolCols === 'object') {
     return symbolCols as Record<string, DrizzleColumn>;
   }
 
-  // Fallback: collect plain enumerable properties that look like column descriptors
-  const cols: Record<string, DrizzleColumn> = {};
-  for (const [key, val] of Object.entries(table)) {
-    if (
-      val &&
-      typeof val === 'object' &&
-      ('columnType' in val || 'dataType' in val || 'config' in val)
-    ) {
-      cols[key] = val as DrizzleColumn;
-    }
-  }
-  return cols;
+  throw new Error(
+    'Drizzle table introspection failed: expected a Drizzle table object with an internal Columns symbol. '
+    + 'Pass real table objects returned by drizzle-orm schema helpers.'
+  );
 }
 
 /** Map a Drizzle column type string to the common scalarType */
@@ -182,7 +229,7 @@ export class DrizzleSchemaReader implements SchemaReader {
  */
 export class DrizzleDataExtractor implements DataExtractor {
   constructor(
-    private readonly db: any,
+    private readonly db: DrizzleDbLike,
     private readonly tables: Record<string, DrizzleTable> = {}
   ) {}
 
@@ -201,12 +248,11 @@ export class DrizzleDataExtractor implements DataExtractor {
     if (options.where) {
       // Simple equality filtering — the caller passes { field: value } pairs.
       // drizzle-orm is an optional peer dependency; skip filtering if not installed.
-      let drizzleOrm: { eq: Function; and: Function } | null = null;
-      try { drizzleOrm = require('drizzle-orm'); } catch { /* optional */ }
+      const drizzleOrm = loadDrizzleOrmModule();
       if (drizzleOrm) {
         const { eq, and } = drizzleOrm;
         const conditions = Object.entries(options.where).map(([field, value]) =>
-          eq((table as any)[field], value)
+          eq(getTableColumn(table, field), value)
         );
         query = conditions.length === 1
           ? query.where(conditions[0])
@@ -218,7 +264,7 @@ export class DrizzleDataExtractor implements DataExtractor {
       query = query.limit(options.take);
     }
 
-    return query as Promise<Row[]>;
+    return await query;
   }
 
   async write(modelName: string, results: InferenceResult[], columnName = 'schemlPrediction'): Promise<void> {
@@ -226,19 +272,18 @@ export class DrizzleDataExtractor implements DataExtractor {
     if (!table) {
       throw new Error(`DrizzleDataExtractor: no table registered for entity "${modelName}"`);
     }
-    let eqFn: Function | null = null;
-    try { eqFn = require('drizzle-orm').eq; } catch { /* optional */ }
-    if (!eqFn) {
+    const drizzleOrm = loadDrizzleOrmModule();
+    if (!drizzleOrm) {
       throw new Error('drizzle-orm must be installed to use DrizzleDataExtractor.write');
     }
-    const eq = eqFn;
+    const { eq } = drizzleOrm;
 
     await Promise.all(
       results.map((r) =>
         this.db
           .update(table)
           .set({ [columnName]: r.prediction })
-          .where(eq((table as any).id, r.entityId))
+          .where(eq(getTableColumn(table, 'id'), r.entityId))
       )
     );
   }
@@ -256,7 +301,7 @@ export class DrizzleDataExtractor implements DataExtractor {
  */
 export function createDrizzleAdapter(
   tables: Record<string, DrizzleTable> = {},
-  db?: any
+  db?: DrizzleDbLike
 ): ScheMLAdapter {
   const reader = new DrizzleSchemaReader(tables);
   const extractor = db ? new DrizzleDataExtractor(db, tables) : undefined;

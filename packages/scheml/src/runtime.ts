@@ -6,14 +6,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ScheMLConfig } from './defineConfig';
 import type { AnyTraitDefinition } from './traitTypes';
+import { requireTraitEntityName, resolveConfiguredAdapter, resolveSchemaPath } from './adapterResolution';
 import { PredictionSession } from './prediction';
-import { getAdapter, inferAdapterFromSchema } from './adapters';
 import { TTLCache } from './cache';
 
 export interface ExtendClientOptions {
   artifactsDir?: string;
   schemaPath?: string;
-  mode?: 'materialized' | 'live' | 'hybrid';
+  mode?: 'materialized' | 'live';
   cacheTtlMs?: number;
   materializedColumnsPresent?: boolean;
 }
@@ -22,49 +22,36 @@ function getTraits(config: ScheMLConfig): AnyTraitDefinition[] {
   return (config.traits ?? []) as AnyTraitDefinition[];
 }
 
-function entityNameFor(trait: AnyTraitDefinition): string | null {
-  return typeof (trait as any).entity === 'string' ? (trait as any).entity : null;
-}
-
 function featureNamesFor(trait: AnyTraitDefinition): string[] {
   if (trait.type === 'predictive') return trait.features;
+  if (trait.type === 'anomaly') return trait.baseline;
   if (trait.type === 'temporal') return [trait.sequence];
   return [];
 }
 
+function supportsLiveInference(trait: AnyTraitDefinition): boolean {
+  return trait.type === 'predictive' || trait.type === 'temporal' || trait.type === 'anomaly';
+}
+
 /**
- * Extend a Prisma client with trait fields.
+ * Extend an adapter client with trait fields.
  *
  * - materialized mode: reads trait value from materialized DB columns
- * - live mode: computes trait values on access via ONNX inference + TTL cache
- * - hybrid mode: materialized first, live fallback
+ * - live mode: computes trait values on access via inference + TTL cache
  */
 export async function extendClient(
   client: unknown,
   config: ScheMLConfig,
   options: ExtendClientOptions = {}
 ): Promise<unknown> {
-  const rawSchemaPath = options.schemaPath ?? config.schema;
-  const adapterName = typeof config.adapter === 'string'
-    ? config.adapter
-    : rawSchemaPath
-      ? inferAdapterFromSchema(rawSchemaPath) ?? (() => {
-          throw new Error(
-            `Cannot infer adapter from schema path "${rawSchemaPath}". ` +
-            `Set adapter in your ScheMLConfig (e.g. adapter: 'prisma').`
-          );
-        })()
-      : (() => {
-          throw new Error(
-            'adapter is required in ScheMLConfig. ' +
-            `Set adapter (e.g. adapter: 'prisma') or set schema so the adapter can be inferred.`
-          );
-        })();
-  const adapter = getAdapter(adapterName);
+  const rawSchemaPath = resolveSchemaPath(config.schema, options.schemaPath);
+  const schemaPath = rawSchemaPath ? path.resolve(rawSchemaPath) : undefined;
+  const adapter = resolveConfiguredAdapter(config.adapter);
+  const adapterName = adapter.name;
   if (!adapter.createInterceptor) {
     throw new Error(
       `Adapter "${adapter.name}" does not support extendClient. ` +
-      `Only adapters that provide createInterceptor (e.g. "prisma") can extend clients.`
+      'Only adapters that provide createInterceptor can extend clients.'
     );
   }
 
@@ -77,48 +64,45 @@ export async function extendClient(
   const artifactsDir = path.resolve(options.artifactsDir ?? path.resolve(process.cwd(), '.scheml'));
 
   let predictionSession: PredictionSession | undefined;
-  if (mode === 'live' || mode === 'hybrid') {
-    const rawSchemaPath = options.schemaPath ?? config.schema;
-    if (!rawSchemaPath) {
+  if (mode === 'live') {
+    if (!schemaPath && typeof config.adapter === 'string') {
       throw new Error(
-        'schemaPath is required for live or hybrid mode. ' +
+        'schemaPath is required for live mode. ' +
         'Set schema in scheml.config.ts or pass options.schemaPath to extendClient().'
       );
     }
-    const schemaPath = path.resolve(rawSchemaPath);
-    const graph = await adapter.reader.readSchema(schemaPath);
     predictionSession = new PredictionSession();
+    const missingArtifacts: string[] = [];
 
     for (const trait of traits) {
-      const entityName = entityNameFor(trait);
-      if (!entityName) continue;
-      if (trait.type !== 'predictive' && trait.type !== 'temporal') continue;
+      requireTraitEntityName(trait, adapterName);
+      if (!supportsLiveInference(trait)) continue;
 
       const metadataPath = path.join(artifactsDir, `${trait.name}.metadata.json`);
-      const onnxPath = path.join(artifactsDir, `${trait.name}.onnx`);
-      if (!fs.existsSync(metadataPath) || !fs.existsSync(onnxPath)) {
+      if (!fs.existsSync(metadataPath)) {
+        missingArtifacts.push(trait.name);
         continue;
       }
+      await predictionSession.loadTrait(trait.name, { artifactsDir, schemaPath, adapter });
+    }
 
-      const schemaHash = adapter.reader.hashModel(graph, entityName);
-      await predictionSession.initializeModel(metadataPath, onnxPath, schemaHash);
+    if (missingArtifacts.length > 0) {
+      throw new Error(
+        `Live extendClient requires trained artifacts for all live traits. Missing metadata for: ${missingArtifacts.join(', ')}`
+      );
     }
   }
 
   const interceptor = adapter.createInterceptor(
-    traits
-      .map((trait) => {
-        const entityName = entityNameFor(trait);
-        if (!entityName) return null;
+    traits.map((trait) => {
         return {
           traitName: trait.name,
-          entityName,
+          entityName: requireTraitEntityName(trait, adapterName),
           featureNames: featureNamesFor(trait),
           materializedColumn: trait.name,
-          supportsLiveInference: trait.type === 'predictive' || trait.type === 'temporal',
+          supportsLiveInference: supportsLiveInference(trait),
         };
-      })
-      .filter(Boolean) as Array<{
+      }) as Array<{
       traitName: string;
       entityName: string;
       featureNames: string[];

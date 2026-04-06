@@ -6,48 +6,52 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
-import { createJiti } from 'jiti';
-import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 import {
   PredictionSession,
 } from '..';
-import { computeSchemaHashForMetadata } from '../contracts';
-import { getAdapter, inferAdapterFromSchema } from '../adapters';
+import {
+  requireTraitEntityName,
+  resolveConfiguredAdapter,
+  resolveSchemaPath,
+} from '../adapterResolution';
+import { parseArtifactMetadata } from '../artifacts';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
 import type { AnyTraitDefinition } from '../traitTypes';
+import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
 
-type PredictiveTraitLike = AnyTraitDefinition & {
-  type: 'predictive';
-  entity: string;
+type MaterializableTraitLike = AnyTraitDefinition & {
+  type: 'predictive' | 'anomaly';
   name: string;
+};
+
+type PredictiveTraitLike = MaterializableTraitLike & {
+  type: 'predictive';
   features: string[];
 };
 
-function isTraitDefinition(value: any): value is AnyTraitDefinition {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.name === 'string' &&
-    typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
-  );
+type AnomalyTraitLike = MaterializableTraitLike & {
+  type: 'anomaly';
+  baseline: string[];
+};
+
+type MaterializeArgs = {
+  config?: string;
+  schema?: string;
+  output?: string;
+  trait?: string;
+  'batch-size'?: number;
+  json?: boolean;
+};
+function isMaterializableTrait(value: AnyTraitDefinition): value is MaterializableTraitLike {
+  return value.type === 'predictive' || value.type === 'anomaly';
 }
 
-function isPredictiveTrait(value: AnyTraitDefinition): value is PredictiveTraitLike {
-  return value.type === 'predictive';
-}
-
-async function loadConfigModule(configPath: string): Promise<Record<string, unknown>> {
-  const jiti = createJiti(pathToFileURL(__filename).href, { interopDefault: true });
-  return (await jiti.import(configPath)) as Record<string, unknown>;
-}
-
-function buildFeatureResolvers(features: string[]): Record<string, (e: any) => any> {
-  const resolvers: Record<string, (e: any) => any> = {};
+function buildFeatureResolvers(features: string[]): Record<string, (entity: Record<string, unknown>) => unknown> {
+  const resolvers: Record<string, (entity: Record<string, unknown>) => unknown> = {};
   for (const feature of features) {
-    resolvers[feature] = (entity: any) => entity[feature];
+    resolvers[feature] = (entity: Record<string, unknown>) => entity[feature];
   }
   return resolvers;
 }
@@ -90,79 +94,60 @@ export const materializeCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
+  handler: async (argv: MaterializeArgs) => {
     const spinner = ora();
-    const jsonMode = argv.json as boolean;
+    const jsonMode = argv.json ?? false;
 
-    const traitName = argv.trait as string;
-    const configPath = path.resolve(argv.config);
-    const outputDir = path.resolve(argv.output);
+    if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
+      throw new Error('Trait name is required. Usage: scheml materialize --trait <name>');
+    }
+
+    const traitName = argv.trait;
+    const configPath = path.resolve(argv.config ?? './scheml.config.ts');
+    const outputDir = path.resolve(argv.output ?? './.scheml');
     const batchSize = Number(argv['batch-size'] ?? 200);
 
     try {
       if (!jsonMode) spinner.start('Loading config...');
       const configModule = await loadConfigModule(configPath);
-      const configExports =
-        configModule.default && typeof configModule.default === 'object'
-          ? { ...configModule, ...configModule.default }
-          : configModule;
-      const traits = Object.values(configExports).filter(isTraitDefinition) as AnyTraitDefinition[];
+      const configExports = normalizeConfigExports(configModule);
+      const traits = extractTraitDefinitions(configExports);
       const trait = traits.find((item) => item.name === traitName);
       if (!trait) {
         throw new Error(`Trait "${traitName}" not found in config`);
       }
-      if (!isPredictiveTrait(trait)) {
+      if (!isMaterializableTrait(trait)) {
         throw new Error(
-          `Trait "${traitName}" has type "${trait.type}". Materialize currently supports predictive traits only.`
+          `Trait "${traitName}" has type "${trait.type}". Materialize currently supports predictive and anomaly traits only.`
         );
       }
       if (!jsonMode) spinner.succeed('Config loaded');
 
       // Resolve adapter from config
-      const configAdapter = (configExports as any).adapter;
-
-      // Resolve schema path: CLI flag > config field > error
-      const configSchemaField = typeof (configExports as any).schema === 'string'
-        ? (configExports as any).schema as string : undefined;
-      const rawSchemaArg = argv.schema as string | undefined;
-      if (!rawSchemaArg && !configSchemaField) {
+      const configAdapter = configExports.adapter;
+      const schemaSource = resolveSchemaPath(configExports.schema, argv.schema);
+      if (!schemaSource && typeof configAdapter === 'string') {
         throw new Error(
           'Schema path not configured. Set schema in scheml.config.ts or pass --schema <path>.'
         );
       }
-      const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+      const schemaPath = schemaSource ? path.resolve(schemaSource) : undefined;
 
-      const adapterName = typeof configAdapter === 'string'
-        ? configAdapter
-        : inferAdapterFromSchema(schemaPath) ?? (() => {
-          throw new Error(
-            `Cannot infer adapter from schema path "${schemaPath}". ` +
-            `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
-          );
-        })();
-
-      const adapter = getAdapter(adapterName);
+      const adapter = resolveConfiguredAdapter(configAdapter);
+      const adapterName = adapter.name;
       if (!adapter.extractor) {
         throw new Error(`Adapter "${adapterName}" does not support data extraction`);
       }
 
       const metadataPath = path.join(outputDir, `${trait.name}.metadata.json`);
-      const onnxPath = path.join(outputDir, `${trait.name}.onnx`);
-      if (!fs.existsSync(metadataPath) || !fs.existsSync(onnxPath)) {
-        throw new Error(`Artifact files not found for trait "${trait.name}" in ${outputDir}`);
+      if (!fs.existsSync(metadataPath)) {
+        throw new Error(`Artifact metadata not found for trait "${trait.name}" in ${outputDir}`);
       }
-
-      const schemaGraph = await adapter.reader.readSchema(schemaPath);
-      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
-      const entityName =
-        typeof (trait as any).entity === 'string'
-          ? (trait as any).entity
-          : String((trait as any).entity);
-      const schemaHash = computeSchemaHashForMetadata(schemaGraph, metadata, adapter.reader);
+      const entityName = requireTraitEntityName(trait, adapterName);
 
       if (!jsonMode) spinner.start('Initializing inference session...');
       const session = new PredictionSession();
-      await session.initializeModel(metadataPath, onnxPath, schemaHash);
+      await session.loadTrait(trait.name, { artifactsDir: outputDir, schemaPath, adapter });
       if (!jsonMode) spinner.succeed('Inference session ready');
 
       if (!jsonMode) spinner.start(`Extracting rows via ${adapterName}...`);
@@ -173,8 +158,13 @@ export const materializeCommand = {
       if (!jsonMode) spinner.succeed(`Loaded ${rows.length} rows`);
 
       if (!jsonMode) spinner.start('Running inference + writing batches...');
-      const resolvers = buildFeatureResolvers(trait.features as string[]);
-      const outputField = trait.output.field;
+      const featureNames = trait.type === 'predictive'
+        ? (trait as PredictiveTraitLike).features
+        : (trait as AnomalyTraitLike).baseline;
+      const resolvers = buildFeatureResolvers(featureNames);
+      const materializedColumn = trait.type === 'predictive'
+        ? (trait as PredictiveTraitLike).output.field
+        : trait.name;
 
       let written = 0;
       for (let i = 0; i < rows.length; i += batchSize) {
@@ -191,7 +181,7 @@ export const materializeCommand = {
           }
           return { entityId, prediction: prediction.prediction };
         });
-        await adapter.extractor.write?.(entityName, results, outputField);
+        await adapter.extractor.write?.(entityName, results, materializedColumn);
         written += results.length;
       }
 
@@ -200,7 +190,7 @@ export const materializeCommand = {
         trait: trait.name,
         model: entityName,
         adapter: adapterName,
-        schemaHash,
+        schemaHash: parseArtifactMetadata(JSON.parse(fs.readFileSync(metadataPath, 'utf-8')))?.schemaHash ?? 'unknown',
         definedAt: new Date().toISOString(),
         definedBy: detectAuthor(),
         trainedAt: latest?.trainedAt,
@@ -216,7 +206,7 @@ export const materializeCommand = {
             entity: entityName,
             rowsProcessed: rows.length,
             rowsWritten: written,
-            column: outputField,
+            column: materializedColumn,
           }) + '\n'
         );
         return;
@@ -224,7 +214,7 @@ export const materializeCommand = {
 
       spinner.succeed(`Materialized ${written} rows for trait ${chalk.bold(trait.name)}`);
       console.log(chalk.green('\n[OK] Materialization complete.'));
-      console.log(chalk.dim(`Column: ${trait.name}`));
+  console.log(chalk.dim(`Column: ${materializedColumn}`));
       console.log(chalk.dim(`Rows written: ${written}`));
     } catch (error) {
       if (jsonMode) {

@@ -1,7 +1,7 @@
 {
   "name": "@vncsleal/scheml",
   "version": "0.3.1",
-  "description": "ScheML: compiler-first ML for TypeScript + Prisma",
+  "description": "ScheML: compiler-first ML for TypeScript applications",
   "license": "MIT",
   "author": "Vinicius Leal <oi@iamvini.co> (https://github.com/vncsleal)",
   "homepage": "https://github.com/vncsleal/scheml#readme",
@@ -19,7 +19,10 @@
   "keywords": [
     "machine-learning",
     "typescript",
+    "orm",
     "prisma",
+    "drizzle",
+    "typeorm",
     "onnx",
     "compiler",
     "runtime",
@@ -67,13 +70,17 @@
   },
   "peerDependencies": {
     "@prisma/client": ">=5.0.0",
-    "ai": ">=4.0.0"
+    "ai": ">=4.0.0",
+    "typeorm": ">=0.3.0"
   },
   "peerDependenciesMeta": {
     "@prisma/client": {
       "optional": true
     },
     "ai": {
+      "optional": true
+    },
+    "typeorm": {
       "optional": true
     }
   },

@@ -25,6 +25,17 @@ export interface DetectedOutputSchema {
   choiceOptions?: string[];
 }
 
+type ZodLikeRuntime = {
+  _def?: {
+    typeName?: string;
+    values?: string[] | Record<string, string>;
+  };
+};
+
+function isZodLikeRuntime(value: unknown): value is ZodLikeRuntime {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Detects the AI SDK inference strategy from a Zod schema at runtime.
  * Uses duck-typing on Zod's internal `_def.typeName` to avoid a hard runtime
@@ -35,23 +46,22 @@ export interface DetectedOutputSchema {
  * - `z.object({...})`              → `'object'` → `generateObject({ schema, ... })`
  */
 export function detectOutputSchemaShape(outputSchema: unknown): DetectedOutputSchema {
-  if (!outputSchema || typeof outputSchema !== 'object') {
+  if (!isZodLikeRuntime(outputSchema)) {
     return { shape: 'text' };
   }
 
-  const schema = outputSchema as any;
-  const typeName: string | undefined = schema._def?.typeName;
+  const typeName = outputSchema._def?.typeName;
 
   if (!typeName || typeName === 'ZodString' || typeName === 'ZodAny') {
     return { shape: 'text' };
   }
 
   if (typeName === 'ZodEnum') {
-    const rawValues = schema._def?.values;
+    const rawValues = outputSchema._def?.values;
     const choiceOptions: string[] = Array.isArray(rawValues)
       ? rawValues
       : rawValues && typeof rawValues === 'object'
-        ? (Object.values(rawValues) as string[])
+        ? Object.values(rawValues)
         : [];
     return { shape: 'choice', choiceOptions };
   }

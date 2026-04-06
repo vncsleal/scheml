@@ -1,6 +1,6 @@
 # examples/basic
 
-Demonstrates using ScheML to train and run ML models on Prisma-backed data. Two models are defined against a `User` model: one for lifetime value regression and one for churn classification.
+Demonstrates using ScheML to train and run intelligence traits on Prisma-backed data. Two predictive traits are defined against a `User` model: one for lifetime value regression and one for churn classification.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ This creates `prisma/dev.db` with synthetic user records for training.
 pnpm train
 ```
 
-Trains both models defined in `scheml.config.ts` and outputs compiled artifacts to `.scheml/`:
+Trains the traits defined in `scheml.config.ts` and outputs compiled artifacts to `.scheml/`:
 
 ```
 .scheml/
@@ -47,9 +47,9 @@ Trains both models defined in `scheml.config.ts` and outputs compiled artifacts 
 pnpm infer    # runs src/infer.ts using the trained artifacts
 ```
 
-## Models
+## Traits
 
-### `userLTVModel` — User Lifetime Value
+### `userLTVTrait` — User Lifetime Value
 
 | Field | Value |
 |---|---|
@@ -60,7 +60,7 @@ pnpm infer    # runs src/infer.ts using the trained artifacts
 
 Features: `accountAge` (days), `signupSource` (categorical), `monthlySpend` (numeric), `isPremium` (boolean).
 
-### `userChurnModel` — Churn Prediction
+### `userChurnTrait` — Churn Prediction
 
 | Field | Value |
 |---|---|
@@ -91,5 +91,5 @@ examples/basic/
 ├── src/
 │   ├── index.ts         # Usage instructions entry point
 │   └── infer.ts         # Inference example
-└── scheml.config.ts     # Model definitions (userLTVModel, userChurnModel)
+└── scheml.config.ts     # Trait definitions (userLTVTrait, userChurnTrait, engagementSequenceTrait)
 ```

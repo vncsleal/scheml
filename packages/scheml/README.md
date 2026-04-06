@@ -1,15 +1,18 @@
 # @vncsleal/scheml
 
-Compiler-first machine learning library for TypeScript + Prisma applications.
+Compiler-first machine learning library for TypeScript applications.
 
 ## Overview
 
-ScheML treats ML model training as a **compile-time step**, generating immutable ONNX artifacts that provide type-safe, in-process predictions at runtime.
+ScheML treats training as a build-time compilation step that emits immutable artifacts. Runtime code consumes those artifacts through an explicit adapter contract and fails loudly when the current schema no longer matches the compiled artifact.
 
-**Philosophy:**
-- Training = compilation (build-time)
-- Artifacts = immutable binaries (committed to git)
-- Predictions = synchronous function calls (in-process)
+Core principles:
+
+- training is build-time compilation
+- artifacts are immutable contract outputs
+- runtime serving is explicit and in-process
+- schema drift is a hard error, not a fallback condition
+- adapter choice is explicit, not inferred
 
 ## Installation
 
@@ -17,7 +20,7 @@ ScheML treats ML model training as a **compile-time step**, generating immutable
 npm install @vncsleal/scheml
 ```
 
-Python training backend requires:
+For training:
 
 ```bash
 pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
@@ -25,7 +28,7 @@ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 
 ## Quick Start
 
-### 1. Define your trait (`scheml.config.ts`)
+### 1. Define A Trait And Adapter
 
 ```typescript
 import { defineTrait, defineConfig } from '@vncsleal/scheml';
@@ -36,7 +39,6 @@ const productSales = defineTrait('Product', {
   target: 'sales',
   features: ['price', 'stock', 'category'],
   output: { field: 'predictedSales', taskType: 'regression' },
-  // algorithm is optional — omit it and FLAML AutoML selects the best estimator
   qualityGates: [
     { metric: 'r2', threshold: 0.85, comparison: 'gte' },
   ],
@@ -44,130 +46,128 @@ const productSales = defineTrait('Product', {
 
 export default defineConfig({
   adapter: 'prisma',
+  schema: './prisma/schema.prisma',
   traits: [productSales],
 });
 ```
 
-### 2. Train (build-time)
+### 2. Train
 
 ```bash
-npx scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma
+scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 ```
 
 Outputs to `.scheml/`:
-- `productSales.onnx` — model binary
-- `productSales.metadata.json` — schema contract
 
-### 3. Predict (runtime)
+- `productSales.metadata.json`
+- `productSales.onnx`
 
-**Option A — Prisma extension (recommended):**
+Different trait types may emit different runtime artifact files, but metadata is always the canonical contract.
 
-```typescript
-import { extendClient } from '@vncsleal/scheml';
-import { prisma } from './lib/prisma';
-import config from './scheml.config';
+### 3. Predict
 
-const client = await extendClient(prisma, config);
-
-const product = await client.product.findFirst({ where: { id } });
-console.log(product.predictedSales); // live or materialized prediction
-```
-
-**Option B — direct ONNX session:**
+Option A, explicit runtime session:
 
 ```typescript
 import { PredictionSession } from '@vncsleal/scheml';
 
 const session = new PredictionSession();
-await session.initializeModel(
-  '.scheml/productSales.metadata.json',
-  '.scheml/productSales.onnx',
-  schemaHash
-);
+
+await session.loadTrait('productSales', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
 
 const result = await session.predict('productSales', product, {
   price: (p) => p.price,
   stock: (p) => p.stock,
   category: (p) => p.category,
 });
-// { modelName: 'productSales', prediction: 42.3, timestamp: '...' }
 ```
 
-## API
-
-### `defineTrait(entity, config)`
-
-Declares an intelligence trait on an entity type. Returns a `ResolvedTrait` with
-the full config plus `record()` / `recordBatch()` feedback methods.
-
-```typescript
-import { defineTrait } from '@vncsleal/scheml';
-
-const churnRisk = defineTrait('User', {
-  type: 'predictive',
-  name: 'churnRisk',
-  target: 'churned',
-  features: ['loginCount', 'plan', 'totalSpend'],
-  output: { field: 'churnScore', taskType: 'binary_classification' },
-  qualityGates: [{ metric: 'f1', threshold: 0.85, comparison: 'gte' }],
-});
-
-// Record ground-truth observations for accuracy decay tracking
-await churnRisk.record(userId, { actual: true, predicted: 0.9 });
-```
-
-Supported trait types: `'predictive'` | `'anomaly'` | `'similarity'` | `'sequential'` | `'generative'`
-
-### `defineConfig(config)`
-
-Typed configuration factory for `scheml.config.ts`.
-
-```typescript
-import { defineConfig } from '@vncsleal/scheml';
-
-export default defineConfig({
-  adapter: 'prisma',       // 'prisma' | 'drizzle' | 'zod' | custom
-  traits: [churnRisk],
-});
-```
-
-### `extendClient(prisma, config, opts?)`
-
-Extends a Prisma client with trait fields. Returns the extended client.
+Option B, client extension for interceptor-backed adapters:
 
 ```typescript
 import { extendClient } from '@vncsleal/scheml';
+import config from './scheml.config';
 
 const client = await extendClient(prisma, config, {
-  mode: 'hybrid',         // 'materialized' | 'live' | 'hybrid' (default: 'materialized')
-  cacheTtlMs: 30_000,
+  mode: 'materialized',
 });
 ```
 
-### `new PredictionSession()`
+## Current Runtime Support
 
-Low-level ONNX inference session.
+| Adapter | Schema Reader | Extractor | `extendClient()` | Notes |
+|---|---|---|---|---|
+| Prisma | yes | yes | yes | primary relational path |
+| Drizzle | yes | optional | no | use `PredictionSession` directly |
+| TypeORM | yes | yes | yes | runtime interception supported |
+| Zod | yes | no | no | schema contract only |
 
-#### `session.initializeModel(metadataPath, onnxPath, schemaHash)`
+## Trait Kinds
 
-Path-based model initializer.
+ScheML supports five trait kinds:
 
-#### `session.predict(traitName, entity, resolvers)`
+- predictive
+- anomaly
+- similarity
+- temporal
+- generative
 
-Runs inference on a single entity.
+Runtime entrypoints:
 
-#### `session.predictBatch(traitName, entities, resolvers)`
+- predictive: `predict()`, `predictBatch()`
+- anomaly: `predict()`, `predictBatch()`
+- temporal: `predict()`, `predictBatch()`
+- similarity: `predictSimilarity()`
+- generative: metadata contract, not ONNX runtime serving
 
-Runs inference over an array of entities. Preflight validation is atomic — any
-failure aborts the entire batch with no partial execution.
+## Public API Highlights
 
-### `hashPrismaSchema(schema: string): string`
+### `defineTrait(entity, config)`
 
-Returns the normalized SHA-256 hash of a full Prisma schema string. Used for drift detection.
+Declares a trait and returns a resolved trait with `record()` and `recordBatch()` helpers.
 
-### `hashPrismaModelSubset(schema: string, modelName: string): string`
+### `defineConfig(config)`
 
-Returns a SHA-256 hash scoped to a single model block and its referenced enums. Changes to unrelated models do not invalidate artifacts compiled with this hash (default for artifacts compiled with `metadataSchemaVersion >= 1.2.0`).
+Declares the explicit adapter, schema source, and traits for a project.
+
+### `extendClient(client, config, options?)`
+
+Extends supported clients in either `materialized` or `live` mode.
+
+`hybrid` mode is not supported.
+
+### `PredictionSession`
+
+Low-level runtime entrypoint for loading trait artifacts and running inference.
+
+### Schema Hash Utilities
+
+ScheML exposes adapter-neutral schema hashing utilities:
+
+- `hashSchemaGraph()`
+- `hashSchemaGraphEntity()`
+- `hashSchemaEntity()`
+- `hashSchemaSource()`
+- `computeMetadataSchemaHash()`
+- `compareSchemaHashes()`
+
+Text-schema helpers also remain available:
+
+- `normalizeSchemaText()`
+- `hashSchemaText()`
+- `hashSchemaEntitySubset()`
+
+## Runtime Guarantees
+
+- runtime schema validation is explicit and adapter-aware
+- missing live trait artifacts fail loudly
+- batch validation is atomic
+- similarity traits use `predictSimilarity()`, not `predict()`
+- runtime does not infer adapters from schema paths
 
 ## Quality Gates
 
@@ -180,25 +180,28 @@ qualityGates: [
 
 `scheml train` exits non-zero if any gate fails.
 
-## Supported Algorithms
-
-| Name | Regression | Classification |
-|------|-----------|----------------|
-| *(omit)* | **AutoML (FLAML, default)** — selects best estimator in 60s | same |
-| `linear` | LinearRegression | LogisticRegression |
-| `tree` | DecisionTreeRegressor | DecisionTreeClassifier |
-| `forest` | RandomForestRegressor | RandomForestClassifier |
-| `gbm` | GradientBoostingRegressor | GradientBoostingClassifier |
-
 ## Feature Encoding
 
-| Feature type | Encoding |
+| Feature type | Runtime encoding behavior |
 |---|---|
-| `number` | Standard scaling (mean/std computed at train time) |
-| `boolean` | 0 / 1 |
-| `string` | One-hot encoding (categories computed at train time) |
-| `Date` | Unix timestamp (ms) |
-| `null` / `undefined` | Imputation |
+| `number` | numeric scaling or raw numeric contract |
+| `boolean` | `0` or `1` |
+| `string` | label, hash, or one-hot contract from metadata |
+| `Date` | timestamp |
+| `null` or `undefined` | imputation according to compiled contract |
+
+## CLI
+
+Main commands:
+
+- `scheml train`
+- `scheml check`
+- `scheml status`
+- `scheml inspect`
+- `scheml diff`
+- `scheml audit`
+- `scheml migrate`
+- `scheml init`
 
 ## License
 

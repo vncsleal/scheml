@@ -139,7 +139,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <button class="trait-tab active" role="tab" aria-selected="true" data-trait="predictive">predictive</button>
           <button class="trait-tab" role="tab" aria-selected="false" data-trait="anomaly">anomaly</button>
           <button class="trait-tab" role="tab" aria-selected="false" data-trait="similarity">similarity</button>
-          <button class="trait-tab" role="tab" aria-selected="false" data-trait="sequential">sequential</button>
+          <button class="trait-tab" role="tab" aria-selected="false" data-trait="temporal">temporal</button>
           <button class="trait-tab" role="tab" aria-selected="false" data-trait="generative">generative</button>
         </div>
       </div>
@@ -497,8 +497,8 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           </div>
         </div>
 
-        <!-- ── SEQUENTIAL PANE ── -->
-        <div class="demo-pane" id="pane-sequential">
+        <!-- ── TEMPORAL PANE ── -->
+        <div class="demo-pane" id="pane-temporal">
           <div class="inference-grid">
 
             <div class="panel">
@@ -906,8 +906,8 @@ const result = await db.scheml.predict('userChurn', user);
           title: 'Retrieve the nearest neighbours.',
           desc: `Set category and feature sliders to find the most similar products from the embedded product space. Cosine similarity runs in-process over the compiled <code>productSimilarity.embeddings.npy</code> index — no vector DB, no external service.`,
         },
-        sequential: {
-          tag: 'Live inference · sequential',
+        temporal: {
+          tag: 'Live inference · temporal',
           title: 'Predict churn from weekly engagement scores.',
           desc: `Enter the last five weeks of engagement scores and the <code>extra_tree</code> model predicts whether the user will churn. Runs in-process against the compiled <code>engagementSequence.onnx</code> artefact — no subprocess, no network.`,
         },
@@ -1192,7 +1192,7 @@ const result = await db.scheml.predict('userChurn', user);
         if (btn) { btn.textContent = 'Find similar'; btn.disabled = false; }
       });
 
-      // ── SEQUENTIAL ────────────────────────────────────────────────────
+      // ── TEMPORAL ─────────────────────────────────────────────────────
       type SeqPreset = [number, number, number, number, number];
       const seqPresets: Record<string, SeqPreset> = {
         healthy:  [90, 88, 91, 87, 92],
@@ -1228,13 +1228,13 @@ const result = await db.scheml.predict('userChurn', user);
         if (btn) { btn.textContent = 'Predicting...'; btn.disabled = true; }
         const scores = seqScoreInputs.map(({ input }) => Number(input?.value ?? 50));
         try {
-          const res = await fetch('/api/demo/sequential', {
+          const res = await fetch('/api/demo/temporal', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ scores }),
           });
           const data = await res.json();
-          if (!data.ok) throw new Error(data.error ?? 'Sequential request failed');
+          if (!data.ok) throw new Error(data.error ?? 'Temporal request failed');
           const { predicted, confidence, latencyMs } = data.result;
           const willChurn = predicted === '1';
           const barsEl = document.getElementById('seqProbBars');
@@ -1543,7 +1543,7 @@ const result = await db.scheml.predict('userChurn', user); // schema now hashes 
     }
     .select-input:focus { border-color: var(--amber-60); }
 
-    /* Sequential event selectors */
+    /* Temporal event selectors */
     .field__seq-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; display: block; }
     .seq-events { display: flex; flex-direction: column; gap: 8px; }
     .seq-step { display: flex; align-items: center; gap: 10px; }
@@ -1555,7 +1555,7 @@ const result = await db.scheml.predict('userChurn', user); // schema now hashes 
       text-align: center;
     }
 
-    /* Probability bars (sequential / generative) */
+    /* Probability bars (temporal / generative) */
     .prob-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
     .prob-bar { }
     .prob-bar__header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }

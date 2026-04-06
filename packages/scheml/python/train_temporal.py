@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ScheML Sequential Training Backend — Fixed-Window Aggregation
+ScheML Temporal Training Backend — Fixed-Window Aggregation
 
-Sequential v1 is NOT a sequence model (no LSTM / Transformer).
+Temporal v1 is NOT a sequence model (no LSTM / Transformer).
 Instead, it applies fixed-window aggregation over the N most recent events
 to produce a tabular feature vector, which is then fed into the standard
 FLAML → ONNX pipeline.
@@ -106,7 +106,7 @@ def evaluate_model(model, X_test, y_test, task_type: str) -> List[Dict[str, Any]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ScheML sequential training backend")
+    parser = argparse.ArgumentParser(description="ScheML temporal training backend")
     parser.add_argument("--dataset",    required=True, help="Path to the .dataset.json file")
     parser.add_argument("--output",     required=True, help="Output directory for artifacts")
     parser.add_argument("--model-name", required=True, dest="model_name")
@@ -119,7 +119,7 @@ def main() -> None:
                 "window_size", "aggregations", "task_type"}
     missing = required - set(dataset.keys())
     if missing:
-        raise ValueError(f"Sequential dataset missing keys: {missing}")
+        raise ValueError(f"Temporal dataset missing keys: {missing}")
 
     X_windows_raw = np.array(dataset["X_windows"], dtype=np.float32)
     y_raw = np.array(dataset["y_train"] + dataset["y_test"])

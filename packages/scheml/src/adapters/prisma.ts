@@ -16,7 +16,7 @@ import * as path from 'path';
 import { createRequire } from 'module';
 import {
   parseModelSchema,
-  hashPrismaModelSubset,
+  hashSchemaEntitySubset,
   extractModelNames,
 } from '../schema';
 import type {
@@ -34,6 +34,128 @@ import type {
 import type { FeatureDependency } from '../types';
 import type { PredictionSession } from '../prediction';
 import { TTLCache } from '../cache';
+
+type TraitScalar = number | string | boolean | null;
+type PrismaRow = Row;
+type FeatureResolver = (entity: PrismaRow) => unknown;
+type PredictionSessionLike = Pick<PredictionSession, 'predict'>;
+type CacheLike = Pick<TTLCache<string, TraitScalar>, 'get' | 'set'>;
+type PrismaQueryArgs = Record<string, unknown> & {
+  where?: Record<string, unknown> & {
+    trait?: Record<string, Record<string, unknown>>;
+  };
+};
+type PrismaQueryResult = PrismaRow | PrismaRow[] | null;
+type PrismaQueryExecutor = (args: PrismaQueryArgs) => Promise<PrismaQueryResult>;
+type PrismaQueryHookArgs = {
+  model: string;
+  args: PrismaQueryArgs;
+  query: PrismaQueryExecutor;
+};
+type PrismaComputeField = {
+  needs: Record<string, boolean>;
+  compute: (row: PrismaRow) => Promise<TraitScalar>;
+};
+type PrismaResultExtensions = Record<string, Record<string, PrismaComputeField>>;
+type PrismaDelegateLike = {
+  findMany?: (query: Record<string, unknown>) => Promise<Row[]>;
+  update?: (query: { where: { id: unknown }; data: Record<string, unknown> }) => Promise<unknown>;
+};
+type PrismaClientLike = {
+  $disconnect?: () => Promise<void>;
+  $extends: (extension: PrismaExtension) => PrismaClientLike;
+} & Record<string, unknown>;
+type PrismaQueryModelExtension = {
+  findMany: (args: PrismaQueryHookArgs) => Promise<PrismaQueryResult>;
+  findFirst: (args: PrismaQueryHookArgs) => Promise<PrismaQueryResult>;
+  findFirstOrThrow: (args: PrismaQueryHookArgs) => Promise<PrismaRow>;
+};
+type PrismaExtension = {
+  query: {
+    $allModels: PrismaQueryModelExtension;
+  };
+  result: PrismaResultExtensions;
+};
+type PrismaClientConstructor = new () => PrismaClientLike;
+type PrismaClientModule = {
+  PrismaClient: PrismaClientConstructor;
+};
+type PrismaInterceptorOptions = {
+  mode?: 'materialized' | 'live';
+  predictionSession?: PredictionSessionLike;
+  cache?: CacheLike;
+  cacheTtlMs?: number;
+  materializedColumnsPresent?: boolean;
+};
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function isPrismaClientModule(value: unknown): value is PrismaClientModule {
+  return isObjectRecord(value) && typeof value.PrismaClient === 'function';
+}
+
+function isPrismaClientLike(value: unknown): value is PrismaClientLike {
+  return isObjectRecord(value) && typeof value.$extends === 'function';
+}
+
+function isPredictionSessionLike(value: unknown): value is PredictionSessionLike {
+  return isObjectRecord(value) && typeof value.predict === 'function';
+}
+
+function isCacheLike(value: unknown): value is CacheLike {
+  return isObjectRecord(value) && typeof value.get === 'function' && typeof value.set === 'function';
+}
+
+function getPrismaDelegate(client: PrismaClientLike, modelName: string): PrismaDelegateLike {
+  const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+  const delegate = client[delegateName];
+  if (!isObjectRecord(delegate)) {
+    throw new Error(
+      `PrismaClient does not expose model "${modelName}" (looked for client.${delegateName})`
+    );
+  }
+
+  return delegate as PrismaDelegateLike;
+}
+
+function createFeatureResolvers(featureNames: string[]): Record<string, FeatureResolver> {
+  const resolvers: Record<string, FeatureResolver> = {};
+  for (const featureName of featureNames) {
+    resolvers[featureName] = (entity: PrismaRow) => entity[featureName];
+  }
+  return resolvers;
+}
+
+function normalizeQueryRows(result: PrismaQueryResult, model: string): PrismaRow[] {
+  if (result == null) {
+    return [];
+  }
+  if (Array.isArray(result)) {
+    return result;
+  }
+  if (isObjectRecord(result)) {
+    return [result];
+  }
+  throw new Error(`Prisma query for ${model} returned a non-object result`);
+}
+
+function normalizeInterceptorOptions(options: {
+  mode?: 'materialized' | 'live';
+  predictionSession?: unknown;
+  cache?: unknown;
+  cacheTtlMs?: number;
+  materializedColumnsPresent?: boolean;
+}): PrismaInterceptorOptions {
+  return {
+    mode: options.mode,
+    predictionSession: isPredictionSessionLike(options.predictionSession) ? options.predictionSession : undefined,
+    cache: isCacheLike(options.cache) ? options.cache : undefined,
+    cacheTtlMs: options.cacheTtlMs,
+    materializedColumnsPresent: options.materializedColumnsPresent,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // trait: filter helpers
@@ -115,7 +237,7 @@ export class PrismaSchemaReader implements SchemaReader {
   }
 
   hashModel(graph: SchemaGraph, modelName: string): string {
-    return hashPrismaModelSubset(graph.rawSource, modelName);
+    return hashSchemaEntitySubset(graph.rawSource, modelName);
   }
 }
 
@@ -132,18 +254,22 @@ export class PrismaSchemaReader implements SchemaReader {
  */
 export class PrismaDataExtractor implements DataExtractor {
   private readonly projectRoot: string;
-  private client: any = null;
+  private client: PrismaClientLike | null = null;
 
   constructor(projectRoot: string = process.cwd()) {
     this.projectRoot = projectRoot;
   }
 
-  private getClient(): any {
+  private getClient(): PrismaClientLike {
     if (!this.client) {
-      const require = createRequire(
+      const moduleRequire = createRequire(
         path.resolve(this.projectRoot, 'node_modules/@prisma/client/package.json')
       );
-      const { PrismaClient } = require('@prisma/client');
+      const prismaModule = moduleRequire('@prisma/client') as unknown;
+      if (!isPrismaClientModule(prismaModule)) {
+        throw new Error('Failed to load PrismaClient from @prisma/client');
+      }
+      const { PrismaClient } = prismaModule;
       this.client = new PrismaClient();
     }
     return this.client;
@@ -151,12 +277,10 @@ export class PrismaDataExtractor implements DataExtractor {
 
   async extract(modelName: string, options: ExtractOptions = {}): Promise<Row[]> {
     const client = this.getClient();
-    // Prisma delegates are camelCase: "User" → client.user
-    const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
-    const delegate = client[delegateName];
-    if (!delegate || typeof delegate.findMany !== 'function') {
+    const delegate = getPrismaDelegate(client, modelName);
+    if (typeof delegate.findMany !== 'function') {
       throw new Error(
-        `PrismaClient does not expose model "${modelName}" (looked for client.${delegateName})`
+        `PrismaClient does not expose model "${modelName}" with findMany()`
       );
     }
 
@@ -183,17 +307,17 @@ export class PrismaDataExtractor implements DataExtractor {
     columnName: string = 'schemlPrediction'
   ): Promise<void> {
     const client = this.getClient();
-    const delegateName = modelName.charAt(0).toLowerCase() + modelName.slice(1);
-    const delegate = client[delegateName];
-    if (!delegate || typeof delegate.update !== 'function') {
+    const delegate = getPrismaDelegate(client, modelName);
+    if (typeof delegate.update !== 'function') {
       throw new Error(
-        `PrismaClient does not expose model "${modelName}" (looked for client.${delegateName})`
+        `PrismaClient does not expose model "${modelName}" with update()`
       );
     }
+    const update = delegate.update;
 
     await Promise.all(
       results.map((r) =>
-        delegate.update({
+        update({
           where: { id: r.entityId },
           data: { [columnName]: r.prediction },
         })
@@ -203,7 +327,10 @@ export class PrismaDataExtractor implements DataExtractor {
 
   async disconnect(): Promise<void> {
     if (this.client) {
-      await this.client.$disconnect();
+      const disconnect = this.client.$disconnect;
+      if (typeof disconnect === 'function') {
+        await disconnect.call(this.client);
+      }
       this.client = null;
     }
   }
@@ -235,24 +362,18 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
       materializedColumn?: string;
       supportsLiveInference?: boolean;
     }>,
-    private readonly options: {
-      mode?: 'materialized' | 'live' | 'hybrid';
-      predictionSession?: PredictionSession;
-      cache?: TTLCache<string, number | string | boolean | null>;
-      cacheTtlMs?: number;
-      materializedColumnsPresent?: boolean;
-    } = {}
+    private readonly options: PrismaInterceptorOptions = {}
   ) {}
 
-  extendClient(client: any): any {
-    if (typeof client.$extends !== 'function') {
+  extendClient(client: unknown): unknown {
+    if (!isPrismaClientLike(client)) {
       throw new Error(
         'PrismaQueryInterceptor requires a Prisma Client that supports $extends (Prisma ≥ 4.7)'
       );
     }
 
     const mode = this.options.mode ?? 'materialized';
-    const cache = this.options.cache ?? new TTLCache<string, number | string | boolean | null>(
+    const cache = this.options.cache ?? new TTLCache<string, TraitScalar>(
       this.options.cacheTtlMs ?? 30_000
     );
     const predictionSession = this.options.predictionSession;
@@ -265,7 +386,7 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
     //     }
     //   }
     // }
-    const resultExtensions: Record<string, Record<string, unknown>> = {};
+    const resultExtensions: PrismaResultExtensions = {};
 
     for (const trait of this.traits) {
       const modelKey = trait.entityName.charAt(0).toLowerCase() + trait.entityName.slice(1);
@@ -274,12 +395,12 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
       }
 
       const needs: Record<string, boolean> = { id: true };
-      if (mode === 'materialized' || mode === 'hybrid') {
+      if (mode === 'materialized') {
         if (this.options.materializedColumnsPresent) {
           needs[trait.materializedColumn ?? trait.traitName] = true;
         }
       }
-      if (mode === 'live' || mode === 'hybrid') {
+      if (mode === 'live') {
         for (const featureName of trait.featureNames) {
           needs[featureName] = true;
         }
@@ -290,17 +411,15 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
         compute: async (row: Record<string, unknown>) => {
           const materializedColumn = trait.materializedColumn ?? trait.traitName;
 
-          if ((mode === 'materialized' || mode === 'hybrid') && this.options.materializedColumnsPresent) {
+          if (mode === 'materialized' && this.options.materializedColumnsPresent) {
             const materialized = row[materializedColumn] as number | string | boolean | null | undefined;
             if (materialized !== undefined && materialized !== null) {
               return materialized;
             }
-            if (mode === 'materialized') {
-              return materialized ?? null;
-            }
+            return materialized ?? null;
           }
 
-          if (mode === 'live' || mode === 'hybrid') {
+          if (mode === 'live') {
             if (!predictionSession || !trait.supportsLiveInference) {
               return null;
             }
@@ -311,10 +430,7 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
               return cached;
             }
 
-            const featureResolvers: Record<string, (entity: any) => any> = {};
-            for (const featureName of trait.featureNames) {
-              featureResolvers[featureName] = (entity: any) => entity[featureName];
-            }
+            const featureResolvers = createFeatureResolvers(trait.featureNames);
 
             const prediction = await predictionSession.predict(
               trait.traitName,
@@ -332,8 +448,8 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
 
     // Build query extension for `trait:` filter syntax.
     // `findMany({ where: { trait: { churnRisk: { gt: 0.75 } } } })` rewrites
-    // the `trait` sub-object into materialized column conditions (materialized /
-    // hybrid) or a post-filter on live inference (live).
+  // the `trait` sub-object into materialized column conditions (materialized)
+  // or a post-filter on live inference (live).
     const traitBindings = this.traits;
     const interceptorMode = mode;
     const interceptorSession = predictionSession;
@@ -342,25 +458,28 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
 
     const applyFilter = async (
       model: string,
-      args: any,
-      query: (a: any) => Promise<any>
-    ): Promise<any> => {
+      args: PrismaQueryArgs,
+      query: PrismaQueryExecutor
+    ): Promise<PrismaQueryResult> => {
       if (!args?.where?.trait) {
         return query(args);
       }
 
-      const traitFilter = args.where.trait as Record<string, unknown>;
-      const cleanArgs: any = { ...args, where: { ...args.where } };
-      delete cleanArgs.where.trait;
-      if (Object.keys(cleanArgs.where).length === 0) {
+      const traitFilter = args.where.trait;
+      const cleanWhere = { ...args.where };
+      delete cleanWhere.trait;
+      const cleanArgs: PrismaQueryArgs = { ...args };
+      if (Object.keys(cleanWhere).length === 0) {
         delete cleanArgs.where;
+      } else {
+        cleanArgs.where = cleanWhere;
       }
 
       const relevant = traitBindings.filter(
         (t) => t.entityName.toLowerCase() === model.toLowerCase()
       );
 
-      if (interceptorMode === 'materialized' || interceptorMode === 'hybrid') {
+      if (interceptorMode === 'materialized') {
         if (materializedPresent) {
           for (const [traitName, condition] of Object.entries(traitFilter)) {
             const binding = relevant.find((t) => t.traitName === traitName);
@@ -374,8 +493,8 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
       }
 
       if (interceptorMode === 'live') {
-        const rows: any[] = await query(cleanArgs);
-        const filtered: any[] = [];
+        const rows = normalizeQueryRows(await query(cleanArgs), model);
+        const filtered: PrismaRow[] = [];
         for (const row of rows) {
           let passes = true;
           for (const [traitName, condition] of Object.entries(traitFilter)) {
@@ -386,15 +505,12 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
             const cacheKey = `${traitName}:${String(row.id)}`;
             let val = interceptorCache.get(cacheKey);
             if (val === undefined) {
-              const resolvers: Record<string, (e: any) => any> = {};
-              for (const fn of binding.featureNames) {
-                resolvers[fn] = (e: any) => e[fn];
-              }
+              const resolvers = createFeatureResolvers(binding.featureNames);
               const pred = await interceptorSession.predict(traitName, row, resolvers);
-              val = pred.prediction as number | string | boolean | null;
+              val = pred.prediction;
               interceptorCache.set(cacheKey, val);
             }
-            if (typeof val === 'number' && !matchesCondition(val, condition as Record<string, unknown>)) {
+            if (typeof val === 'number' && !matchesCondition(val, condition)) {
               passes = false;
               break;
             }
@@ -410,12 +526,12 @@ export class PrismaQueryInterceptor implements QueryInterceptor {
     return client.$extends({
       query: {
         $allModels: {
-          findMany:          async ({ model, args, query }: any) => applyFilter(model, args, query),
-          findFirst:         async ({ model, args, query }: any) => {
+          findMany:          async ({ model, args, query }: PrismaQueryHookArgs) => applyFilter(model, args, query),
+          findFirst:         async ({ model, args, query }: PrismaQueryHookArgs) => {
             const results = await applyFilter(model, args, query);
             return Array.isArray(results) ? (results[0] ?? null) : results;
           },
-          findFirstOrThrow:  async ({ model, args, query }: any) => {
+          findFirstOrThrow:  async ({ model, args, query }: PrismaQueryHookArgs) => {
             const results = await applyFilter(model, args, query);
             const first = Array.isArray(results) ? results[0] : results;
             if (first == null) throw new Error(`No ${model} record found matching trait filter`);
@@ -444,6 +560,6 @@ export function createPrismaAdapter(projectRoot: string = process.cwd()): ScheML
     reader:           new PrismaSchemaReader(),
     extractor:        new PrismaDataExtractor(projectRoot),
     interceptor:      new PrismaQueryInterceptor([]),
-    createInterceptor: (traits, options) => new PrismaQueryInterceptor(traits, options as any),
+    createInterceptor: (traits, options) => new PrismaQueryInterceptor(traits, normalizeInterceptorOptions(options)),
   };
 }

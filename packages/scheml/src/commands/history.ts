@@ -9,6 +9,12 @@ import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { historyDir, readHistoryRecords, type HistoryRecord } from '../history';
 
+type HistoryCommandArgs = {
+  output: string;
+  trait?: string;
+  json?: boolean;
+};
+
 function sanitizeTraitName(name: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
     throw new Error(
@@ -55,10 +61,10 @@ export const historyCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
+  handler: async (argv: HistoryCommandArgs) => {
     const outputDir = path.resolve(argv.output);
-    const trait = argv.trait as string | undefined;
-    const jsonMode = argv.json as boolean;
+    const trait = argv.trait;
+    const jsonMode = argv.json ?? false;
 
     const traits = trait ? [sanitizeTraitName(trait)] : listTraitsWithHistory(outputDir);
     const data = traits.map((traitName) => ({

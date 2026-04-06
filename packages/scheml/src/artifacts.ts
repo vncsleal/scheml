@@ -252,27 +252,75 @@ export type ArtifactMetadata =
   | TemporalArtifactMetadata
   | GenerativeArtifactMetadata;
 
+function asArtifactRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+export function parseArtifactMetadata(value: unknown): ArtifactMetadata | null {
+  const candidate = asArtifactRecord(value);
+  if (!candidate) {
+    return null;
+  }
+
+  if (
+    typeof candidate.traitType !== 'string' ||
+    typeof candidate.traitName !== 'string' ||
+    typeof candidate.schemaHash !== 'string' ||
+    typeof candidate.compiledAt !== 'string' ||
+    typeof candidate.version !== 'string' ||
+    typeof candidate.metadataSchemaVersion !== 'string' ||
+    typeof candidate.artifactFormat !== 'string'
+  ) {
+    return null;
+  }
+
+  switch (candidate.traitType) {
+    case 'predictive':
+      return candidate.artifactFormat === 'onnx'
+        ? (candidate as unknown as PredictiveArtifactMetadata)
+        : null;
+    case 'anomaly':
+      return candidate.artifactFormat === 'onnx'
+        ? (candidate as unknown as AnomalyArtifactMetadata)
+        : null;
+    case 'similarity':
+      return candidate.artifactFormat === 'faiss' || candidate.artifactFormat === 'npy'
+        ? (candidate as unknown as SimilarityArtifactMetadata)
+        : null;
+    case 'temporal':
+      return candidate.artifactFormat === 'onnx'
+        ? (candidate as unknown as TemporalArtifactMetadata)
+        : null;
+    case 'generative':
+      return candidate.artifactFormat === 'json'
+        ? (candidate as unknown as GenerativeArtifactMetadata)
+        : null;
+    default:
+      return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Type guards
 // ---------------------------------------------------------------------------
 
-export function isPredictiveArtifact(m: ArtifactMetadata): m is PredictiveArtifactMetadata {
+export function isPredictiveArtifact(m: unknown): m is PredictiveArtifactMetadata {
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'predictive';
 }
 
-export function isAnomalyArtifact(m: ArtifactMetadata): m is AnomalyArtifactMetadata {
+export function isAnomalyArtifact(m: unknown): m is AnomalyArtifactMetadata {
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'anomaly';
 }
 
-export function isSimilarityArtifact(m: ArtifactMetadata): m is SimilarityArtifactMetadata {
+export function isSimilarityArtifact(m: unknown): m is SimilarityArtifactMetadata {
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'similarity';
 }
 
-export function isTemporalArtifact(m: ArtifactMetadata): m is TemporalArtifactMetadata {
+export function isTemporalArtifact(m: unknown): m is TemporalArtifactMetadata {
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'temporal';
 }
 
-export function isGenerativeArtifact(m: ArtifactMetadata): m is GenerativeArtifactMetadata {
+export function isGenerativeArtifact(m: unknown): m is GenerativeArtifactMetadata {
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'generative';
 }
 

@@ -1,12 +1,14 @@
 /**
- * Prisma Schema Hashing
- * Deterministic schema normalization and validation
+ * Schema text hashing utilities.
+ *
+ * These helpers operate on Prisma schema text today because Prisma is the
+ * only adapter with a text-schema hashing surface in the public API.
  */
 
 import * as crypto from 'crypto';
 
 /**
- * Normalize a Prisma schema for hashing.
+ * Normalize schema text for hashing.
  *
  * Guarantees the output is invariant to:
  * - Comments
@@ -18,7 +20,7 @@ import * as crypto from 'crypto';
  * manual reordering of fields or models, as long as the schema semantics are
  * unchanged.
  */
-export function normalizePrismaSchema(schema: string): string {
+export function normalizeSchemaText(schema: string): string {
   // 1. Strip comments
   const text = schema
     .replace(/\/\/.*$/gm, '')       // single-line
@@ -76,8 +78,8 @@ export function normalizePrismaSchema(schema: string): string {
 /**
  * Compute SHA256 hash of normalized schema
  */
-export function hashPrismaSchema(schema: string): string {
-  const normalized = normalizePrismaSchema(schema);
+export function hashSchemaText(schema: string): string {
+  const normalized = normalizeSchemaText(schema);
   return crypto
     .createHash('sha256')
     .update(normalized, 'utf-8')
@@ -91,7 +93,7 @@ export function hashPrismaSchema(schema: string): string {
  * models. Adding a new `BlogPost` model while `User` is unchanged no longer
  * triggers SchemaDriftError for a User-based prediction model.
  */
-export function hashPrismaModelSubset(schema: string, modelName: string): string {
+export function hashSchemaEntitySubset(schema: string, modelName: string): string {
   // Parse all blocks using the same normalization used by the full schema hash
   const text = schema
     .replace(/\/\/.*$/gm, '')
@@ -107,7 +109,7 @@ export function hashPrismaModelSubset(schema: string, modelName: string): string
   const modelBlock = allBlocks.get(modelName);
   if (!modelBlock) {
     // Fall back to full hash if the model block can't be isolated
-    return hashPrismaSchema(schema);
+    return hashSchemaText(schema);
   }
 
   // Collect enum names referenced in the model block body
@@ -124,8 +126,8 @@ export function hashPrismaModelSubset(schema: string, modelName: string): string
     ...referencedEnums.map((n) => allBlocks.get(n)).filter(Boolean),
   ] as { keyword: string; name: string; body: string }[];
 
-  // Reuse canonicalization from normalizePrismaSchema
-  const normalized = normalizePrismaSchema(
+  // Reuse canonicalization from normalizeSchemaText
+  const normalized = normalizeSchemaText(
     subsetBlocks.map((b) => `${b.keyword} ${b.name} {\n${b.body}\n}`).join('\n\n')
   );
 
@@ -147,7 +149,7 @@ export function validateSchemaHash(
 }
 
 /**
- * Extract model names from Prisma schema
+ * Extract model names from schema text
  */
 export function extractModelNames(schema: string): string[] {
   const modelRegex = /model\s+(\w+)\s*{/g;
@@ -162,7 +164,7 @@ export function extractModelNames(schema: string): string[] {
 }
 
 /**
- * Parse Prisma schema to extract field definitions for a model
+ * Parse schema text to extract field definitions for a model
  */
 export function parseModelSchema(
   schema: string,
@@ -198,3 +200,4 @@ export function parseModelSchema(
 
   return fields;
 }
+

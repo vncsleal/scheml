@@ -7,7 +7,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
+import { parseArtifactMetadata } from '../artifacts';
 import { readLatestHistoryRecord } from '../history';
+import type { ArtifactMetadata } from '../artifacts';
+
+interface StatusArgs {
+  output?: string;
+  json?: boolean;
+}
 
 interface StatusItem {
   trait: string;
@@ -30,16 +37,16 @@ function listMetadataFiles(outputDir: string): string[] {
     .sort();
 }
 
-function parseMetadata(pathname: string): any {
+function parseMetadata(pathname: string): ArtifactMetadata | null {
   try {
-    return JSON.parse(fs.readFileSync(pathname, 'utf-8'));
+    return parseArtifactMetadata(JSON.parse(fs.readFileSync(pathname, 'utf-8')));
   } catch {
     return null;
   }
 }
 
-function createStatusItem(outputDir: string, metadata: any): StatusItem {
-  const traitName = metadata.traitName ?? 'unknown';
+function createStatusItem(outputDir: string, metadata: ArtifactMetadata): StatusItem {
+  const traitName = metadata.traitName;
   const latest = readLatestHistoryRecord(outputDir, traitName);
   return {
     trait: traitName,
@@ -75,14 +82,14 @@ export const statusCommand = {
         default: false,
       });
   },
-  handler: async (argv: any) => {
-    const outputDir = path.resolve(argv.output);
-    const jsonMode = argv.json as boolean;
+  handler: async (argv: StatusArgs) => {
+    const outputDir = path.resolve(argv.output ?? './.scheml');
+    const jsonMode = argv.json ?? false;
 
     const items = listMetadataFiles(outputDir)
       .map((filePath) => {
-        const m = parseMetadata(filePath);
-        return m ? createStatusItem(outputDir, m) : null;
+        const metadata = parseMetadata(filePath);
+        return metadata ? createStatusItem(outputDir, metadata) : null;
       })
       .filter((item): item is StatusItem => item !== null);
 

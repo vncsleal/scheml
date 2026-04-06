@@ -1,18 +1,17 @@
 /**
- * Example: Model Definition & Training
+ * Example: Trait Definition & Training
  */
 
-import { defineModel } from '@vncsleal/scheml';
-
-// See scheml.config.ts for full model definitions
-console.log('ScheML Example: User Lifetime Value Prediction');
+// See scheml.config.ts for full trait definitions
+console.log('ScheML Example: User intelligence traits');
 console.log('');
-console.log('To train models:');
+console.log('To train traits:');
 console.log('  npm run train');
 console.log('');
 console.log('To run predictions:');
 console.log('  npm run predict');
 console.log('');
-console.log('Models defined in scheml.config.ts:');
-console.log('  - userLTV: regression model predicting customer lifetime value');
-console.log('  - userChurn: binary classification for churn prediction');
+console.log('Traits defined in scheml.config.ts:');
+console.log('  - userLTV: predictive trait for customer lifetime value');
+console.log('  - userChurn: predictive trait for churn prediction');
+console.log('  - engagementSequence: temporal trait over engagement history');

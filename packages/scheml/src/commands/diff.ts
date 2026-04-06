@@ -8,11 +8,16 @@
  *   scheml diff <trait> --json
  */
 
-import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { readHistoryRecords, type HistoryRecord } from '../history';
+
+type DiffCommandArgs = {
+  trait?: string;
+  output: string;
+  json?: boolean;
+};
 
 function sanitizeTraitName(name: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
@@ -132,10 +137,14 @@ export const diffCommand = {
         default: false,
       }),
 
-  handler: async (argv: any) => {
-    const traitName = sanitizeTraitName(argv.trait as string);
-    const outputDir = path.resolve(argv.output as string);
-    const jsonMode = argv.json as boolean;
+  handler: async (argv: DiffCommandArgs) => {
+    if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
+      throw new Error('Trait name is required. Usage: scheml diff <trait>');
+    }
+
+    const traitName = sanitizeTraitName(argv.trait);
+    const outputDir = path.resolve(argv.output);
+    const jsonMode = argv.json ?? false;
 
     const records = readHistoryRecords(outputDir, traitName);
 

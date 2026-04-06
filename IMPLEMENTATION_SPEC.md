@@ -1,5 +1,7 @@
 # Architecture Overhaul — Implementation Spec
 
+> Historical planning document. The work described here has already landed; use `README.md`, `docs/ARCHITECTURE.md`, `docs/GUIDE.md`, and `CHANGELOG.md` for the current package contract.
+
 **Branch:** `architecture/flaml-automl-overhaul`  
 **Goal:** Make scheml deliver on its promise — a Prisma developer with no ML expertise declares *what* to predict, the library handles *how*.
 
