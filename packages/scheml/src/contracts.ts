@@ -149,6 +149,15 @@ function validateHyperparameters(
 }
 
 export function validateTrainingModelDefinition(model: ModelDefinition): void {
+  // Validate name: must be safe for use in file paths and CLI args.
+  // Prevents path traversal (e.g. '../../etc/passwd') in artifact file naming.
+  if (!/^[a-zA-Z0-9_-]+$/.test(model.name)) {
+    throw new ModelDefinitionError(
+      model.name,
+      `Invalid model name "${model.name}". Names must contain only letters, numbers, underscores, and hyphens.`
+    );
+  }
+
   if (!SUPPORTED_TASK_TYPES.has(model.output.taskType)) {
     throw new ModelDefinitionError(
       model.name,

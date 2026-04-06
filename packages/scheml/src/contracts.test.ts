@@ -126,5 +126,36 @@ describe('contracts', () => {
 
       expect(() => validateTrainingModelDefinition(model)).not.toThrow();
     });
+
+    it('rejects names containing path-traversal characters', () => {
+      const model: ModelDefinition<any> = {
+        name: '../../etc/passwd',
+        modelName: 'User',
+        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
+        features: {},
+      };
+      expect(() => validateTrainingModelDefinition(model)).toThrow(ModelDefinitionError);
+      expect(() => validateTrainingModelDefinition(model)).toThrow(/Invalid model name/);
+    });
+
+    it('rejects names containing spaces or special characters', () => {
+      const model: ModelDefinition<any> = {
+        name: 'my model!',
+        modelName: 'User',
+        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
+        features: {},
+      };
+      expect(() => validateTrainingModelDefinition(model)).toThrow(/Invalid model name/);
+    });
+
+    it('accepts names with letters, numbers, underscores, and hyphens', () => {
+      const model: ModelDefinition<any> = {
+        name: 'my-model_v2',
+        modelName: 'User',
+        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
+        features: {},
+      };
+      expect(() => validateTrainingModelDefinition(model)).not.toThrow();
+    });
   });
 });
