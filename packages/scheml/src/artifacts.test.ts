@@ -31,6 +31,7 @@ const BASE = {
 const predictive: PredictiveArtifactMetadata = {
   ...BASE,
   traitType: 'predictive',
+  artifactFormat: 'onnx',
   taskType: 'binary_classification',
   bestEstimator: 'lgbm',
   features: { count: 2, fields: [], fieldIndex: {} } as any,
@@ -54,6 +55,7 @@ const predictive: PredictiveArtifactMetadata = {
 const anomaly: AnomalyArtifactMetadata = {
   ...BASE,
   traitType: 'anomaly',
+  artifactFormat: 'onnx',
   modelBase64: 'BASE64DATA==',
   featureCount: 3,
   featureNames: ['age', 'spend', 'sessions'],
@@ -65,6 +67,7 @@ const anomaly: AnomalyArtifactMetadata = {
 const similarity: SimilarityArtifactMetadata = {
   ...BASE,
   traitType: 'similarity',
+  artifactFormat: 'npy',
   strategy: 'cosine_matrix',
   entityCount: 50,
   embeddingDim: 3,
@@ -77,6 +80,7 @@ const similarity: SimilarityArtifactMetadata = {
 const sequential: SequentialArtifactMetadata = {
   ...BASE,
   traitType: 'sequential',
+  artifactFormat: 'onnx',
   windowSize: 5,
   aggregations: ['mean', 'sum', 'min', 'max'],
   onnxFile: 'myTrait.onnx',

@@ -4,8 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 import { SchemaDriftError, ArtifactError, FeatureExtractionError } from './errors';
-import type { ModelMetadata, FeatureSchema } from './types';
-import { defineModel } from './defineModel';
+import type { ModelMetadata, ModelDefinition, FeatureSchema } from './types';
 import { hashPrismaModelSubset } from './schema';
 
 // ---------------------------------------------------------------------------
@@ -31,7 +30,7 @@ function makeMetadata(overrides: Partial<ModelMetadata> = {}): ModelMetadata {
     encoding: {},
     imputation: {},
     scaling: {},
-    prismaSchemaHash: 'abc123hashvalue',
+    schemaHash: 'abc123hashvalue',
     compiledAt: new Date().toISOString(),
   };
   return { ...base, ...overrides };
@@ -67,7 +66,7 @@ describe('ModelMetadataLoader', () => {
 
     expect(loaded.modelName).toBe('TestModel');
     expect(loaded.taskType).toBe('regression');
-    expect(loaded.prismaSchemaHash).toBe('abc123hashvalue');
+    expect(loaded.schemaHash).toBe('abc123hashvalue');
   });
 
   it('caches: returns same reference on repeated calls', () => {
@@ -89,12 +88,12 @@ describe('ModelMetadataLoader', () => {
     expect(() => loader.loadMetadata(filePath)).toThrow(ArtifactError);
   });
 
-  it('throws ArtifactError for missing prismaSchemaHash', () => {
-    const meta = makeMetadata({ prismaSchemaHash: '' as any });
+  it('throws ArtifactError for missing schemaHash', () => {
+    const meta = makeMetadata();
     const filePath = writeTmpMetadata('NoHash', meta);
 
     const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, 'NoHash.metadata.json'), 'utf-8'));
-    delete raw.prismaSchemaHash;
+    delete raw.schemaHash;
     fs.writeFileSync(path.join(tmpDir, 'NoHash.metadata.json'), JSON.stringify(raw));
 
     const loader = new ModelMetadataLoader();
@@ -198,7 +197,7 @@ describe('FeatureExtractor', () => {
 
 describe('PredictionSession — schema drift detection', () => {
   it('throws SchemaDriftError when hash in metadata does not match runtime hash', async () => {
-    const meta = makeMetadata({ prismaSchemaHash: 'compiled-hash-abc' });
+    const meta = makeMetadata({ schemaHash: 'compiled-hash-abc' });
     const metaPath = writeTmpMetadata('DriftModel', meta);
 
     const session = new PredictionSession();
@@ -209,7 +208,7 @@ describe('PredictionSession — schema drift detection', () => {
   });
 
   it('SchemaDriftError contains both hashes', async () => {
-    const meta = makeMetadata({ prismaSchemaHash: 'compiled-hash' });
+    const meta = makeMetadata({ schemaHash: 'compiled-hash' });
     const metaPath = writeTmpMetadata('DriftHashes', meta);
 
     const session = new PredictionSession();
@@ -226,7 +225,7 @@ describe('PredictionSession — schema drift detection', () => {
   });
 
   it('does NOT throw SchemaDriftError when hashes match (proceeds to ONNX load)', async () => {
-    const meta = makeMetadata({ prismaSchemaHash: 'matching-hash' });
+    const meta = makeMetadata({ schemaHash: 'matching-hash' });
     const metaPath = writeTmpMetadata('MatchModel', meta);
 
     const session = new PredictionSession();
@@ -280,18 +279,18 @@ model AuditLog {
     const metadata = makeMetadata({
       metadataSchemaVersion: '1.2.1',
       modelName: 'churnRisk',
-      prismaSchemaHash: hashPrismaModelSubset(schema, 'User'),
+      schemaHash: hashPrismaModelSubset(schema, 'User'),
       featureDependencies: [{ modelName: 'User' } as any],
     });
     writeTmpMetadata('churnRisk', metadata);
     fs.writeFileSync(path.join(tmpDir, 'churnRisk.onnx'), 'fake-onnx');
 
-    const model = defineModel({
+    const model: ModelDefinition = {
       name: 'churnRisk',
       modelName: 'User',
       output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
       features: { plan: (user: any) => user.plan },
-    });
+    };
 
     const session = new PredictionSession();
     const initializeSpy = vi.spyOn(session, 'initializeModel').mockResolvedValue(undefined);

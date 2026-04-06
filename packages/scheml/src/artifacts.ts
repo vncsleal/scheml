@@ -36,12 +36,6 @@ export interface ArtifactMetadataBase {
   traitName: string;
   /** Adapter-agnostic hash of the entity schema subset at training time */
   schemaHash: string;
-  /**
-   * Legacy field — Prisma-specific hash kept for backward-compatibility with
-   * artifacts produced before Phase 3. Code should prefer `schemaHash`.
-   * @deprecated Use schemaHash
-   */
-  prismaSchemaHash?: string;
   /** ISO-8601 timestamp when this artifact was written */
   compiledAt: string;
   /**
@@ -55,6 +49,16 @@ export interface ArtifactMetadataBase {
    * and detect schema drift.  Populated by `scheml train` for all trait types.
    */
   entityName?: string;
+  /**
+   * Artifact loading format — unambiguous discriminant for `PredictionSession`
+   * to choose the correct loader without inspecting `traitType`.
+   *
+   * - `'onnx'`  — ONNX Runtime (predictive, anomaly, sequential)
+   * - `'faiss'` — FAISS IVF index (similarity, large datasets ≥50 k rows)
+   * - `'npy'`   — NumPy cosine matrix (similarity, small datasets <50 k rows)
+   * - `'json'`  — compiled JSON template (generative, no binary artifact)
+   */
+  artifactFormat: 'onnx' | 'faiss' | 'npy' | 'json';
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +67,7 @@ export interface ArtifactMetadataBase {
 
 export interface PredictiveArtifactMetadata extends ArtifactMetadataBase {
   traitType: 'predictive';
+  artifactFormat: 'onnx';
   taskType: 'regression' | 'binary_classification' | 'multiclass_classification';
   bestEstimator: string;
   features: import('./types').FeatureSchema;
@@ -76,10 +81,6 @@ export interface PredictiveArtifactMetadata extends ArtifactMetadataBase {
   dataset: import('./types').TrainingDataset;
   /** Relative path from the metadata file to the ONNX model file */
   onnxFile: string;
-  /** @deprecated kept for back-compat with pre-Phase-3 artifacts */
-  modelName?: string;
-  /** @deprecated kept for back-compat with pre-Phase-3 artifacts */
-  algorithm?: import('./types').AlgorithmConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,7 @@ export interface PredictiveArtifactMetadata extends ArtifactMetadataBase {
  */
 export interface AnomalyArtifactMetadata extends ArtifactMetadataBase {
   traitType: 'anomaly';
+  artifactFormat: 'onnx';
   /**
    * Base64-encoded joblib-compressed Isolation Forest model.
    * Size is typically <500 KB for reasonable feature counts.
@@ -145,6 +147,13 @@ export type SimilarityStrategy = 'cosine_matrix' | 'faiss_ivf';
 
 export interface SimilarityArtifactMetadata extends ArtifactMetadataBase {
   traitType: 'similarity';
+  /**
+   * Similarity artifacts intentionally bypass ONNX Runtime because sklearn's
+   * cosine/FAISS interface doesn't fit the standard classifier pipeline.
+   * `artifactFormat` provides a single discriminant so `PredictionSession`
+   * can branch to the correct loader without re-inspecting `traitType`.
+   */
+  artifactFormat: 'faiss' | 'npy';
   strategy: SimilarityStrategy;
   /**
    * Number of entities in the index.
@@ -182,6 +191,7 @@ export interface SimilarityArtifactMetadata extends ArtifactMetadataBase {
 
 export interface SequentialArtifactMetadata extends ArtifactMetadataBase {
   traitType: 'sequential';
+  artifactFormat: 'onnx';
   /** Number of timesteps in each window */
   windowSize: number;
   /** Aggregation functions applied per feature per window step */
@@ -214,6 +224,8 @@ export interface SequentialArtifactMetadata extends ArtifactMetadataBase {
  */
 export interface GenerativeArtifactMetadata extends ArtifactMetadataBase {
   traitType: 'generative';
+  /** Generative artifacts are compiled JSON templates — no binary ML artifact. */
+  artifactFormat: 'json';
   /** Entity fields serialised into the prompt context block */
   contextFields: string[];
   /** Raw prompt template from the trait definition */

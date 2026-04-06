@@ -19,7 +19,15 @@ import chalk from 'chalk';
 // Config template
 // ---------------------------------------------------------------------------
 
-function configTemplate(adapter: string): string {
+function configTemplate(adapter: string | undefined): string {
+  const adapterLine = adapter
+    ? `adapter: '${adapter}',`
+    : `// adapter: 'prisma', // Required: set to 'prisma', 'drizzle', or 'zod'`;
+  const schemaLine = adapter === 'prisma'
+    ? `schema: './prisma/schema.prisma',`
+    : adapter === 'drizzle'
+    ? `schema: './src/db/schema.ts',`
+    : `// schema: './path/to/schema', // Required: path to your schema file`;
   return `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
 // ---------------------------------------------------------------------------
@@ -74,8 +82,8 @@ export const churnRisk = defineTrait<User>('User', {
 // ---------------------------------------------------------------------------
 
 export default defineConfig({
-  adapter: '${adapter}',
-  schema: ${adapter === 'prisma' ? "'./prisma/schema.prisma'" : adapter === 'drizzle' ? "'./src/db/schema.ts'" : "'./path/to/schema'"},
+  ${adapterLine}
+  ${schemaLine}
   traits: [churnRisk],
 });
 `;
@@ -103,7 +111,6 @@ export const initCommand = {
       .option('adapter', {
         description: 'Adapter to use (prisma | drizzle | zod)',
         type: 'string',
-        default: 'prisma',
       })
       .option('output', {
         alias: 'o',

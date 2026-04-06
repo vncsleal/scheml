@@ -225,8 +225,6 @@ export interface ModelMetadata {
   
   /** Adapter-agnostic schema hash at training time */
   schemaHash: string;
-  /** @deprecated Use schemaHash — kept for backward-compatibility with Prisma artifacts produced before scheml 0.3.0 */
-  prismaSchemaHash?: string;
 
   trainingMetrics?: TrainingMetrics[];
   dataset?: TrainingDataset;
@@ -263,7 +261,6 @@ export interface BatchPredictionResult {
   modelName: string;
   results: PredictionOutput[];
   successCount: number;
-  failureCount: number; // Always 0 (kept for backward compatibility)
 }
 
 /**

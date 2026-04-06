@@ -126,6 +126,7 @@ export function compileGenerativeTrait(
 
   return {
     traitType: 'generative',
+    artifactFormat: 'json',
     traitName: trait.name,
     schemaHash,
     compiledAt: new Date().toISOString(),

@@ -30,6 +30,7 @@ const BASE = {
 const ANOMALY: AnomalyArtifactMetadata = {
   ...BASE,
   traitType: 'anomaly',
+  artifactFormat: 'onnx',
   traitName: 'userAnomaly',
   entityName: 'User',
   modelBase64: 'base64==',
@@ -43,6 +44,7 @@ const ANOMALY: AnomalyArtifactMetadata = {
 const SIMILARITY: SimilarityArtifactMetadata = {
   ...BASE,
   traitType: 'similarity',
+  artifactFormat: 'npy',
   traitName: 'productSimilarity',
   entityName: 'Product',
   strategy: 'cosine_matrix',
@@ -56,11 +58,12 @@ const SIMILARITY: SimilarityArtifactMetadata = {
 const PREDICTIVE: PredictiveArtifactMetadata = {
   ...BASE,
   traitType: 'predictive',
+  artifactFormat: 'onnx',
   traitName: 'churnPred',
   entityName: 'User',
   taskType: 'binary_classification',
   bestEstimator: 'LGBMClassifier',
-  features: { order: ['age', 'planType', 'daysSinceLogin'], count: 3 },
+  features: { features: [], order: ['age', 'planType', 'daysSinceLogin'], count: 3 },
   output: { field: 'churnRisk', shape: [1] },
   tensorSpec: { inputShape: [1, 3], outputShape: [1] },
   featureDependencies: [],
@@ -78,6 +81,7 @@ const PREDICTIVE: PredictiveArtifactMetadata = {
 const SEQUENTIAL: SequentialArtifactMetadata = {
   ...BASE,
   traitType: 'sequential',
+  artifactFormat: 'onnx',
   traitName: 'revenueSeq',
   entityName: 'Payment',
   windowSize: 5,
@@ -88,6 +92,7 @@ const SEQUENTIAL: SequentialArtifactMetadata = {
 const GENERATIVE: GenerativeArtifactMetadata = {
   ...BASE,
   traitType: 'generative',
+  artifactFormat: 'json',
   traitName: 'userSummary',
   entityName: 'User',
   contextFields: ['name', 'email', 'plan'],

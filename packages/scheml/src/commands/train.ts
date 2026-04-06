@@ -53,7 +53,7 @@ import {
   detectAuthor,
   nextArtifactVersion,
 } from '../history';
-import { getAdapter } from '../adapters';
+import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import type { ScheMLAdapter } from '../adapters/interface';
 
 type ResolvedModel = ModelDefinition & {
@@ -208,7 +208,6 @@ export const trainCommand = {
 
       // Resolve adapter from config
       const configAdapter = (configExports as any).adapter;
-      const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
 
       // Resolve schema path: CLI flag > config field > error
       const configSchemaField = typeof (configExports as any).schema === 'string'
@@ -220,6 +219,15 @@ export const trainCommand = {
         );
       }
       const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+
+      const adapterName = typeof configAdapter === 'string'
+        ? configAdapter
+        : inferAdapterFromSchema(schemaPath) ?? (() => {
+          throw new ConfigurationError(
+            `Cannot infer adapter from schema path "${schemaPath}". ` +
+            `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
+          );
+        })();
       const adapter = getAdapter(adapterName);
       if (!adapter.extractor) {
         throw new ConfigurationError(
@@ -527,6 +535,7 @@ export const trainCommand = {
           const anomalySchemaHash = adapter.reader.hashModel(graph, entityName);
           const anomalyMetadata: AnomalyArtifactMetadata = {
             traitType: 'anomaly',
+            artifactFormat: 'onnx',
             traitName: trait.name,
             schemaHash: anomalySchemaHash,
             entityName,
@@ -597,6 +606,7 @@ export const trainCommand = {
           const simSchemaHash = adapter.reader.hashModel(graph, entityName);
           const simMetadata: SimilarityArtifactMetadata = {
             traitType: 'similarity',
+            artifactFormat: simResponse.strategy === 'faiss_ivf' ? 'faiss' : 'npy',
             traitName: trait.name,
             schemaHash: simSchemaHash,
             entityName,
@@ -705,6 +715,7 @@ export const trainCommand = {
             : undefined;
           const seqMetadata: SequentialArtifactMetadata = {
             traitType: 'sequential',
+            artifactFormat: 'onnx',
             traitName: trait.name,
             schemaHash: seqSchemaHash,
             entityName,

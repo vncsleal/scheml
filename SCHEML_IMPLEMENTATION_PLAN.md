@@ -3,9 +3,9 @@
 > Transforming PrisML into ScheML: trait as a property of the type system.
 
 **Written:** March 31, 2026  
-**Updated:** April 1, 2026  
-**Status:** Phases 1–9 complete — 327 tests passing across 20 test files  
-**Last commit:** `4b189b9` feat(roadmap-next): scheml inspect, diff, and init commands
+**Updated:** April 5, 2026  
+**Status:** Phases 1–9 complete — 338 tests passing across 19 test files  
+**Last commit:** uncommitted (backward-compat scaffolding removed — `prismaSchemaHash`, `defineModel`, `artifactFormat?`)
 
 ---
 

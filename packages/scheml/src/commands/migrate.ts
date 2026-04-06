@@ -9,7 +9,7 @@ import { Argv } from 'yargs';
 import { createJiti } from 'jiti';
 import { pathToFileURL } from 'url';
 import chalk from 'chalk';
-import { getAdapter } from '../adapters';
+import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import type { AnyTraitDefinition } from '../traitTypes';
 
 function sanitizeTraitName(name: string): string {
@@ -96,7 +96,6 @@ export const migrateCommand = {
       .option('migrations-dir', {
         description: 'Path to migrations directory',
         type: 'string',
-        default: './prisma/migrations',
       })
       .option('json', {
         description: 'Emit structured JSON',
@@ -107,7 +106,13 @@ export const migrateCommand = {
   handler: async (argv: any) => {
     const configPath = path.resolve(argv.config);
     const traitFilter = argv.trait ? sanitizeTraitName(argv.trait as string) : undefined;
-    const migrationsDir = path.resolve(argv['migrations-dir'] ?? './prisma/migrations');
+    const rawMigrationsDir = argv['migrations-dir'] as string | undefined;
+    if (!rawMigrationsDir) {
+      throw new Error(
+        'Migrations directory not configured. Pass --migrations-dir <path> (e.g. --migrations-dir ./prisma/migrations).'
+      );
+    }
+    const migrationsDir = path.resolve(rawMigrationsDir);
     const jsonMode = argv.json as boolean;
 
     const configModule = await loadConfigModule(configPath);
@@ -117,7 +122,6 @@ export const migrateCommand = {
         : configModule;
 
     const configAdapter = (configExports as any).adapter;
-    const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
 
     // Resolve schema path: CLI flag > config field > error
     const configSchemaField = typeof (configExports as any).schema === 'string'
@@ -129,6 +133,15 @@ export const migrateCommand = {
       );
     }
     const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+
+    const adapterName = typeof configAdapter === 'string'
+      ? configAdapter
+      : inferAdapterFromSchema(schemaPath) ?? (() => {
+        throw new Error(
+          `Cannot infer adapter from schema path "${schemaPath}". ` +
+          `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
+        );
+      })();
 
     const adapter = getAdapter(adapterName);
     const schemaGraph = await adapter.reader.readSchema(schemaPath);

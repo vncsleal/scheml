@@ -45,18 +45,10 @@ export class ModelMetadataLoader {
 
     try {
       const raw = JSON.parse(content);
-      // Normalize new trait artifact format (anomaly/similarity/sequential) to
-      // the ModelMetadata shape expected by the rest of the prediction engine.
-      // New artifacts use `traitName` instead of `modelName` and `schemaHash`
-      // instead of `prismaSchemaHash`.
+      // Normalize new trait artifact format: new artifacts use `traitName`
+      // instead of `modelName`.
       if (raw.traitName && !raw.modelName) {
         raw.modelName = raw.traitName;
-      }
-      if (raw.schemaHash && !raw.prismaSchemaHash) {
-        raw.prismaSchemaHash = raw.schemaHash;
-      }
-      if (raw.prismaSchemaHash && !raw.schemaHash) {
-        raw.schemaHash = raw.prismaSchemaHash;
       }
       metadata = raw;
     } catch (error) {
@@ -80,7 +72,7 @@ export class ModelMetadataLoader {
       );
     }
 
-    if (!metadata.schemaHash && !metadata.prismaSchemaHash) {
+    if (!metadata.schemaHash) {
       throw new ArtifactError(
         metadata.modelName,
         'Metadata missing schema hash'
@@ -156,9 +148,8 @@ export class PredictionSession {
   ): Promise<void> {
     const metadata = this.metadataLoader.loadMetadata(metadataPath);
 
-    const storedHash = metadata.schemaHash ?? metadata.prismaSchemaHash;
-    if (storedHash !== schemaHash) {
-      throw new SchemaDriftError(storedHash ?? '', schemaHash);
+    if (metadata.schemaHash !== schemaHash) {
+      throw new SchemaDriftError(metadata.schemaHash, schemaHash);
     }
 
     this.metadata.set(metadata.modelName, metadata);
@@ -170,13 +161,13 @@ export class PredictionSession {
   /**
    * Load a model from disk using default artifact paths.
    *
-   * Auto-resolves `.scheml/<name>.{onnx,metadata.json}` relative to process.cwd()
-   * and reads + hashes `prisma/schema.prisma` automatically.
+   * Auto-resolves `.scheml/<name>.{onnx,metadata.json}` relative to process.cwd().
+   * `opts.schemaPath` is required — pass the path to your schema file.
    *
    * @example
    * ```ts
    * const session = new PredictionSession();
-   * await session.load(productSalesModel);
+   * await session.load(productSalesModel, { schemaPath: './prisma/schema.prisma' });
    * ```
    */
   async load(
@@ -225,8 +216,7 @@ export class PredictionSession {
     const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
     if (!opts?.schemaPath) {
       throw new Error(
-        'schemaPath is required. Pass opts.schemaPath to session.loadTrait() — ' +
-        'or set schema in scheml.config.ts and use the programmatic API that reads it.'
+        'schemaPath is required. Pass opts.schemaPath to session.loadTrait().'
       );
     }
     const schemaFilePath = path.resolve(opts.schemaPath);
@@ -498,7 +488,7 @@ export class PredictionSession {
       }
     }
 
-    return { modelName, results, successCount: results.length, failureCount: 0 };
+    return { modelName, results, successCount: results.length };
   }
 
   /**

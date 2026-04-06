@@ -206,44 +206,6 @@ export function buildCategories(values: (string | null | undefined)[]): string[]
 }
 
 /**
- * Create feature schema from resolved features.
- * @deprecated Prefer constructing FeatureSchema directly in train.ts with full stat context.
- */
-export function createFeatureSchema(
-  features: Record<string, unknown>,
-  imputationRules: Record<string, ImputationRule> = {}
-): FeatureSchema {
-  const featureNames = Object.keys(features);
-  const encodedFeatures: EncodedFeature[] = [];
-  let colIndex = 0;
-
-  for (const name of featureNames) {
-    const value = features[name];
-    const imputation = imputationRules[name];
-    const originalType = Array.isArray(value)
-      ? 'array'
-      : value === null
-        ? 'null'
-        : typeof value;
-
-    encodedFeatures.push({
-      name,
-      index: colIndex,
-      columnCount: 1,
-      originalType,
-      imputation,
-    });
-    colIndex++;
-  }
-
-  return {
-    features: encodedFeatures,
-    count: colIndex,
-    order: featureNames,
-  };
-}
-
-/**
  * Normalize feature vector from resolver outputs.
  * Handles onehot expansion (string features expand to one column per category)
  * and optional standard scaling for numeric features.

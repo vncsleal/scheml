@@ -12,16 +12,22 @@ import type { GenerativeArtifactMetadata } from './artifacts';
 // Helpers — minimal Zod-like schema stubs
 // ---------------------------------------------------------------------------
 
+const stubZodMethods = {
+  parse: (data: unknown) => data,
+  safeParse: (data: unknown) => ({ success: true, data }),
+};
+
 function zodString() {
-  return { _def: { typeName: 'ZodString' } };
+  return { ...stubZodMethods, _def: { typeName: 'ZodString' } };
 }
 
 function zodEnum(values: string[]) {
-  return { _def: { typeName: 'ZodEnum', values } };
+  return { ...stubZodMethods, _def: { typeName: 'ZodEnum', values } };
 }
 
 function zodObject() {
   return {
+    ...stubZodMethods,
     _def: {
       typeName: 'ZodObject',
       shape: () => ({}),
@@ -127,7 +133,7 @@ describe('validateGenerativeTrait', () => {
 
   it('throws ModelDefinitionError when z.enum() schema has no options', () => {
     const trait = makeGenerativeTrait({
-      outputSchema: { _def: { typeName: 'ZodEnum', values: [] } },
+      outputSchema: { ...stubZodMethods, _def: { typeName: 'ZodEnum', values: [] } },
     });
     const fields = new Set(['plan', 'churned']);
     expect(() => validateGenerativeTrait(trait, fields)).toThrowError(/options/i);
@@ -214,6 +220,7 @@ describe('isGenerativeArtifact (from artifacts.ts)', () => {
     const { isGenerativeArtifact } = await import('./artifacts');
     const artifact: GenerativeArtifactMetadata = {
       traitType: 'generative',
+      artifactFormat: 'json',
       traitName: 'retentionMessage',
       schemaHash: 'abc',
       compiledAt: new Date().toISOString(),

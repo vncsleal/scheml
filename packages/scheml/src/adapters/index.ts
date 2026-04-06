@@ -86,3 +86,21 @@ export function getAdapter(name: string): ScheMLAdapter {
 export function listAdapters(): string[] {
   return Array.from(_registry.keys());
 }
+
+/**
+ * Infer the adapter name from a schema file path when the user has not
+ * explicitly set `adapter` in their config.
+ *
+ * Rules:
+ *   *.prisma          → 'prisma'
+ *   *.ts / *.js / *.mts etc. → 'drizzle'  (Drizzle schemas are TypeScript/JS files)
+ *
+ * Returns `undefined` when the extension is unrecognised — callers should
+ * surface a clear error asking the user to set `adapter` explicitly.
+ */
+export function inferAdapterFromSchema(schemaPath: string): string | undefined {
+  const ext = schemaPath.split('.').pop()?.toLowerCase();
+  if (ext === 'prisma') return 'prisma';
+  if (ext === 'ts' || ext === 'mts' || ext === 'cts' || ext === 'js' || ext === 'mjs' || ext === 'cjs') return 'drizzle';
+  return undefined;
+}

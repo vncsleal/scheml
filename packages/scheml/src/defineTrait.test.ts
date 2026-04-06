@@ -113,7 +113,7 @@ describe('defineTrait', () => {
   });
 
   it('stores entity as object for Drizzle adapter', () => {
-    const usersTable = { name: 'users' }; // mock Drizzle table
+    const usersTable = { name: 'users', id: '' }; // mock Drizzle table
     const t = defineTrait(usersTable, {
       type: 'similarity',
       name: 'mockSimilarity',
@@ -278,7 +278,7 @@ describe('resolveTraitGraph', () => {
       baseline: ['x'],
       sensitivity: 'low',
       traits: [null],
-    });
+    } as any);
     expect(() => resolveTraitGraph([t])).toThrow(TraitGraphError);
     try {
       resolveTraitGraph([t]);

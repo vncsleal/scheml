@@ -3,7 +3,7 @@
  * Validates schema-only contract compatibility for trained models and traits.
  *
  * Handles both:
- *   - Legacy `ModelMetadata` artifacts (field: `prismaSchemaHash`)
+ *   - Legacy `ModelMetadata` artifacts (field: `schemaHash`)
  *   - New trait `ArtifactMetadata` artifacts (field: `traitType` + `schemaHash`)
  *
  * Flags:
@@ -21,7 +21,7 @@ import {
   ModelMetadata,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
-import { getAdapter } from '../adapters';
+import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import type { ArtifactMetadata } from '../artifacts';
 import { checkArtifactDrift, type SchemaDelta, type SchemaSnapshot } from '../drift';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
@@ -114,7 +114,7 @@ export const checkCommand = {
   },
   handler: async (argv: any) => {
     // Resolve adapter and schema path from config (gracefully falls back where possible)
-    let adapterName = 'prisma';
+    let configAdapter: string | undefined;
     let configSchema: string | undefined;
     try {
       const configPath = path.resolve(argv.config ?? './scheml.config.ts');
@@ -124,11 +124,11 @@ export const checkCommand = {
           configModule.default && typeof configModule.default === 'object'
             ? { ...configModule, ...configModule.default }
             : configModule;
-        const configAdapter = (configExports as any).adapter;
-        if (typeof configAdapter === 'string') adapterName = configAdapter;
+        const raw = (configExports as any).adapter;
+        if (typeof raw === 'string') configAdapter = raw;
         if (typeof (configExports as any).schema === 'string') configSchema = (configExports as any).schema;
       }
-    } catch { /* config load failure — fall back to defaults */ }
+    } catch { /* config load failure */ }
 
     const rawSchemaArg = argv.schema as string | undefined;
     if (!rawSchemaArg && !configSchema) {
@@ -137,6 +137,14 @@ export const checkCommand = {
       );
     }
     const schemaPath = path.resolve(rawSchemaArg ?? configSchema!);
+
+    const adapterName = configAdapter
+      ?? inferAdapterFromSchema(schemaPath)
+      ?? (() => { throw new Error(
+          `Cannot infer adapter from schema path "${schemaPath}". ` +
+          `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
+        ); })();
+
     const outputDir = path.resolve(argv.output);
     const modelFilter = argv.model as string | undefined;
     const jsonMode = argv.json as boolean;
@@ -279,7 +287,7 @@ export const checkCommand = {
       }
 
       const expectedSchemaHash = computeSchemaHashForMetadata(graph, metadata, reader);
-      if ((metadata.schemaHash ?? metadata.prismaSchemaHash) !== expectedSchemaHash) {
+      if (metadata.schemaHash !== expectedSchemaHash) {
         warnings.push(
           `${metadata.modelName}: Schema hash differs from metadata (hash mismatch).`
         );

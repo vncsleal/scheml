@@ -1,5 +1,4 @@
 import type { FeatureDependency, ModelDefinition, ModelMetadata, TaskType } from './types';
-import { hashPrismaSchema } from './schema';
 import type { SchemaGraph, SchemaReader } from './adapters/interface';
 import { ModelDefinitionError } from './errors';
 
@@ -11,31 +10,18 @@ const SUPPORTED_TASK_TYPES = new Set<TaskType>([
 
 const SUPPORTED_ALGORITHMS = new Set(['automl', 'linear', 'tree', 'forest', 'gbm']);
 
-function parseMetadataSchemaVersion(version?: string): [number, number, number] {
-  const [major = '0', minor = '0', patch = '0'] = (version || '0.0.0').split('.');
-  return [Number(major) || 0, Number(minor) || 0, Number(patch) || 0];
-}
-
-export function usesModelSubsetSchemaHash(metadataSchemaVersion?: string): boolean {
-  const [major, minor] = parseMetadataSchemaVersion(metadataSchemaVersion);
-  return major > 1 || (major === 1 && minor >= 2);
-}
-
 export function computeSchemaHashForMetadata(
   graph: SchemaGraph,
-  metadata: Pick<ModelMetadata, 'metadataSchemaVersion' | 'modelName' | 'featureDependencies'> & { entityName?: string },
+  metadata: Pick<ModelMetadata, 'modelName' | 'featureDependencies'> & { entityName?: string },
   reader: SchemaReader
 ): string {
-  // Trait artifacts store entityName and always use the entity-scoped hash.
   if (metadata.entityName) {
     return reader.hashModel(graph, metadata.entityName);
   }
   const entityName =
     metadata.featureDependencies?.find((dep: FeatureDependency) => dep.modelName)?.modelName ||
     metadata.modelName;
-  return usesModelSubsetSchemaHash(metadata.metadataSchemaVersion)
-    ? reader.hashModel(graph, entityName)
-    : hashPrismaSchema(graph.rawSource);
+  return reader.hashModel(graph, entityName);
 }
 
 function assertFiniteNumber(

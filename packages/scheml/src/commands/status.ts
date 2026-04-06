@@ -46,7 +46,7 @@ function createStatusItem(outputDir: string, metadata: any): StatusItem {
     kind: metadata.traitType ?? 'predictive-legacy',
     entity: metadata.entityName,
     artifactCompiledAt: metadata.compiledAt,
-    artifactSchemaHash: metadata.schemaHash ?? metadata.prismaSchemaHash,
+    artifactSchemaHash: metadata.schemaHash,
     historyStatus: latest?.status,
     artifactVersion: latest?.artifactVersion,
     lastTrainedAt: latest?.trainedAt,

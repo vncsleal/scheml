@@ -50,7 +50,7 @@ export class SchemaDriftError extends ScheMLError {
   constructor(expected: string, actual: string) {
     super(
       'SCHEMA_DRIFT_ERROR',
-      `Prisma schema hash mismatch: expected ${expected}, got ${actual}. This indicates schema drift since model compilation.`,
+      `Schema hash mismatch: expected ${expected}, got ${actual}. This indicates schema drift since model compilation.`,
       { expectedHash: expected, actualHash: actual }
     );
     this.name = 'SchemaDriftError';

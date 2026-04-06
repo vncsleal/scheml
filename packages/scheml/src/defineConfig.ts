@@ -30,10 +30,11 @@ import type { AnyTraitDefinition } from './traitTypes';
 /**
  * ScheML project configuration.
  */
-export interface ScheMlConfig {
+export interface ScheMLConfig {
   /**
    * Adapter to use for data extraction and schema reading.
-   * Pass `'prisma'` (default), `'drizzle'`, `'zod'`, or a custom adapter instance.
+   * Pass `'prisma'`, `'drizzle'`, `'zod'`, or a custom adapter instance.
+   * If omitted, the adapter is inferred from the `schema` file extension.
    */
   adapter?: string | Record<string, unknown>;
 
@@ -76,6 +77,6 @@ export interface ScheMlConfig {
  * Define the ScheML project configuration with full type completions.
  * Returns the configuration object unchanged — this is a typed no-op wrapper.
  */
-export function defineConfig(config: ScheMlConfig): ScheMlConfig {
+export function defineConfig(config: ScheMLConfig): ScheMLConfig {
   return config;
 }

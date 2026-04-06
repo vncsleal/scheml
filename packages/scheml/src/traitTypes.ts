@@ -6,6 +6,25 @@
 import { AlgorithmConfig, QualityGate, FeatureResolver, OutputResolver, TaskType } from './types';
 
 // ---------------------------------------------------------------------------
+// Compile-time field safety helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves to `string & keyof T` for a typed entity — constraining field names
+ * to actual entity keys at compile time. Degrades gracefully to `string` when
+ * `T = any` (unparameterized / Prisma string-entity usage).
+ *
+ * @example
+ * ```ts
+ * // With explicit type — TS error if field doesn't exist on Customer:
+ * defineTrait<Customer>('Customer', { target: 'nonExistent' })
+ * // Without type param — unconstrained string, no error:
+ * defineTrait('Customer', { target: 'anything' })
+ * ```
+ */
+export type StringKeyOf<T> = string & keyof T;
+
+// ---------------------------------------------------------------------------
 // Core discriminant
 // ---------------------------------------------------------------------------
 
@@ -67,10 +86,10 @@ export interface PredictiveTrait<TEntity = any> extends BaseTraitDefinition {
   readonly entity: string | TEntity;
 
   /** Field on the entity that holds the ground-truth label for training */
-  target: string;
+  target: StringKeyOf<TEntity>;
 
   /** Fields used as input features */
-  features: string[];
+  features: StringKeyOf<TEntity>[];
 
   output: {
     field: string;
@@ -93,7 +112,7 @@ export interface AnomalyTrait<TEntity = any> extends BaseTraitDefinition {
   readonly entity: string | TEntity;
 
   /** Fields that define normal behaviour */
-  baseline: string[];
+  baseline: StringKeyOf<TEntity>[];
 
   /** Controls the anomaly score threshold at inference */
   sensitivity: 'low' | 'medium' | 'high';
@@ -108,25 +127,36 @@ export interface SimilarityTrait<TEntity = any> extends BaseTraitDefinition {
   readonly entity: string | TEntity;
 
   /** Fields to compute similarity over */
-  on: string[];
+  on: StringKeyOf<TEntity>[];
 }
 
 // ---------------------------------------------------------------------------
 // Sequential trait — window-based tabular aggregation (v1)
 // ---------------------------------------------------------------------------
 
+/**
+ * Window-based tabular aggregation trait. The `type` discriminant is `'sequential'`
+ * in serialised JSONL artifacts — changing it would break existing history files.
+ *
+ * **Naming note:** This trait performs fixed-window feature extraction from ordered
+ * event sequences (similar to tsfresh / tslearn), not true RNN/Transformer
+ * sequential modelling. `TemporalTrait` is the preferred alias going forward and
+ * `SequentialTrait` will be removed in v1.0.0.
+ *
+ * @deprecated Use `TemporalTrait` instead. `SequentialTrait` will be removed in v1.0.0.
+ */
 export interface SequentialTrait<TEntity = any> extends BaseTraitDefinition {
   readonly type: 'sequential';
   readonly entity: string | TEntity;
 
   /** Field containing the event/value sequence */
-  sequence: string;
+  sequence: StringKeyOf<TEntity>;
 
   /** Field used to order events */
-  orderBy: string;
+  orderBy: StringKeyOf<TEntity>;
 
   /** Field to predict (next-value or aggregate) */
-  target: string;
+  target: StringKeyOf<TEntity>;
 
   output: {
     field: string;
@@ -139,12 +169,24 @@ export interface SequentialTrait<TEntity = any> extends BaseTraitDefinition {
 // Generative trait — structured prompt via AI SDK LanguageModel
 // ---------------------------------------------------------------------------
 
+/**
+ * Structural duck-type for a Zod schema accepted by `GenerativeTrait.outputSchema`.
+ * Avoids a hard runtime dependency on the `zod` package in ScheML itself —
+ * inference runs duck-typed detection on `_def.typeName` (see `generative.ts`).
+ * Any Zod type satisfies this interface: `z.string()`, `z.enum([...])`, `z.object({...})`.
+ */
+export interface ZodLike {
+  _def: { typeName: string; [key: string]: unknown };
+  parse(data: unknown): unknown;
+  safeParse(data: unknown): { success: boolean; data?: unknown; error?: unknown };
+}
+
 export interface GenerativeTrait<TEntity = any> extends BaseTraitDefinition {
   readonly type: 'generative';
   readonly entity: string | TEntity;
 
   /** Entity fields to serialize as context in the prompt */
-  context: string[];
+  context: StringKeyOf<TEntity>[];
 
   /** Prompt template — context is injected as structured JSON before this text */
   prompt: string;
@@ -152,8 +194,9 @@ export interface GenerativeTrait<TEntity = any> extends BaseTraitDefinition {
   /**
    * Zod schema describing the expected output shape.
    * Mapped internally to AI SDK Output.object() / Output.choice() / generateText.
+   * Must be a Zod type (`z.string()`, `z.enum([...])`, `z.object({...})`, etc.).
    */
-  outputSchema?: unknown;
+  outputSchema?: ZodLike;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,3 +216,17 @@ export type AnyTraitDefinition =
  */
 export type ResolvedTrait<T extends AnyTraitDefinition = AnyTraitDefinition> =
   T & TraitFeedbackApi;
+
+// ---------------------------------------------------------------------------
+// Preferred alias — TemporalTrait replaces SequentialTrait in v1.0.0
+// ---------------------------------------------------------------------------
+
+/**
+ * Preferred alias for {@link SequentialTrait}.
+ *
+ * `SequentialTrait` performs fixed-window feature extraction from ordered event
+ * sequences and will be renamed to `TemporalTrait` in v1.0.0 to better reflect
+ * its tsfresh-style "feature extraction from time series" semantics. Use
+ * `TemporalTrait` in new code to avoid a rename when the package reaches v1.
+ */
+export type TemporalTrait<TEntity = any> = SequentialTrait<TEntity>;

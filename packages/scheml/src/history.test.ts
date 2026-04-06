@@ -14,7 +14,12 @@ import {
   nextArtifactVersion,
   historyFilePath,
   historyDir,
+  VALID_TRANSITIONS,
+  validateStatusTransition,
+  transitionStatus,
+  deprecateArtifact,
   type HistoryRecord,
+  type HistoryStatus,
 } from './history';
 
 // ---------------------------------------------------------------------------
@@ -253,5 +258,172 @@ describe('nextArtifactVersion', () => {
     appendHistoryRecord(tmpDir, makeRecord({ status: 'drifted', artifactVersion: '1' }));
     appendHistoryRecord(tmpDir, makeRecord({ status: 'trained', artifactVersion: '2' }));
     expect(nextArtifactVersion(tmpDir, 'userChurn')).toBe('3');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VALID_TRANSITIONS / validateStatusTransition
+// ---------------------------------------------------------------------------
+
+describe('VALID_TRANSITIONS', () => {
+  it('allows defined → trained', () => {
+    expect(VALID_TRANSITIONS.defined).toContain('trained');
+  });
+
+  it('allows trained → drifted', () => {
+    expect(VALID_TRANSITIONS.trained).toContain('drifted');
+  });
+
+  it('allows trained → deprecated', () => {
+    expect(VALID_TRANSITIONS.trained).toContain('deprecated');
+  });
+
+  it('treats deprecated as terminal (no outgoing transitions)', () => {
+    expect(VALID_TRANSITIONS.deprecated).toHaveLength(0);
+  });
+});
+
+describe('validateStatusTransition', () => {
+  it('does not throw for a valid transition', () => {
+    expect(() => validateStatusTransition('defined', 'trained')).not.toThrow();
+    expect(() => validateStatusTransition('trained', 'drifted')).not.toThrow();
+    expect(() => validateStatusTransition('drifted', 'trained')).not.toThrow();
+  });
+
+  it('throws for an invalid transition', () => {
+    expect(() => validateStatusTransition('defined', 'drifted')).toThrow(
+      /Invalid artifact lifecycle transition/
+    );
+  });
+
+  it('throws when attempting to transition out of deprecated (terminal state)', () => {
+    expect(() => validateStatusTransition('deprecated', 'trained')).toThrow(
+      /terminal/
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transitionStatus
+// ---------------------------------------------------------------------------
+
+describe('transitionStatus', () => {
+  let tmpDir: string;
+
+  beforeEach(() => { tmpDir = makeTmpDir(); });
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true }); });
+
+  it('writes record when no prior history exists (initial write)', () => {
+    transitionStatus(tmpDir, makeRecord({ status: 'defined', trainedAt: undefined }));
+    expect(readHistoryRecords(tmpDir, 'userChurn')).toHaveLength(1);
+  });
+
+  it('allows a valid transition sequence', () => {
+    transitionStatus(tmpDir, makeRecord({ status: 'defined', trainedAt: undefined, artifactVersion: '0' }));
+    transitionStatus(tmpDir, makeRecord({ status: 'trained', artifactVersion: '1' }));
+    transitionStatus(tmpDir, makeRecord({ status: 'drifted', artifactVersion: '1' }));
+    transitionStatus(tmpDir, makeRecord({ status: 'trained', artifactVersion: '2' }));
+    expect(readHistoryRecords(tmpDir, 'userChurn')).toHaveLength(4);
+  });
+
+  it('throws for an invalid transition', () => {
+    transitionStatus(tmpDir, makeRecord({ status: 'defined', trainedAt: undefined, artifactVersion: '0' }));
+    expect(() => transitionStatus(tmpDir, makeRecord({ status: 'drifted', artifactVersion: '0' }))).toThrow(
+      /Invalid artifact lifecycle transition/
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deprecateArtifact
+// ---------------------------------------------------------------------------
+
+describe('deprecateArtifact', () => {
+  let tmpDir: string;
+
+  beforeEach(() => { tmpDir = makeTmpDir(); });
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true }); });
+
+  it('writes a deprecated record with optional reason', () => {
+    appendHistoryRecord(tmpDir, makeRecord({ status: 'trained' }));
+    deprecateArtifact(tmpDir, 'userChurn', 'replaced by v2 model');
+    const records = readHistoryRecords(tmpDir, 'userChurn');
+    const last = records[records.length - 1];
+    expect(last.status).toBe('deprecated');
+    expect(last.deprecationReason).toBe('replaced by v2 model');
+  });
+
+  it('throws when no prior history exists', () => {
+    expect(() => deprecateArtifact(tmpDir, 'nonexistent')).toThrow(
+      /No history found for trait/
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectAuthor — multi-CI provider coverage
+// ---------------------------------------------------------------------------
+
+describe('detectAuthor (multi-CI)', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env.SCHEML_AUTHOR;
+    delete process.env.GITHUB_WORKFLOW;
+    delete process.env.GITHUB_ACTOR;
+    delete process.env.CI;
+    delete process.env.GITLAB_CI;
+    delete process.env.GITLAB_USER_NAME;
+    delete process.env.CI_PIPELINE_NAME;
+    delete process.env.CI_JOB_NAME;
+    delete process.env.CIRCLECI;
+    delete process.env.CIRCLE_USERNAME;
+    delete process.env.CIRCLE_JOB;
+    delete process.env.BUILDKITE;
+    delete process.env.BUILDKITE_BUILD_CREATOR;
+    delete process.env.BUILDKITE_PIPELINE_NAME;
+  });
+
+  afterEach(() => { Object.assign(process.env, originalEnv); });
+
+  it('detects GitLab human user', () => {
+    process.env.GITLAB_CI = 'true';
+    process.env.GITLAB_USER_NAME = 'gitlab-dev';
+    expect(detectAuthor()).toBe('human:gitlab-dev');
+  });
+
+  it('detects GitLab pipeline automation', () => {
+    process.env.GITLAB_CI = 'true';
+    process.env.CI_PIPELINE_NAME = 'nightly-train';
+    expect(detectAuthor()).toBe('agent:nightly-train');
+  });
+
+  it('detects CircleCI human user', () => {
+    process.env.CIRCLECI = 'true';
+    process.env.CIRCLE_USERNAME = 'circle-dev';
+    expect(detectAuthor()).toBe('human:circle-dev');
+  });
+
+  it('detects CircleCI job automation', () => {
+    process.env.CIRCLECI = 'true';
+    process.env.CIRCLE_JOB = 'train-job';
+    expect(detectAuthor()).toBe('agent:train-job');
+  });
+
+  it('detects Buildkite human creator', () => {
+    process.env.BUILDKITE = 'true';
+    process.env.BUILDKITE_BUILD_CREATOR = 'bk-dev';
+    expect(detectAuthor()).toBe('human:bk-dev');
+  });
+
+  it('detects Buildkite pipeline automation', () => {
+    process.env.BUILDKITE = 'true';
+    process.env.BUILDKITE_PIPELINE_NAME = 'ml-pipeline';
+    expect(detectAuthor()).toBe('agent:ml-pipeline');
+  });
+
+  it('detects generic CI (Jenkins, Azure Pipelines, etc.)', () => {
+    process.env.CI = 'true';
+    expect(detectAuthor()).toBe('agent:ci');
   });
 });

@@ -8,12 +8,15 @@ export * from './types';
 // Trait type system
 export type {
   TraitType,
+  StringKeyOf,
+  ZodLike,
   TraitFeedbackApi,
   BaseTraitDefinition,
   PredictiveTrait,
   AnomalyTrait,
   SimilarityTrait,
   SequentialTrait,
+  TemporalTrait,
   GenerativeTrait,
   AnyTraitDefinition,
   ResolvedTrait,
@@ -27,9 +30,6 @@ export { resolveTraitGraph, topologicalSort, TraitGraphError } from './traitGrap
 
 // Errors
 export * from './errors';
-
-// Model definition (legacy — use defineTrait for new code)
-export { defineModel } from './defineModel';
 
 // Schema utilities
 export {
@@ -51,7 +51,6 @@ export {
   applyScaling,
   buildCategoryMapping,
   buildCategories,
-  createFeatureSchema,
   normalizeFeatureVector,
   validateFeatureVector,
 } from './encoding';
@@ -88,7 +87,7 @@ export {
   createDrizzleAdapter,
 } from './adapters/drizzle';
 
-export { getAdapter, registerAdapter, listAdapters } from './adapters/index';
+export { getAdapter, registerAdapter, listAdapters, inferAdapterFromSchema } from './adapters/index';
 
 // Artifact type contracts (used by train.ts writer and PredictionSession loader)
 export type {
@@ -117,11 +116,11 @@ export type { OutputSchemaShape, DetectedOutputSchema } from './generative';
 export { detectOutputSchemaShape, validateGenerativeTrait, compileGenerativeTrait } from './generative';
 
 // Configuration factory
-export type { ScheMlConfig } from './defineConfig';
+export type { ScheMLConfig } from './defineConfig';
 export { defineConfig } from './defineConfig';
 
 // History — append-only JSONL audit trail for training runs and drift events
-export type { HistoryRecord } from './history';
+export type { HistoryRecord, HistoryStatus } from './history';
 export {
   detectAuthor,
   historyDir,
@@ -130,6 +129,10 @@ export {
   readLatestHistoryRecord,
   appendHistoryRecord,
   nextArtifactVersion,
+  VALID_TRANSITIONS,
+  validateStatusTransition,
+  transitionStatus,
+  deprecateArtifact,
 } from './history';
 
 // Drift detection — compare stored schema hash to current entity schema

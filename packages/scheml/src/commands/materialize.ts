@@ -15,7 +15,7 @@ import {
   PredictionSession,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
-import { getAdapter } from '../adapters';
+import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
 import type { AnyTraitDefinition } from '../traitTypes';
 
@@ -121,7 +121,6 @@ export const materializeCommand = {
 
       // Resolve adapter from config
       const configAdapter = (configExports as any).adapter;
-      const adapterName = typeof configAdapter === 'string' ? configAdapter : 'prisma';
 
       // Resolve schema path: CLI flag > config field > error
       const configSchemaField = typeof (configExports as any).schema === 'string'
@@ -133,6 +132,15 @@ export const materializeCommand = {
         );
       }
       const schemaPath = path.resolve(rawSchemaArg ?? configSchemaField!);
+
+      const adapterName = typeof configAdapter === 'string'
+        ? configAdapter
+        : inferAdapterFromSchema(schemaPath) ?? (() => {
+          throw new Error(
+            `Cannot infer adapter from schema path "${schemaPath}". ` +
+            `Set adapter in scheml.config.ts (e.g. adapter: 'prisma').`
+          );
+        })();
 
       const adapter = getAdapter(adapterName);
       if (!adapter.extractor) {

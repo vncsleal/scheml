@@ -4,10 +4,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ScheMlConfig } from './defineConfig';
+import type { ScheMLConfig } from './defineConfig';
 import type { AnyTraitDefinition } from './traitTypes';
 import { PredictionSession } from './prediction';
-import { getAdapter } from './adapters';
+import { getAdapter, inferAdapterFromSchema } from './adapters';
 import { TTLCache } from './cache';
 
 export interface ExtendClientOptions {
@@ -18,7 +18,7 @@ export interface ExtendClientOptions {
   materializedColumnsPresent?: boolean;
 }
 
-function getTraits(config: ScheMlConfig): AnyTraitDefinition[] {
+function getTraits(config: ScheMLConfig): AnyTraitDefinition[] {
   return (config.traits ?? []) as AnyTraitDefinition[];
 }
 
@@ -41,10 +41,25 @@ function featureNamesFor(trait: AnyTraitDefinition): string[] {
  */
 export async function extendClient(
   client: unknown,
-  config: ScheMlConfig,
+  config: ScheMLConfig,
   options: ExtendClientOptions = {}
 ): Promise<unknown> {
-  const adapterName = typeof config.adapter === 'string' ? config.adapter : 'prisma';
+  const rawSchemaPath = options.schemaPath ?? config.schema;
+  const adapterName = typeof config.adapter === 'string'
+    ? config.adapter
+    : rawSchemaPath
+      ? inferAdapterFromSchema(rawSchemaPath) ?? (() => {
+          throw new Error(
+            `Cannot infer adapter from schema path "${rawSchemaPath}". ` +
+            `Set adapter in your ScheMLConfig (e.g. adapter: 'prisma').`
+          );
+        })()
+      : (() => {
+          throw new Error(
+            'adapter is required in ScheMLConfig. ' +
+            `Set adapter (e.g. adapter: 'prisma') or set schema so the adapter can be inferred.`
+          );
+        })();
   const adapter = getAdapter(adapterName);
   if (!adapter.createInterceptor) {
     throw new Error(
@@ -63,13 +78,14 @@ export async function extendClient(
 
   let predictionSession: PredictionSession | undefined;
   if (mode === 'live' || mode === 'hybrid') {
-    if (!options.schemaPath) {
+    const rawSchemaPath = options.schemaPath ?? config.schema;
+    if (!rawSchemaPath) {
       throw new Error(
-        'schemaPath is required in ExtendClientOptions when using live or hybrid mode. ' +
+        'schemaPath is required for live or hybrid mode. ' +
         'Set schema in scheml.config.ts or pass options.schemaPath to extendClient().'
       );
     }
-    const schemaPath = path.resolve(options.schemaPath);
+    const schemaPath = path.resolve(rawSchemaPath);
     const graph = await adapter.reader.readSchema(schemaPath);
     predictionSession = new PredictionSession();
 
