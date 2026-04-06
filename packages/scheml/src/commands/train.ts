@@ -23,20 +23,8 @@ import ora from 'ora';
 import chalk from 'chalk';
 import {
   VERSION,
-  ModelMetadata,
-  TrainingDataset,
-  ModelDefinition,
-  TrainingMetrics,
-  FeatureDependency,
-  normalizeFeatureVector,
 } from '..';
 import { QualityGateError, ModelDefinitionError, ConfigurationError } from '..';
-import { validateTrainingModelDefinition } from '../contracts';
-import {
-  fitTrainingContract,
-  splitTrainingRows,
-  type TrainingRow,
-} from '../trainingContract';
 import { AnyTraitDefinition } from '../traitTypes';
 import type {
   AnomalyArtifactMetadata,
@@ -55,26 +43,6 @@ import {
 } from '../history';
 import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import type { ScheMLAdapter } from '../adapters/interface';
-
-type ResolvedModel = ModelDefinition & {
-  output: {
-    field: string;
-    taskType: ModelDefinition['output']['taskType'];
-    resolver?: (entity: any) => number | string | boolean;
-  };
-};
-
-function isModelDefinition(value: any): value is ResolvedModel {
-  return (
-    value &&
-    typeof value === 'object' &&
-    typeof value.name === 'string' &&
-    typeof value.modelName === 'string' &&
-    value.output &&
-    value.features
-    // algorithm is intentionally optional
-  );
-}
 
 function isTraitDefinition(value: any): value is AnyTraitDefinition {
   return (
@@ -181,16 +149,12 @@ export const trainCommand = {
         configModule.default && typeof configModule.default === 'object'
           ? { ...configModule, ...configModule.default }
           : configModule;
-      let modelDefinitions = Object.values(configExports).filter(
-        isModelDefinition
-      ) as ResolvedModel[];
       let traitDefinitions = Object.values(configExports).filter(
         isTraitDefinition
       ) as AnyTraitDefinition[];
 
       const traitFilter = argv.trait as string | undefined;
       if (traitFilter) {
-        modelDefinitions = [];
         traitDefinitions = traitDefinitions.filter((trait) => trait.name === traitFilter);
         if (traitDefinitions.length === 0) {
           throw new ModelDefinitionError(
@@ -200,11 +164,11 @@ export const trainCommand = {
         }
       }
 
-      if (modelDefinitions.length === 0 && traitDefinitions.length === 0) {
-        throw new ModelDefinitionError('unknown', 'No models or traits exported from config');
+      if (traitDefinitions.length === 0) {
+        throw new ModelDefinitionError('unknown', 'No traits exported from config');
       }
 
-      spinner.succeed(`Loaded ${modelDefinitions.length + traitDefinitions.length} definition(s)`);
+      spinner.succeed(`Loaded ${traitDefinitions.length} definition(s)`);
 
       // Resolve adapter from config
       const configAdapter = (configExports as any).adapter;
@@ -241,43 +205,20 @@ export const trainCommand = {
       const graph = await adapter.reader.readSchema(schemaPath);
       spinner.succeed('Schema loaded');
 
-      // 3. Preflight validate model definitions before invoking Python or extracting data.
-      spinner.start('Running preflight validation...');
-      for (const model of modelDefinitions) {
-        validateTrainingModelDefinition(model);
-      }
-      spinner.succeed('Preflight validation passed');
-
-      // 4. Verify Python environment before doing any heavy work
+      // 3. Verify Python environment before doing any heavy work
       spinner.start('Checking Python environment...');
       checkPythonEnvironment();
       spinner.succeed('Python environment OK');
 
-      // 5. Create output directory
+      // 4. Create output directory
       const outputDir = path.resolve(argv.output);
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      // 6. Validate models against schema graph
-      spinner.start('Validating models...');
+      // 5. Validate traits against schema graph
+      spinner.start('Validating traits...');
 
-      const modelArtifacts: { metadata: ModelMetadata; onnxPath: string }[] = [];
-
-      for (const model of modelDefinitions) {
-        if (!graph.entities.has(model.modelName)) {
-          throw new ModelDefinitionError(
-            model.name,
-            `Entity "${model.modelName}" not found in schema`
-          );
-        }
-        if (!model.output.resolver) {
-          throw new ModelDefinitionError(
-            model.name,
-            'Output resolver is required for training'
-          );
-        }
-      }
       for (const trait of traitDefinitions) {
         const entityName = typeof (trait as any).entity === 'string'
           ? (trait as any).entity
@@ -289,200 +230,10 @@ export const trainCommand = {
           );
         }
       }
-      spinner.succeed('Models and traits validated');
+      spinner.succeed('Traits validated');
 
-      // 7. Extract training data and train
+      // 6. Extract training data and train
       spinner.start('Extracting training data...');
-
-      for (const model of modelDefinitions) {
-        // ORDER BY primary key for deterministic row ordering across runs.
-        // Without this, database row order is non-deterministic and the seeded
-        // shuffle produces a different train/test split on every invocation.
-        const entities = await adapter.extractor.extract(model.modelName, { orderBy: 'id' });
-        if (!entities.length) {
-          throw new ConfigurationError(`No records found for model "${model.modelName}"`);
-        }
-
-        const featureNames = Object.keys(model.features);
-        const rows: TrainingRow[] = entities.map((entity: any) => {
-          const featureValues: Record<string, unknown> = {};
-          for (const featureName of featureNames) {
-            const resolver = model.features[featureName];
-            featureValues[featureName] = resolver(entity);
-          }
-          const label = model.output.resolver!(entity);
-          return { features: featureValues, label };
-        });
-
-        const seed = 42;
-        const { trainRows, testRows } = splitTrainingRows(rows, seed, 0.2);
-        const fittedContract = fitTrainingContract(model.name, featureNames, trainRows, rows);
-        const { schema, featureStats, encodings, imputations, scalings } = fittedContract;
-
-        const entityFields = graph.entities.get(model.modelName)?.fields ?? {};
-        const featureDependencies: FeatureDependency[] = featureStats.map((stat): FeatureDependency => {
-          const extractable = stat.name in entityFields;
-          const issues = extractable
-            ? []
-            : [
-                `Feature "${stat.name}" is not a direct field on model "${model.modelName}"`,
-              ];
-          return {
-            modelName: model.modelName,
-            path: `${model.modelName}.${stat.name}`,
-            scalarType: stat.type,
-            nullable: stat.hasNulls,
-            encoding: stat.encoding,
-            extractable,
-            issues: issues.length ? issues : undefined,
-          };
-        });
-
-        const toVector = (row: TrainingRow) =>
-          normalizeFeatureVector(row.features, schema, encodings, imputations, scalings);
-        const toLabel = (row: TrainingRow): number | string => {
-          const label = row.label;
-          if (typeof label === 'boolean') return label ? 1 : 0;
-          return label;
-        };
-
-        const X_train = trainRows.map(toVector);
-        const y_train = trainRows.map(toLabel);
-        const X_test = testRows.map(toVector);
-        const y_test = testRows.map(toLabel);
-
-        const dataset: TrainingDataset = {
-          size: rows.length,
-          splitSeed: seed,
-          trainSize: X_train.length,
-          testSize: X_test.length,
-          materializedAt: new Date().toISOString(),
-        };
-
-        // Per-entity schema hash: adapter-specific, scoped to the model definition
-        const modelSchemaHash = adapter.reader.hashModel(graph, model.modelName);
-        model.schemaHash = modelSchemaHash;
-
-        const datasetPath = path.join(outputDir, `${model.name}.dataset.json`);
-        const algorithmName = model.algorithm?.name ?? 'automl';
-        fs.writeFileSync(
-          datasetPath,
-          JSON.stringify({
-            X_train,
-            y_train,
-            X_test,
-            y_test,
-            taskType: model.output.taskType,
-            algorithm: algorithmName,
-            hyperparameters: model.algorithm?.hyperparameters || {},
-          })
-        );
-
-        spinner.text = `Training ${model.name} (${algorithmName === 'automl' ? 'FLAML AutoML' : algorithmName})...`;
-        const pythonScript = path.resolve(__dirname, '../../python/train.py');
-        const result = spawnSync('python3', [pythonScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', model.name], {
-          stdio: 'pipe',
-          encoding: 'utf-8',
-        });
-        try { fs.unlinkSync(datasetPath); } catch {}
-
-        if (result.error) {
-          throw result.error;
-        }
-
-        if (result.status !== 0) {
-          throw new Error(result.stderr || 'Python backend failed');
-        }
-
-        let response: any;
-        try {
-          response = JSON.parse(result.stdout.trim());
-        } catch {
-          throw new Error(`Python backend returned invalid JSON: ${result.stdout.slice(0, 200)}`);
-        }
-        const metrics: TrainingMetrics[] = response.metrics || [];
-        const pendingOnnxPath: string = response.onnxPath;
-        const bestEstimator: string = response.bestEstimator || algorithmName;
-
-        // Quality gate check runs after Python writes the ONNX artifact.
-        // If a gate fails we must delete the orphaned .onnx before rethrowing
-        // so that no artifact exists without a corresponding .metadata.json.
-        try {
-          if (model.qualityGates?.length) {
-            for (const gate of model.qualityGates) {
-              const metric = metrics.find(
-                (m) => m.metric === gate.metric && m.split === 'test'
-              );
-              if (!metric) {
-                throw new QualityGateError(
-                  model.name,
-                  gate.metric,
-                  gate.threshold,
-                  NaN,
-                  gate.comparison
-                );
-              }
-              const passes =
-                gate.comparison === 'gte'
-                  ? metric.value >= gate.threshold
-                  : metric.value <= gate.threshold;
-              if (!passes) {
-                throw new QualityGateError(
-                  model.name,
-                  gate.metric,
-                  gate.threshold,
-                  metric.value,
-                  gate.comparison
-                );
-              }
-            }
-          }
-        } catch (gateError) {
-          if (pendingOnnxPath && fs.existsSync(pendingOnnxPath)) {
-            fs.unlinkSync(pendingOnnxPath);
-          }
-          throw gateError;
-        }
-
-        const metadata: ModelMetadata = {
-          version: VERSION,
-          metadataSchemaVersion: '1.2.0',
-          modelName: model.name,
-          taskType: model.output.taskType,
-          algorithm: model.algorithm,
-          bestEstimator,
-          features: schema,
-          output: { field: model.output.field, shape: [1] },
-          tensorSpec: { inputShape: [1, schema.count], outputShape: [1] },
-          featureDependencies,
-          encoding: encodings,
-          imputation: imputations,
-          scaling: scalings,
-          schemaHash: modelSchemaHash,
-          trainingMetrics: metrics,
-          dataset,
-          compiledAt: new Date().toISOString(),
-        };
-
-        const metadataPath = path.join(outputDir, `${model.name}.metadata.json`);
-        fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-
-        modelArtifacts.push({ metadata, onnxPath: response.onnxPath });
-        spinner.succeed(
-          `Trained ${chalk.bold(model.name)} \u2014 estimator: ${chalk.cyan(bestEstimator)}`
-        );
-        appendHistoryRecord(outputDir, {
-          trait: model.name,
-          model: model.modelName,
-          adapter: adapterName,
-          schemaHash: modelSchemaHash,
-          definedAt: new Date().toISOString(),
-          definedBy: detectAuthor(),
-          trainedAt: new Date().toISOString(),
-          artifactVersion: nextArtifactVersion(outputDir, model.name),
-          status: 'trained',
-        });
-      }
 
       // -----------------------------------------------------------------------
       // Trait training loop — anomaly / similarity / temporal
@@ -787,27 +538,13 @@ export const trainCommand = {
         process.stdout.write(
           JSON.stringify({
             ok: true,
-            modelCount: modelArtifacts.length,
             traitCount: traitArtifactNames.length,
-            models: modelArtifacts.map((artifact) => ({
-              name: artifact.metadata.modelName,
-              metadataFile: `${artifact.metadata.modelName}.metadata.json`,
-              onnxFile: path.basename(artifact.onnxPath),
-              estimator: artifact.metadata.bestEstimator,
-            })),
             traits: traitArtifactNames,
           }) + '\n'
         );
       } else {
         console.log(chalk.green('\n[OK] Training complete\n'));
         console.log('Artifacts:');
-        for (const artifact of modelArtifacts) {
-          const est = artifact.metadata.bestEstimator
-            ? chalk.dim(` (${artifact.metadata.bestEstimator})`)
-            : '';
-          console.log(`  ${chalk.dim(`${artifact.metadata.modelName}.metadata.json`)}${est}`);
-          console.log(`  ${chalk.dim(path.basename(artifact.onnxPath))}`);
-        }
         for (const name of traitArtifactNames) {
           console.log(`  ${chalk.dim(name)}`);
         }

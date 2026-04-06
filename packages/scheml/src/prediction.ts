@@ -8,7 +8,6 @@ import * as path from 'path';
 import * as ort from 'onnxruntime-node';
 import {
   ModelMetadata,
-  ModelDefinition,
   PredictionOutput,
   BatchPredictionResult,
   FeatureSchema,
@@ -159,43 +158,6 @@ export class PredictionSession {
   }
 
   /**
-   * Load a model from disk using default artifact paths.
-   *
-   * Auto-resolves `.scheml/<name>.{onnx,metadata.json}` relative to process.cwd().
-   * `opts.schemaPath` is required — pass the path to your schema file.
-   *
-   * @example
-   * ```ts
-   * const session = new PredictionSession();
-   * await session.load(productSalesModel, { schemaPath: './prisma/schema.prisma' });
-   * ```
-   */
-  async load(
-    model: ModelDefinition,
-    opts?: { artifactsDir?: string; schemaPath?: string; adapter?: ScheMLAdapter }
-  ): Promise<void> {
-    const dir = opts?.artifactsDir ?? path.resolve(process.cwd(), '.scheml');
-    if (!opts?.schemaPath) {
-      throw new Error(
-        'schemaPath is required. Pass opts.schemaPath to session.load() \u2014 ' +
-        'or set schema in scheml.config.ts and use the programmatic API that reads it.'
-      );
-    }
-    const schemaFilePath = path.resolve(opts.schemaPath);
-    const metadataPath = path.resolve(dir, `${model.name}.metadata.json`);
-    const onnxPath = path.resolve(dir, `${model.name}.onnx`);
-
-    // Backward-compatible hash: v1.1.0 artifacts used the full-schema hash;
-    // v1.2.0+ artifacts use the model-scoped subset hash.
-    const meta = this.metadataLoader.loadMetadata(metadataPath);
-    const adapterImpl = opts?.adapter ?? createPrismaAdapter();
-    const graph = await adapterImpl.reader.readSchema(schemaFilePath);
-    const hash = computeSchemaHashForMetadata(graph, meta, adapterImpl.reader);
-
-    await this.initializeModel(metadataPath, onnxPath, hash);
-  }
-
-  /**
    * Load a trained trait artifact from disk.
    *
    * Works for all ONNX-backed trait types: `temporal`, and `predictive`.
@@ -234,24 +196,18 @@ export class PredictionSession {
   /**
    * Run prediction on a single entity.
    *
-   * Overload 1 (recommended): pass the model definition — resolvers are read from model.features
-   * ```ts
-   * await session.predict(productSalesModel, product);
-   * ```
-   *
-   * Overload 2 (advanced): pass model name + explicit resolver map
+   * Pass model name + explicit resolver map
    * ```ts
    * await session.predict('productSales', product, { price: p => p.price });
    * ```
    */
-  async predict<T>(model: ModelDefinition<T>, entity: T): Promise<PredictionOutput>;
   async predict<T>(
     modelName: string,
     entity: T,
     featureResolvers: Record<string, (e: T) => any>
   ): Promise<PredictionOutput>;
   async predict<T>(
-    modelOrName: ModelDefinition<T> | string,
+    modelOrName: string,
     entity: T,
     featureResolvers?: Record<string, (e: T) => any>
   ): Promise<PredictionOutput> {
@@ -262,8 +218,8 @@ export class PredictionSession {
       modelName = modelOrName;
       resolvers = featureResolvers!;
     } else {
-      modelName = modelOrName.name;
-      resolvers = modelOrName.features as Record<string, (e: T) => any>;
+      modelName = modelOrName;
+      resolvers = featureResolvers!;
     }
 
     const metadata = this.metadata.get(modelName);
@@ -348,21 +304,15 @@ export class PredictionSession {
    * Preflight validation runs atomically over the entire batch.
    * Any failure aborts inference with no partial execution.
    *
-   * Overload 1 (recommended): pass the model definition
-   * ```ts
-   * await session.predictBatch(productSalesModel, products);
-   * ```
-   *
-   * Overload 2 (advanced): pass model name + explicit resolver map
+   * Pass model name + explicit resolver map
    */
-  async predictBatch<T>(model: ModelDefinition<T>, entities: T[]): Promise<BatchPredictionResult>;
   async predictBatch<T>(
     modelName: string,
     entities: T[],
     featureResolvers: Record<string, (e: T) => any>
   ): Promise<BatchPredictionResult>;
   async predictBatch<T>(
-    modelOrName: ModelDefinition<T> | string,
+    modelOrName: string,
     entities: T[],
     featureResolvers?: Record<string, (e: T) => any>
   ): Promise<BatchPredictionResult> {
@@ -377,8 +327,8 @@ export class PredictionSession {
       modelName = modelOrName;
       resolvers = featureResolvers!;
     } else {
-      modelName = modelOrName.name;
-      resolvers = modelOrName.features as Record<string, (e: T) => any>;
+      modelName = modelOrName;
+      resolvers = featureResolvers!;
     }
 
     const metadata = this.metadata.get(modelName);

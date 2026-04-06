@@ -17,10 +17,6 @@ import { Argv } from 'yargs';
 import { createJiti } from 'jiti';
 import { pathToFileURL } from 'url';
 import chalk from 'chalk';
-import {
-  ModelMetadata,
-} from '..';
-import { computeSchemaHashForMetadata } from '../contracts';
 import { getAdapter, inferAdapterFromSchema } from '../adapters';
 import type { ArtifactMetadata } from '../artifacts';
 import { checkArtifactDrift, type SchemaDelta, type SchemaSnapshot } from '../drift';
@@ -231,66 +227,6 @@ export const checkCommand = {
           }
         }
         continue;
-      }
-
-      // -----------------------------------------------------------------------
-      // Legacy ModelMetadata artifacts
-      // -----------------------------------------------------------------------
-      const metadata = raw as ModelMetadata;
-      const deps = metadata.featureDependencies || [];
-
-      if (!deps.length) {
-        warnings.push(
-          `${metadata.modelName}: No featureDependencies found in metadata (schema-only check skipped).`
-        );
-        continue;
-      }
-
-      const modelNames = new Set(deps.map((dep) => dep.modelName));
-      for (const modelName of modelNames) {
-        const entity = graph.entities.get(modelName);
-
-        deps
-          .filter((dep) => dep.modelName === modelName)
-          .forEach((dep) => {
-            if (!dep.extractable) {
-              warnings.push(
-                `${metadata.modelName}: ${dep.path} is dynamic and cannot be statically validated.`
-              );
-              return;
-            }
-
-            const fieldName = dep.path.split('.').slice(1).join('.') || dep.path;
-            const schemaField = entity?.fields[fieldName];
-
-            if (!schemaField) {
-              errors.push(
-                `${metadata.modelName}: Missing field ${dep.path} in Prisma schema.`
-              );
-              return;
-            }
-
-            const expectedType = dep.scalarType;
-            const actualType = schemaField.scalarType;
-            if (expectedType !== 'unknown' && actualType !== expectedType) {
-              errors.push(
-                `${metadata.modelName}: ${dep.path} type mismatch (${actualType} != ${expectedType}).`
-              );
-            }
-
-            if (dep.nullable !== schemaField.nullable) {
-              errors.push(
-                `${metadata.modelName}: ${dep.path} nullability mismatch (schema nullable=${schemaField.nullable}).`
-              );
-            }
-          });
-      }
-
-      const expectedSchemaHash = computeSchemaHashForMetadata(graph, metadata, reader);
-      if (metadata.schemaHash !== expectedSchemaHash) {
-        warnings.push(
-          `${metadata.modelName}: Schema hash differs from metadata (hash mismatch).`
-        );
       }
     }
 

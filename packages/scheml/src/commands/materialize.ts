@@ -11,7 +11,6 @@ import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 import {
-  type ModelDefinition,
   PredictionSession,
 } from '..';
 import { computeSchemaHashForMetadata } from '../contracts';
@@ -176,21 +175,11 @@ export const materializeCommand = {
       if (!jsonMode) spinner.start('Running inference + writing batches...');
       const resolvers = buildFeatureResolvers(trait.features as string[]);
       const outputField = trait.output.field;
-      const modelDef: ModelDefinition<any> = {
-        name: trait.name,
-        modelName: entityName,
-        output: {
-          field: outputField,
-          taskType: (metadata as any).taskType ?? 'regression',
-          resolver: () => 0,
-        },
-        features: resolvers,
-      };
 
       let written = 0;
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
-        const predictions = await session.predictBatch(modelDef, batch);
+        const predictions = await session.predictBatch(trait.name, batch, resolvers);
         const results = predictions.results.map((prediction, index) => {
           const row = batch[index] as Record<string, unknown>;
           const entityId = row['id'] ?? row['_id'];

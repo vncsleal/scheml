@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeSchemaHashForMetadata, validateTrainingModelDefinition } from './contracts';
+import { computeSchemaHashForMetadata } from './contracts';
 import { hashPrismaModelSubset } from './schema';
-import { ModelDefinitionError } from './errors';
-import type { ModelDefinition } from './types';
 
 const SAMPLE_SCHEMA = `
 datasource db {
@@ -40,122 +38,6 @@ describe('contracts', () => {
           featureDependencies: [{ modelName: 'User' }],
         } as any, reader)
       ).toBe(hashPrismaModelSubset(SAMPLE_SCHEMA, 'User'));
-    });
-  });
-
-  describe('validateTrainingModelDefinition', () => {
-    it('accepts omitted algorithm and treats it as automl', () => {
-      const model: ModelDefinition<any> = {
-        name: 'churnRisk',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-        features: { plan: (user: any) => user.plan },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).not.toThrow();
-    });
-
-    it('rejects unsupported algorithms before Python handoff', () => {
-      const model: ModelDefinition<any> = {
-        name: 'badAlgo',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'regression', resolver: () => 1 },
-        features: { plan: (user: any) => user.plan },
-        algorithm: { name: 'xgboost' as any },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).toThrow(ModelDefinitionError);
-      expect(() => validateTrainingModelDefinition(model)).toThrow(
-        /Unsupported algorithm "xgboost"/
-      );
-    });
-
-    it('rejects hyperparameters for automl', () => {
-      const model: ModelDefinition<any> = {
-        name: 'automlWithParams',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'regression', resolver: () => 1 },
-        features: { plan: (user: any) => user.plan },
-        algorithm: { name: 'automl', hyperparameters: { timeBudget: 30 } },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).toThrow(
-        /AutoML does not currently accept algorithm hyperparameters/
-      );
-    });
-
-    it('rejects unsupported hyperparameters for explicit algorithms', () => {
-      const model: ModelDefinition<any> = {
-        name: 'forestBadParams',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'regression', resolver: () => 1 },
-        features: { plan: (user: any) => user.plan },
-        algorithm: { name: 'forest', hyperparameters: { learningRate: 0.1 } },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).toThrow(
-        /Unsupported hyperparameter "learningRate" for algorithm "forest"/
-      );
-    });
-
-    it('rejects invalid hyperparameter constraints', () => {
-      const model: ModelDefinition<any> = {
-        name: 'forestInvalidCount',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'regression', resolver: () => 1 },
-        features: { plan: (user: any) => user.plan },
-        algorithm: { name: 'forest', hyperparameters: { nEstimators: 0 } },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).toThrow(
-        /requires "nEstimators" to be an integer >= 1/
-      );
-    });
-
-    it('accepts curated explicit hyperparameters that map to the Python backend', () => {
-      const model: ModelDefinition<any> = {
-        name: 'forestGoodParams',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-        features: { plan: (user: any) => user.plan },
-        algorithm: {
-          name: 'forest',
-          hyperparameters: { nEstimators: 200, maxDepth: 12, minSamplesSplit: 4 },
-        },
-      };
-
-      expect(() => validateTrainingModelDefinition(model)).not.toThrow();
-    });
-
-    it('rejects names containing path-traversal characters', () => {
-      const model: ModelDefinition<any> = {
-        name: '../../etc/passwd',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-        features: {},
-      };
-      expect(() => validateTrainingModelDefinition(model)).toThrow(ModelDefinitionError);
-      expect(() => validateTrainingModelDefinition(model)).toThrow(/Invalid model name/);
-    });
-
-    it('rejects names containing spaces or special characters', () => {
-      const model: ModelDefinition<any> = {
-        name: 'my model!',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-        features: {},
-      };
-      expect(() => validateTrainingModelDefinition(model)).toThrow(/Invalid model name/);
-    });
-
-    it('accepts names with letters, numbers, underscores, and hyphens', () => {
-      const model: ModelDefinition<any> = {
-        name: 'my-model_v2',
-        modelName: 'User',
-        output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-        features: {},
-      };
-      expect(() => validateTrainingModelDefinition(model)).not.toThrow();
     });
   });
 });

@@ -101,41 +101,6 @@ export type FeatureResolver<T> = (entity: T) => ScalarType;
 export type OutputResolver<T> = (entity: T) => number | string | boolean;
 
 /**
- * Model definition specification
- * Pure declarative config with no data access or side effects
- */
-export interface ModelDefinition<TModel = any> {
-  /** Name of the model */
-  name: string;
-  
-  /** Target Prisma model name (e.g., 'User', 'Expense') */
-  modelName: string;
-  
-  /** Output field specification */
-  output: {
-    field: string;
-    taskType: TaskType;
-    resolver?: OutputResolver<TModel>;
-  };
-  
-  /** Named feature resolvers */
-  features: Record<string, FeatureResolver<TModel>>;
-
-  /**
-   * Algorithm override. When omitted, FLAML AutoML selects the best algorithm
-   * automatically — recommended for most users.
-   */
-  algorithm?: AlgorithmConfig;
-
-  /** Build-time quality gates */
-  
-  qualityGates?: QualityGate[];
-  
-  /** Prisma schema version hash (computed at compile time) */
-  schemaHash?: string;
-}
-
-/**
  * Extracted feature schema for a model
  */
 export interface FeatureSchema {

@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 import { SchemaDriftError, ArtifactError, FeatureExtractionError } from './errors';
-import type { ModelMetadata, ModelDefinition, FeatureSchema } from './types';
+import type { ModelMetadata, FeatureSchema } from './types';
 import { hashPrismaModelSubset } from './schema';
 
 // ---------------------------------------------------------------------------
@@ -260,47 +260,4 @@ describe('PredictionSession — uninitialized model guards', () => {
   });
 });
 
-describe('PredictionSession.load()', () => {
-  it('uses model-subset hashing for metadata schema v1.2.x artifacts', async () => {
-    const schema = `
-model User {
-  id   String @id
-  plan String
-}
 
-model AuditLog {
-  id String @id
-}
-`;
-
-    const schemaPath = path.join(tmpDir, 'schema-v121.prisma');
-    fs.writeFileSync(schemaPath, schema);
-
-    const metadata = makeMetadata({
-      metadataSchemaVersion: '1.2.1',
-      modelName: 'churnRisk',
-      schemaHash: hashPrismaModelSubset(schema, 'User'),
-      featureDependencies: [{ modelName: 'User' } as any],
-    });
-    writeTmpMetadata('churnRisk', metadata);
-    fs.writeFileSync(path.join(tmpDir, 'churnRisk.onnx'), 'fake-onnx');
-
-    const model: ModelDefinition = {
-      name: 'churnRisk',
-      modelName: 'User',
-      output: { field: 'score', taskType: 'binary_classification', resolver: () => true },
-      features: { plan: (user: any) => user.plan },
-    };
-
-    const session = new PredictionSession();
-    const initializeSpy = vi.spyOn(session, 'initializeModel').mockResolvedValue(undefined);
-
-    await session.load(model, { artifactsDir: tmpDir, schemaPath });
-
-    expect(initializeSpy).toHaveBeenCalledWith(
-      path.join(tmpDir, 'churnRisk.metadata.json'),
-      path.join(tmpDir, 'churnRisk.onnx'),
-      hashPrismaModelSubset(schema, 'User')
-    );
-  });
-});
