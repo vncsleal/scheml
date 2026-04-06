@@ -39,11 +39,11 @@ function parseMetadata(pathname: string): any {
 }
 
 function createStatusItem(outputDir: string, metadata: any): StatusItem {
-  const traitName = metadata.traitName ?? metadata.modelName ?? 'unknown';
+  const traitName = metadata.traitName ?? 'unknown';
   const latest = readLatestHistoryRecord(outputDir, traitName);
   return {
     trait: traitName,
-    kind: metadata.traitType ?? 'predictive-legacy',
+    kind: metadata.traitType,
     entity: metadata.entityName,
     artifactCompiledAt: metadata.compiledAt,
     artifactSchemaHash: metadata.schemaHash,
