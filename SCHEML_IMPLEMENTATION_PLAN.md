@@ -196,7 +196,7 @@ Artifact loading in `PredictionSession` must detect trait type and load the corr
 
 - `python/train_anomaly.py`
 - `python/train_similarity.py`
-- `python/train_sequential.py` (window aggregation)
+- `python/train_temporal.py` (window aggregation)
 - `python/requirements.txt` additions: `faiss-cpu==1.8.0`, `umap-learn==0.5.6`
 
 TypeScript glue in `train.ts`: route to the correct Python module based on `trait.type`. Artifact format per trait type is documented in a new `src/artifacts.ts` contract.

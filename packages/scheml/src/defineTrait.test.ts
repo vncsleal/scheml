@@ -139,6 +139,38 @@ describe('defineTrait', () => {
     expect(result).toBeInstanceOf(Promise);
     result.catch(() => {});
   });
+
+  it('throws for names containing path-traversal characters', () => {
+    expect(() =>
+      defineTrait('Customer', {
+        type: 'predictive',
+        name: '../../etc/passwd',
+        target: 'churned',
+        features: ['lastLoginAt'],
+      })
+    ).toThrow(/Invalid trait name/);
+  });
+
+  it('throws for names containing spaces or special characters', () => {
+    expect(() =>
+      defineTrait('Customer', {
+        type: 'predictive',
+        name: 'my trait!',
+        target: 'churned',
+        features: ['lastLoginAt'],
+      })
+    ).toThrow(/Invalid trait name/);
+  });
+
+  it('accepts names with letters, numbers, underscores, and hyphens', () => {
+    expect(() =>
+      defineTrait('Customer', {
+        type: 'similarity',
+        name: 'my-trait_v2',
+        on: ['id'],
+      })
+    ).not.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------

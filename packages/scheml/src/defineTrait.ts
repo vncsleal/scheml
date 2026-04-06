@@ -146,6 +146,14 @@ export function defineTrait<TEntity = any>(
   entity: unknown,
   config: Omit<AnyTraitDefinition, 'entity'>
 ): ResolvedTrait {
+  // Validate name: must be safe for use in file paths and CLI args.
+  // Prevents path traversal (e.g. '../../etc/passwd') in artifact file naming.
+  if (!/^[a-zA-Z0-9_-]+$/.test(config.name)) {
+    throw new Error(
+      `Invalid trait name "${config.name}". Names must contain only letters, numbers, underscores, and hyphens.`
+    );
+  }
+
   const definition: AnyTraitDefinition = {
     ...config,
     entity,
