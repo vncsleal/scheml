@@ -13,5 +13,6 @@ packages/scheml/.scheml/
 dev.db
 .vercel/
 .agents/
+apps/website/package-lock.json
 
 # Note: consumer app .scheml artifacts may be committed when they are the fixture under test.
