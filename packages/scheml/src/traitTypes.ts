@@ -32,7 +32,7 @@ export type TraitType =
   | 'predictive'
   | 'anomaly'
   | 'similarity'
-  | 'sequential'
+  | 'temporal'
   | 'generative';
 
 // ---------------------------------------------------------------------------
@@ -131,22 +131,16 @@ export interface SimilarityTrait<TEntity = any> extends BaseTraitDefinition {
 }
 
 // ---------------------------------------------------------------------------
-// Sequential trait — window-based tabular aggregation (v1)
+// Temporal trait — window-based tabular aggregation (fixed-window tsfresh-style)
 // ---------------------------------------------------------------------------
 
 /**
- * Window-based tabular aggregation trait. The `type` discriminant is `'sequential'`
- * in serialised JSONL artifacts — changing it would break existing history files.
- *
- * **Naming note:** This trait performs fixed-window feature extraction from ordered
- * event sequences (similar to tsfresh / tslearn), not true RNN/Transformer
- * sequential modelling. `TemporalTrait` is the preferred alias going forward and
- * `SequentialTrait` will be removed in v1.0.0.
- *
- * @deprecated Use `TemporalTrait` instead. `SequentialTrait` will be removed in v1.0.0.
+ * Window-based tabular aggregation trait. Performs fixed-window feature extraction
+ * from ordered event sequences (similar to tsfresh / tslearn). Not a true
+ * RNN/Transformer sequence model — the `type` discriminant is `'temporal'`.
  */
-export interface SequentialTrait<TEntity = any> extends BaseTraitDefinition {
-  readonly type: 'sequential';
+export interface TemporalTrait<TEntity = any> extends BaseTraitDefinition {
+  readonly type: 'temporal';
   readonly entity: string | TEntity;
 
   /** Field containing the event/value sequence */
@@ -207,7 +201,7 @@ export type AnyTraitDefinition =
   | PredictiveTrait
   | AnomalyTrait
   | SimilarityTrait
-  | SequentialTrait
+  | TemporalTrait
   | GenerativeTrait;
 
 /**
@@ -217,16 +211,4 @@ export type AnyTraitDefinition =
 export type ResolvedTrait<T extends AnyTraitDefinition = AnyTraitDefinition> =
   T & TraitFeedbackApi;
 
-// ---------------------------------------------------------------------------
-// Preferred alias — TemporalTrait replaces SequentialTrait in v1.0.0
-// ---------------------------------------------------------------------------
 
-/**
- * Preferred alias for {@link SequentialTrait}.
- *
- * `SequentialTrait` performs fixed-window feature extraction from ordered event
- * sequences and will be renamed to `TemporalTrait` in v1.0.0 to better reflect
- * its tsfresh-style "feature extraction from time series" semantics. Use
- * `TemporalTrait` in new code to avoid a rename when the package reaches v1.
- */
-export type TemporalTrait<TEntity = any> = SequentialTrait<TEntity>;

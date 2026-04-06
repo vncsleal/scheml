@@ -28,7 +28,7 @@ function entityNameFor(trait: AnyTraitDefinition): string | null {
 
 function featureNamesFor(trait: AnyTraitDefinition): string[] {
   if (trait.type === 'predictive') return trait.features;
-  if (trait.type === 'sequential') return [trait.sequence];
+  if (trait.type === 'temporal') return [trait.sequence];
   return [];
 }
 
@@ -92,7 +92,7 @@ export async function extendClient(
     for (const trait of traits) {
       const entityName = entityNameFor(trait);
       if (!entityName) continue;
-      if (trait.type !== 'predictive' && trait.type !== 'sequential') continue;
+      if (trait.type !== 'predictive' && trait.type !== 'temporal') continue;
 
       const metadataPath = path.join(artifactsDir, `${trait.name}.metadata.json`);
       const onnxPath = path.join(artifactsDir, `${trait.name}.onnx`);
@@ -115,7 +115,7 @@ export async function extendClient(
           entityName,
           featureNames: featureNamesFor(trait),
           materializedColumn: trait.name,
-          supportsLiveInference: trait.type === 'predictive' || trait.type === 'sequential',
+          supportsLiveInference: trait.type === 'predictive' || trait.type === 'temporal',
         };
       })
       .filter(Boolean) as Array<{

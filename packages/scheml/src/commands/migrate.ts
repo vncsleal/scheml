@@ -27,7 +27,7 @@ function isTraitDefinition(value: any): value is AnyTraitDefinition {
     typeof value === 'object' &&
     typeof value.name === 'string' &&
     typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'sequential', 'generative'].includes(value.type)
+    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
   );
 }
 
@@ -55,7 +55,7 @@ function columnTypeForTraitType(type: AnyTraitDefinition['type'], provider: stri
       return 'JSONB';
     case 'predictive':
     case 'anomaly':
-    case 'sequential':
+    case 'temporal':
     default:
       if (provider === 'sqlite') return 'REAL';
       if (provider === 'mysql') return 'DOUBLE';

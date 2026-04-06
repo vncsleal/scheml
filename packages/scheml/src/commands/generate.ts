@@ -17,7 +17,7 @@ function isTraitDefinition(value: any): value is AnyTraitDefinition {
     typeof value === 'object' &&
     typeof value.name === 'string' &&
     typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'sequential', 'generative'].includes(value.type)
+    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
   );
 }
 
@@ -34,7 +34,7 @@ function traitValueType(type: AnyTraitDefinition['type']): string {
       return 'Array<{ id: string; score: number }> | null';
     case 'predictive':
     case 'anomaly':
-    case 'sequential':
+    case 'temporal':
     default:
       return 'number | string | null';
   }

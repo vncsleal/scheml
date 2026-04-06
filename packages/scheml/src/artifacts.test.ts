@@ -3,7 +3,7 @@ import {
   isPredictiveArtifact,
   isAnomalyArtifact,
   isSimilarityArtifact,
-  isSequentialArtifact,
+  isTemporalArtifact,
   metadataFileName,
   onnxFileName,
   similarityIndexFileName,
@@ -13,7 +13,7 @@ import {
   type PredictiveArtifactMetadata,
   type AnomalyArtifactMetadata,
   type SimilarityArtifactMetadata,
-  type SequentialArtifactMetadata,
+  type TemporalArtifactMetadata,
 } from './artifacts';
 
 // ---------------------------------------------------------------------------
@@ -77,9 +77,9 @@ const similarity: SimilarityArtifactMetadata = {
   entityIds: [1, 2, 3],
 };
 
-const sequential: SequentialArtifactMetadata = {
+const temporal: TemporalArtifactMetadata = {
   ...BASE,
-  traitType: 'sequential',
+  traitType: 'temporal',
   artifactFormat: 'onnx',
   windowSize: 5,
   aggregations: ['mean', 'sum', 'min', 'max'],
@@ -99,7 +99,7 @@ describe('isPredictiveArtifact', () => {
   it('returns false for non-predictive artifact', () => {
     expect(isPredictiveArtifact(anomaly as ArtifactMetadata)).toBe(false);
     expect(isPredictiveArtifact(similarity as ArtifactMetadata)).toBe(false);
-    expect(isPredictiveArtifact(sequential as ArtifactMetadata)).toBe(false);
+    expect(isPredictiveArtifact(temporal as ArtifactMetadata)).toBe(false);
   });
 });
 
@@ -110,7 +110,7 @@ describe('isAnomalyArtifact', () => {
   it('returns false for non-anomaly artifact', () => {
     expect(isAnomalyArtifact(predictive)).toBe(false);
     expect(isAnomalyArtifact(similarity as ArtifactMetadata)).toBe(false);
-    expect(isAnomalyArtifact(sequential as ArtifactMetadata)).toBe(false);
+    expect(isAnomalyArtifact(temporal as ArtifactMetadata)).toBe(false);
   });
 });
 
@@ -121,18 +121,18 @@ describe('isSimilarityArtifact', () => {
   it('returns false for non-similarity artifact', () => {
     expect(isSimilarityArtifact(predictive)).toBe(false);
     expect(isSimilarityArtifact(anomaly as ArtifactMetadata)).toBe(false);
-    expect(isSimilarityArtifact(sequential as ArtifactMetadata)).toBe(false);
+    expect(isSimilarityArtifact(temporal as ArtifactMetadata)).toBe(false);
   });
 });
 
-describe('isSequentialArtifact', () => {
-  it('returns true for sequential artifact', () => {
-    expect(isSequentialArtifact(sequential as ArtifactMetadata)).toBe(true);
+describe('isTemporalArtifact', () => {
+  it('returns true for temporal artifact', () => {
+    expect(isTemporalArtifact(temporal as ArtifactMetadata)).toBe(true);
   });
-  it('returns false for non-sequential artifact', () => {
-    expect(isSequentialArtifact(predictive)).toBe(false);
-    expect(isSequentialArtifact(anomaly as ArtifactMetadata)).toBe(false);
-    expect(isSequentialArtifact(similarity as ArtifactMetadata)).toBe(false);
+  it('returns false for non-temporal artifact', () => {
+    expect(isTemporalArtifact(predictive)).toBe(false);
+    expect(isTemporalArtifact(anomaly as ArtifactMetadata)).toBe(false);
+    expect(isTemporalArtifact(similarity as ArtifactMetadata)).toBe(false);
   });
 });
 
@@ -162,13 +162,13 @@ describe('type narrowing after guard', () => {
     }
   });
 
-  it('narrows to SequentialArtifactMetadata on isSequentialArtifact', () => {
-    const m: ArtifactMetadata = sequential as ArtifactMetadata;
-    if (isSequentialArtifact(m)) {
+  it('narrows to TemporalArtifactMetadata on isTemporalArtifact', () => {
+    const m: ArtifactMetadata = temporal as ArtifactMetadata;
+    if (isTemporalArtifact(m)) {
       expect(m.windowSize).toBe(5);
       expect(m.onnxFile).toBe('myTrait.onnx');
     } else {
-      throw new Error('expected sequential guard to pass');
+      throw new Error('expected temporal guard to pass');
     }
   });
 });
@@ -222,7 +222,7 @@ describe('ArtifactMetadataBase fields', () => {
     predictive,
     anomaly as ArtifactMetadata,
     similarity as ArtifactMetadata,
-    sequential as ArtifactMetadata,
+    temporal as ArtifactMetadata,
   ];
 
   it.each(all)('artifact $traitType has required base fields', (m) => {

@@ -41,7 +41,7 @@ import { AnyTraitDefinition } from '../traitTypes';
 import type {
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
-  SequentialArtifactMetadata,
+  TemporalArtifactMetadata,
   GenerativeArtifactMetadata,
 } from '../artifacts';
 import {
@@ -82,7 +82,7 @@ function isTraitDefinition(value: any): value is AnyTraitDefinition {
     typeof value === 'object' &&
     typeof value.name === 'string' &&
     typeof value.type === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'sequential', 'generative'].includes(value.type)
+    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(value.type)
   );
 }
 
@@ -485,7 +485,7 @@ export const trainCommand = {
       }
 
       // -----------------------------------------------------------------------
-      // Trait training loop — anomaly / similarity / sequential
+      // Trait training loop — anomaly / similarity / temporal
       // generative traits are compiled at build time (no Python backend)
       // -----------------------------------------------------------------------
       const traitArtifactNames: string[] = [];
@@ -641,7 +641,7 @@ export const trainCommand = {
             status: 'trained',
           });
 
-        } else if (trait.type === 'sequential') {
+        } else if (trait.type === 'temporal') {
           const entities = await adapter.extractor.extract(entityName, { orderBy: trait.orderBy });
           if (entities.length <= DEFAULT_WINDOW_SIZE) {
             throw new ConfigurationError(
@@ -679,8 +679,8 @@ export const trainCommand = {
             })
           );
 
-          spinner.text = `Training sequential trait ${trait.name}...`;
-          const seqScript = path.resolve(__dirname, '../../python/train_sequential.py');
+          spinner.text = `Training temporal trait ${trait.name}...`;
+          const seqScript = path.resolve(__dirname, '../../python/train_temporal.py');
           const seqResult = spawnSync(
             'python3',
             [seqScript, '--dataset', datasetPath, '--output', outputDir, '--model-name', trait.name],
@@ -689,13 +689,13 @@ export const trainCommand = {
           try { fs.unlinkSync(datasetPath); } catch {}
           if (seqResult.error) throw seqResult.error;
           if (seqResult.status !== 0) {
-            throw new Error(seqResult.stderr || 'Python sequential backend failed');
+            throw new Error(seqResult.stderr || 'Python temporal backend failed');
           }
           let seqResponse: any;
           try {
             seqResponse = JSON.parse(seqResult.stdout.trim());
           } catch {
-            throw new Error(`Python sequential backend returned invalid JSON: ${seqResult.stdout.slice(0, 200)}`);
+            throw new Error(`Python temporal backend returned invalid JSON: ${seqResult.stdout.slice(0, 200)}`);
           }
           const seqSchemaHash = adapter.reader.hashModel(graph, entityName);
           // Build FeatureSchema from the expanded feature names returned by Python
@@ -713,8 +713,8 @@ export const trainCommand = {
                 order: expandedNames,
               }
             : undefined;
-          const seqMetadata: SequentialArtifactMetadata = {
-            traitType: 'sequential',
+          const seqMetadata: TemporalArtifactMetadata = {
+            traitType: 'temporal',
             artifactFormat: 'onnx',
             traitName: trait.name,
             schemaHash: seqSchemaHash,
@@ -734,7 +734,7 @@ export const trainCommand = {
             path.join(outputDir, `${trait.name}.metadata.json`),
             JSON.stringify(seqMetadata, null, 2)
           );
-          spinner.succeed(`Trained sequential trait ${chalk.bold(trait.name)}`);
+          spinner.succeed(`Trained temporal trait ${chalk.bold(trait.name)}`);
           traitArtifactNames.push(`${trait.name}.metadata.json`);
           appendHistoryRecord(outputDir, {
             trait: trait.name,

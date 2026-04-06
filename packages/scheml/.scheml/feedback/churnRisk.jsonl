@@ -106,3 +106,15 @@
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:23:15.818Z"}
 {"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:23:15.818Z"}
 {"entityId":"cust_2","actual":false,"recordedAt":"2026-04-06T00:23:15.818Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:30:30.114Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:30:30.114Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-06T00:30:30.114Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:31:09.312Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:31:09.312Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-06T00:31:09.312Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:31:52.078Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:31:52.079Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-06T00:31:52.079Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:52:59.174Z"}
+{"entityId":"cust_1","actual":true,"recordedAt":"2026-04-06T00:52:59.175Z"}
+{"entityId":"cust_2","actual":false,"recordedAt":"2026-04-06T00:52:59.175Z"}

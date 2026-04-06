@@ -198,7 +198,7 @@ export class PredictionSession {
   /**
    * Load a trained trait artifact from disk.
    *
-   * Works for all ONNX-backed trait types: `sequential`, and `predictive`.
+   * Works for all ONNX-backed trait types: `temporal`, and `predictive`.
    * The artifact's own `schemaHash` is compared against the current schema to
    * detect drift without requiring the caller to specify a hash algorithm.
    *

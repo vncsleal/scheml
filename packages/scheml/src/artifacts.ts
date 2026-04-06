@@ -7,7 +7,7 @@
  *
  * Artifact file naming convention:
  *   `<traitName>.<type>.json`       ← metadata for all types
- *   `<traitName>.onnx`              ← predictive / sequential
+  *   `<traitName>.onnx`              ← predictive / temporal
  *   `<traitName>.faiss`             ← similarity (large dataset, ≥50k rows)
  *   `<traitName>.embeddings.npy`    ← similarity (small dataset, <50k rows)
  *
@@ -31,7 +31,7 @@ export interface ArtifactMetadataBase {
    * Trait type discriminant — must match the `type` field in the trait definition.
    * Used by PredictionSession to choose the correct loader.
    */
-  traitType: 'predictive' | 'anomaly' | 'similarity' | 'sequential' | 'generative';
+  traitType: 'predictive' | 'anomaly' | 'similarity' | 'temporal' | 'generative';
   /** Canonical trait name */
   traitName: string;
   /** Adapter-agnostic hash of the entity schema subset at training time */
@@ -53,7 +53,7 @@ export interface ArtifactMetadataBase {
    * Artifact loading format — unambiguous discriminant for `PredictionSession`
    * to choose the correct loader without inspecting `traitType`.
    *
-   * - `'onnx'`  — ONNX Runtime (predictive, anomaly, sequential)
+   * - `'onnx'`  — ONNX Runtime (predictive, anomaly, temporal)
    * - `'faiss'` — FAISS IVF index (similarity, large datasets ≥50 k rows)
    * - `'npy'`   — NumPy cosine matrix (similarity, small datasets <50 k rows)
    * - `'json'`  — compiled JSON template (generative, no binary artifact)
@@ -186,11 +186,11 @@ export interface SimilarityArtifactMetadata extends ArtifactMetadataBase {
 }
 
 // ---------------------------------------------------------------------------
-// Sequential artifact (ONNX — window-aggregated tabular features)
+// Temporal artifact (ONNX — window-aggregated tabular features)
 // ---------------------------------------------------------------------------
 
-export interface SequentialArtifactMetadata extends ArtifactMetadataBase {
-  traitType: 'sequential';
+export interface TemporalArtifactMetadata extends ArtifactMetadataBase {
+  traitType: 'temporal';
   artifactFormat: 'onnx';
   /** Number of timesteps in each window */
   windowSize: number;
@@ -249,7 +249,7 @@ export type ArtifactMetadata =
   | PredictiveArtifactMetadata
   | AnomalyArtifactMetadata
   | SimilarityArtifactMetadata
-  | SequentialArtifactMetadata
+  | TemporalArtifactMetadata
   | GenerativeArtifactMetadata;
 
 // ---------------------------------------------------------------------------
@@ -268,8 +268,8 @@ export function isSimilarityArtifact(m: ArtifactMetadata): m is SimilarityArtifa
   return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'similarity';
 }
 
-export function isSequentialArtifact(m: ArtifactMetadata): m is SequentialArtifactMetadata {
-  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'sequential';
+export function isTemporalArtifact(m: ArtifactMetadata): m is TemporalArtifactMetadata {
+  return !!m && typeof m === 'object' && (m as { traitType?: unknown }).traitType === 'temporal';
 }
 
 export function isGenerativeArtifact(m: ArtifactMetadata): m is GenerativeArtifactMetadata {

@@ -52,7 +52,7 @@ import {
   PredictiveTrait,
   AnomalyTrait,
   SimilarityTrait,
-  SequentialTrait,
+  TemporalTrait,
   GenerativeTrait,
 } from './traitTypes';
 
@@ -102,8 +102,8 @@ export function defineTrait<TEntity = any>(
 
 export function defineTrait<TEntity = any>(
   entity: string,
-  config: Omit<SequentialTrait<TEntity>, 'entity'>
-): ResolvedTrait<SequentialTrait<TEntity>>;
+  config: Omit<TemporalTrait<TEntity>, 'entity'>
+): ResolvedTrait<TemporalTrait<TEntity>>;
 
 export function defineTrait<TEntity = any>(
   entity: string,
@@ -130,8 +130,8 @@ export function defineTrait<TEntity = any>(
 
 export function defineTrait<TEntity = any>(
   entity: TEntity,
-  config: Omit<SequentialTrait<TEntity>, 'entity'>
-): ResolvedTrait<SequentialTrait<TEntity>>;
+  config: Omit<TemporalTrait<TEntity>, 'entity'>
+): ResolvedTrait<TemporalTrait<TEntity>>;
 
 export function defineTrait<TEntity = any>(
   entity: TEntity,

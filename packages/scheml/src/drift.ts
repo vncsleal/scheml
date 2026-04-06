@@ -66,7 +66,7 @@ export interface SchemaDelta {
  * for generative traits).
  *
  * Returns an empty array for artifact types that do not embed feature names
- * explicitly (e.g. sequential — the expanded feature list is recomputed at
+ * explicitly (e.g. temporal — the expanded feature list is recomputed at
  * inference time from window aggregations and is not stored separately).
  */
 export function extractArtifactFeatureNames(metadata: ArtifactMetadata): string[] {
@@ -79,7 +79,7 @@ export function extractArtifactFeatureNames(metadata: ArtifactMetadata): string[
       return metadata.featureNames ?? [];
     case 'generative':
       return metadata.contextFields ?? [];
-    case 'sequential':
+    case 'temporal':
       // The sequence field is a single raw series; expanded feature names after
       // window aggregation are not stored in metadata.  Return empty — callers
       // may still detect drift via hash comparison.

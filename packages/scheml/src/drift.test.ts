@@ -12,7 +12,7 @@ import type {
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
   PredictiveArtifactMetadata,
-  SequentialArtifactMetadata,
+  TemporalArtifactMetadata,
   GenerativeArtifactMetadata,
 } from './artifacts';
 
@@ -78,9 +78,9 @@ const PREDICTIVE: PredictiveArtifactMetadata = {
   onnxFile: 'churnPred.onnx',
 };
 
-const SEQUENTIAL: SequentialArtifactMetadata = {
+const TEMPORAL: TemporalArtifactMetadata = {
   ...BASE,
-  traitType: 'sequential',
+  traitType: 'temporal',
   artifactFormat: 'onnx',
   traitName: 'revenueSeq',
   entityName: 'Payment',
@@ -117,8 +117,8 @@ describe('extractArtifactFeatureNames', () => {
     expect(extractArtifactFeatureNames(PREDICTIVE)).toEqual(['age', 'planType', 'daysSinceLogin']);
   });
 
-  it('returns [] for sequential artifacts (no stored feature list)', () => {
-    expect(extractArtifactFeatureNames(SEQUENTIAL)).toEqual([]);
+  it('returns [] for temporal artifacts (no stored feature list)', () => {
+    expect(extractArtifactFeatureNames(TEMPORAL)).toEqual([]);
   });
 
   it('returns contextFields for generative artifacts', () => {

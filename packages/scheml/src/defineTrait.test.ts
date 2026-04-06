@@ -5,7 +5,7 @@ import type {
   PredictiveTrait,
   AnomalyTrait,
   SimilarityTrait,
-  SequentialTrait,
+  TemporalTrait,
   GenerativeTrait,
 } from './traitTypes';
 
@@ -44,7 +44,7 @@ const behaviorMatch = defineTrait('Customer', {
 });
 
 const ltv = defineTrait('Customer', {
-  type: 'sequential',
+  type: 'temporal',
   name: 'ltv',
   sequence: 'totalPurchases',
   orderBy: 'lastLoginAt',
@@ -95,8 +95,8 @@ describe('defineTrait', () => {
     expect(behaviorMatch.on).toEqual(['lastLoginAt', 'totalPurchases']);
   });
 
-  it('constructs sequential trait', () => {
-    expect(ltv.type).toBe('sequential');
+  it('constructs temporal trait', () => {
+    expect(ltv.type).toBe('temporal');
     expect(ltv.sequence).toBe('totalPurchases');
     expect(ltv.orderBy).toBe('lastLoginAt');
     expect(ltv.target).toBe('revenue');

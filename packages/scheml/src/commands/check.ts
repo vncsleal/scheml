@@ -71,7 +71,7 @@ function isTraitArtifact(m: any): m is ArtifactMetadata {
   return (
     m &&
     typeof m.traitType === 'string' &&
-    ['predictive', 'anomaly', 'similarity', 'sequential', 'generative'].includes(m.traitType)
+    ['predictive', 'anomaly', 'similarity', 'temporal', 'generative'].includes(m.traitType)
   );
 }
 
