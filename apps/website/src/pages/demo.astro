@@ -1,108 +1,34 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { Code } from 'astro:components';
-import { getDemoModelInfo, predictDemoChurn } from '../lib/demoPrediction';
+import {
+  getDemoManifest,
+  getDemoTraitSummary,
+  getGenerativeDemoContract,
+  runPredictiveDemo,
+} from '../lib/demo/runtime';
 
 export const prerender = false;
 
+const manifest = getDemoManifest();
+const predictiveTrait = getDemoTraitSummary('userChurn');
+const anomalyTrait = getDemoTraitSummary('serverAnomaly');
+const similarityTrait = getDemoTraitSummary('productSimilarity');
+const temporalTrait = getDemoTraitSummary('engagementSequence');
+const generativeContract = getGenerativeDemoContract();
+
+const initialPredictiveInputs = manifest.ui.predictivePresets.atRisk;
+const initialPredictiveResult = await runPredictiveDemo(initialPredictiveInputs);
+const generativeEntries = Object.entries(generativeContract.examples);
+const initialGenerativeKey = generativeEntries[0]?.[0] ?? 'growth';
+const initialGenerative = generativeEntries[0]?.[1] ?? { label: '', context: {}, expectedShape: 'choice' };
+
 const title = 'ScheML — Live Demo';
-const description = 'Run the local inference demos, inspect their latency, and simulate a schema drift error. The generative pane shows the runtime contract with a local stand-in instead of a live provider call.';
-
-const demoInfo = await getDemoModelInfo();
-const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
-const initialPrediction = await predictDemoChurn(initialInputs, 'demo-default');
-
-const defineCode = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
-
-export const userChurn = defineTrait('User', {
-  type: 'predictive',
-  name: 'userChurn',
-  target: 'willChurn',
-  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
-  output: {
-    field: 'willChurn',
-    taskType: 'binary_classification',
-  },
-  algorithm: { name: 'gbm' },
-  qualityGates: [
-    { metric: 'f1', threshold: 0.80, comparison: 'gte' },
-    { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
-  ],
-});
-
-export default defineConfig({
-  adapter: 'prisma',
-  schema: './prisma/schema.prisma',
-  traits: [userChurn],
-});`;
-
-const trainCode = `$ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
-$ scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
-
-◉ Loading Prisma schema...
-✔ Schema loaded (hash: a3f8c1b2)
-◉ Loading trait definitions...
-✔ Loaded 1 trait definition(s)
-◉ Validating traits...
-✔ Traits validated
-◉ Extracting training data via Prisma...
-◉ Training userChurn (gbm)...
-✔ Training complete
-◉ Writing artefacts...
-✔ Artefacts written to ./.scheml
-
-[OK] Training complete
-
-Artefacts:
-  userChurn.metadata.json
-  userChurn.onnx`;
-
-const predictCode = `import { PredictionSession } from '@vncsleal/scheml';
-
-const session = new PredictionSession();
-
-await session.loadTrait('userChurn', {
-  artifactsDir: '.scheml',
-  schemaPath: './prisma/schema.prisma',
-  adapter: 'prisma',
-});
-
-const result = await session.predict('userChurn', user, {
-  lastActiveAt: (row) => row.lastActiveAt,
-  monthlySpend: (row) => row.monthlySpend,
-  supportTickets: (row) => row.supportTickets,
-});
-
-console.log(result.prediction);  // "1" or "0"
-console.log(result.timestamp);   // "2026-03-08T12:00:00.000Z"
-// Inference ran in ~0.4ms — in the same V8 process.`;
-
-const driftCode = `// After adding a new field to schema.prisma:
-// model User {
-//   ...
-//   subscriptionTier String   // ← new field
-// }
-
-const session = new PredictionSession();
-
-await session.loadTrait('userChurn', {
-  artifactsDir: '.scheml',
-  schemaPath: './prisma/schema.prisma',
-  adapter: 'prisma',
-});
-
-// ✖ Throws before inference:
-// SchemaDriftError: Trait 'userChurn' was trained on schema
-// hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
-// Run \`scheml train\` to rebuild the artifact.`;
-
-const initialIsChurn = String(initialPrediction.prediction) === '1';
+const description = 'Run a real ONNX model in-process. Adjust features, see the prediction and latency — five trait types, one API, each runs in-process with no serialisation, no network hop.';
 ---
 
 <BaseLayout title={title} description={description}>
   <div class="page">
 
-    <!-- HEADER -->
     <header class="header" id="top" transition:name="site-header">
       <div class="header__inner">
         <a href="/" class="header__logo" aria-label="ScheML home">
@@ -136,7 +62,6 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
       </div>
     </header>
 
-    <!-- HERO -->
     <section class="hero">
       <div class="hero__container">
         <div class="hero__breadcrumb anim-fade-up">
@@ -148,8 +73,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           Intelligence that<br/>ships with your code.
         </h1>
         <p class="hero__lead anim-fade-up anim-delay-2">
-          Five trait types. One API. Predictive, anomaly, temporal, and similarity inference stay in-process;
-          generative traits call your configured AI provider through the AI SDK.
+          Five trait types. One API. Each runs in-process — no serialisation, no network hop.
           Select a trait type to run an interactive demo.
         </p>
         <div class="trait-tabs anim-fade-up anim-delay-3" id="traitTabs" role="tablist" aria-label="Trait type demo">
@@ -162,7 +86,6 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
       </div>
     </section>
 
-    <!-- LIVE INFERENCE -->
     <section class="section inference-section" id="inference">
       <div class="section__container">
 
@@ -170,8 +93,8 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <p class="section-tag" id="inferenceTag">Live inference · predictive</p>
           <h2 class="section-title" id="inferenceTitle">Adjust inputs. Get a real prediction.</h2>
           <p class="section-desc" id="inferenceDesc">
-            Each submit hits <code>/api/demo/predict</code>, which calls a <code>PredictionSession</code>-backed helper
-            in the Node.js route. The latency shown is the demo's measured wall-clock time for local ONNX inference.
+            Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code>
+            synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.
           </p>
         </div>
 
@@ -186,82 +109,59 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <h3>Churn risk model</h3>
                 </div>
               </div>
-
-              <div class="preset-bar">
-                <button type="button" class="preset-btn" data-preset="healthy">Healthy user</button>
-                <button type="button" class="preset-btn is-active" data-preset="at-risk">At-risk user</button>
-                <button type="button" class="preset-btn" data-preset="churning">Likely churning</button>
+              <div class="preset-bar" id="predictivePresets">
+                {Object.entries(manifest.ui.predictivePresets).map(([key, preset]) => (
+                  <button type="button" class:list={["preset-btn", key === 'atRisk' && 'is-active']} data-predictive-preset={key}>{preset.label}</button>
+                ))}
               </div>
-
-              <form id="inferenceForm" class="inference-form">
+              <form id="predictiveForm" class="inference-form">
                 <div class="field">
                   <div class="field__header">
-                    <label for="daysSinceActive">Days since last active</label>
-                    <span class="field__val" id="daysVal">{initialInputs.daysSinceActive}</span>
+                    <label for="predictiveDays">Days since last active</label>
+                    <span class="field__val" id="predictiveDaysValue">{initialPredictiveInputs.daysSinceActive}</span>
                   </div>
-                  <input id="daysSinceActive" name="daysSinceActive" type="range"
-                    min="0" max="90" step="1" value={initialInputs.daysSinceActive} />
-                  <div class="field__range-labels"><span>0d</span><span>90d</span></div>
+                  <input id="predictiveDays" name="daysSinceActive" type="range" min="0" max="120" step="1" value={initialPredictiveInputs.daysSinceActive} />
+                  <div class="field__range-labels"><span>0d</span><span>120d</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="monthlySpend">Monthly spend ($)</label>
-                    <span class="field__val" id="spendVal">{initialInputs.monthlySpend}</span>
+                    <label for="predictiveSpend">Monthly spend ($)</label>
+                    <span class="field__val" id="predictiveSpendValue">{initialPredictiveInputs.monthlySpend}</span>
                   </div>
-                  <input id="monthlySpend" name="monthlySpend" type="range"
-                    min="0" max="1000" step="10" value={initialInputs.monthlySpend} />
-                  <div class="field__range-labels"><span>$0</span><span>$1,000</span></div>
+                  <input id="predictiveSpend" name="monthlySpend" type="range" min="0" max="1500" step="10" value={initialPredictiveInputs.monthlySpend} />
+                  <div class="field__range-labels"><span>$0</span><span>$1,500</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="supportTickets">Open support tickets</label>
-                    <span class="field__val" id="ticketsVal">{initialInputs.supportTickets}</span>
+                    <label for="predictiveTickets">Open support tickets</label>
+                    <span class="field__val" id="predictiveTicketsValue">{initialPredictiveInputs.supportTickets}</span>
                   </div>
-                  <input id="supportTickets" name="supportTickets" type="range"
-                    min="0" max="15" step="1" value={initialInputs.supportTickets} />
+                  <input id="predictiveTickets" name="supportTickets" type="range" min="0" max="15" step="1" value={initialPredictiveInputs.supportTickets} />
                   <div class="field__range-labels"><span>0</span><span>15</span></div>
                 </div>
-
                 <button class="btn btn--primary" type="submit">Run prediction</button>
               </form>
             </div>
 
             <div class="result-stack">
-              <div class="panel result-panel" id="resultPanel"
-                data-tone={initialIsChurn ? 'danger' : 'healthy'}>
+              <div class="panel result-panel" id="predictiveResultPanel"
+                data-tone={String(initialPredictiveResult.prediction) === '1' ? 'danger' : 'healthy'}>
                 <div class="panel__header">
                   <div>
                     <p class="eyebrow">Prediction output</p>
-                    <h3 id="resultLabel">{initialIsChurn ? 'Will churn' : 'Will retain'}</h3>
+                    <h3 id="predictiveLabel">{initialPredictiveResult.label}</h3>
                   </div>
-                  <span class:list={["status-pill", initialIsChurn ? "status-pill--danger" : "status-pill--healthy"]}
-                    id="resultPill">
-                    {initialIsChurn ? '1 — positive' : '0 — negative'}
+                  <span class:list={["status-pill", String(initialPredictiveResult.prediction) === '1' ? 'status-pill--danger' : 'status-pill--healthy']} id="predictivePill">
+                    {String(initialPredictiveResult.prediction) === '1' ? '1 — positive' : '0 — negative'}
                   </span>
                 </div>
-
                 <dl class="output-stats">
-                  <div>
-                    <dt>Raw output</dt>
-                    <dd id="resultRaw">{initialPrediction.prediction}</dd>
-                  </div>
-                  <div>
-                    <dt>Inference latency</dt>
-                    <dd id="resultLatency">{initialPrediction.latencyMs} ms</dd>
-                  </div>
-                  <div>
-                    <dt>Schema hash</dt>
-                    <dd id="resultHash" class="mono">a3f8c1b2</dd>
-                  </div>
-                  <div>
-                    <dt>Artefact</dt>
-                    <dd class="mono">userChurn.onnx</dd>
-                  </div>
+                  <div><dt>Raw output</dt><dd id="predictiveRaw">{String(initialPredictiveResult.prediction)}</dd></div>
+                  <div><dt>Inference latency</dt><dd id="predictiveLatency">{initialPredictiveResult.latencyMs} ms</dd></div>
+                  <div><dt>Schema hash</dt><dd class="mono">{predictiveTrait.schemaHash.slice(0, 8)}</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">{predictiveTrait.artifactFile}</dd></div>
                 </dl>
-
-                <p id="resultStatus" class="result-status" aria-live="polite"></p>
+                <p id="predictiveStatus" class="result-status" aria-live="polite"></p>
               </div>
 
               <div class="panel latency-panel">
@@ -275,11 +175,11 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <div class="latency-bar">
                     <div class="latency-bar__label">
                       <span>ScheML in-process</span>
-                      <strong id="latencyPrisml" class="latency-bar__ms">{initialPrediction.latencyMs} ms</strong>
+                      <strong id="latencyPrisml" class="latency-bar__ms">{initialPredictiveResult.latencyMs} ms</strong>
                     </div>
                     <div class="latency-bar__track">
                       <div class="latency-bar__fill latency-bar__fill--accent" id="latencyFill"
-                        style={`width: ${Math.min(100, Math.max(1, (initialPrediction.latencyMs / 800) * 100))}%`}></div>
+                        style={`width: ${Math.min(100, Math.max(1, (initialPredictiveResult.latencyMs / 800) * 100))}%`}></div>
                     </div>
                   </div>
                   <div class="latency-bar">
@@ -313,41 +213,36 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <h3>Server metrics model</h3>
                 </div>
               </div>
-
-              <div class="preset-bar">
-                <button type="button" class="preset-btn anom-preset is-active" data-anom-preset="healthy">Healthy cluster</button>
-                <button type="button" class="preset-btn anom-preset" data-anom-preset="spike">Memory spike</button>
-                <button type="button" class="preset-btn anom-preset" data-anom-preset="critical">Critical state</button>
+              <div class="preset-bar" id="anomalyPresets">
+                {Object.entries(manifest.ui.anomalyPresets).map(([key, preset]) => (
+                  <button type="button" class:list={["preset-btn", key === 'healthy' && 'is-active']} data-anomaly-preset={key}>{preset.label}</button>
+                ))}
               </div>
-
               <form id="anomalyForm" class="inference-form">
                 <div class="field">
                   <div class="field__header">
-                    <label for="cpuUsage">CPU usage (%)</label>
-                    <span class="field__val" id="cpuVal">45</span>
+                    <label for="anomalyCpu">CPU usage (%)</label>
+                    <span class="field__val" id="anomalyCpuValue">{manifest.ui.anomalyPresets.healthy.cpuUsage}</span>
                   </div>
-                  <input id="cpuUsage" name="cpuUsage" type="range" min="0" max="100" step="1" value="45" />
+                  <input id="anomalyCpu" name="cpuUsage" type="range" min="0" max="100" step="1" value={manifest.ui.anomalyPresets.healthy.cpuUsage} />
                   <div class="field__range-labels"><span>0%</span><span>100%</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="memPressure">Memory pressure (%)</label>
-                    <span class="field__val" id="memVal">62</span>
+                    <label for="anomalyMemory">Memory pressure (%)</label>
+                    <span class="field__val" id="anomalyMemoryValue">{manifest.ui.anomalyPresets.healthy.memoryPressure}</span>
                   </div>
-                  <input id="memPressure" name="memPressure" type="range" min="0" max="100" step="1" value="62" />
+                  <input id="anomalyMemory" name="memoryPressure" type="range" min="0" max="100" step="1" value={manifest.ui.anomalyPresets.healthy.memoryPressure} />
                   <div class="field__range-labels"><span>0%</span><span>100%</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="errorRate">Error rate (%)</label>
-                    <span class="field__val" id="errVal">0.8</span>
+                    <label for="anomalyError">Error rate (%)</label>
+                    <span class="field__val" id="anomalyErrorValue">{manifest.ui.anomalyPresets.healthy.errorRate}</span>
                   </div>
-                  <input id="errorRate" name="errorRate" type="range" min="0" max="10" step="0.1" value="0.8" />
+                  <input id="anomalyError" name="errorRate" type="range" min="0" max="10" step="0.1" value={manifest.ui.anomalyPresets.healthy.errorRate} />
                   <div class="field__range-labels"><span>0%</span><span>10%</span></div>
                 </div>
-
                 <button class="btn btn--primary" type="submit">Run inference</button>
               </form>
             </div>
@@ -357,16 +252,15 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                 <div class="panel__header">
                   <div>
                     <p class="eyebrow">Anomaly output</p>
-                    <h3 id="anomalyResultLabel">—</h3>
+                    <h3 id="anomalyLabel">—</h3>
                   </div>
-                  <span class="status-pill status-pill--healthy" id="anomalyResultPill">—</span>
+                  <span class="status-pill status-pill--healthy" id="anomalyPill">—</span>
                 </div>
-
                 <dl class="output-stats">
                   <div><dt>Anomaly score</dt><dd id="anomalyScore" class="mono">—</dd></div>
                   <div><dt>Inference latency</dt><dd id="anomalyLatency">—</dd></div>
-                  <div><dt>Algorithm</dt><dd class="mono">isolation_forest</dd></div>
-                  <div><dt>Artefact</dt><dd class="mono">serverAnomaly.metadata.json</dd></div>
+                  <div><dt>Schema hash</dt><dd class="mono">{anomalyTrait.schemaHash.slice(0, 8)}</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">{anomalyTrait.artifactFile ?? 'metadata-only'}</dd></div>
                 </dl>
                 <p id="anomalyStatus" class="result-status" aria-live="polite">Hit "Run inference" to see the result.</p>
               </div>
@@ -411,78 +305,59 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <h3>Product similarity model</h3>
                 </div>
               </div>
-
-              <div class="preset-bar">
-                <button type="button" class="preset-btn sim-preset is-active" data-sim-preset="laptop">Laptop (light)</button>
-                <button type="button" class="preset-btn sim-preset" data-sim-preset="audio">Wireless audio</button>
-                <button type="button" class="preset-btn sim-preset" data-sim-preset="monitor">Budget monitor</button>
+              <div class="preset-bar" id="similarityPresets">
+                {Object.entries(manifest.ui.similarityPresets).map(([key, preset]) => (
+                  <button type="button" class:list={["preset-btn", key === 'laptop' && 'is-active']} data-similarity-preset={key}>{preset.label}</button>
+                ))}
               </div>
-
-              <form id="simForm" class="inference-form">
+              <form id="similarityForm" class="inference-form">
                 <div class="field">
                   <div class="field__header">
-                    <label for="simCategory">Category</label>
+                    <label for="similarityCategory">Category</label>
                   </div>
-                  <select id="simCategory" name="simCategory" class="select-input">
-                    <option value="0">Laptop</option>
-                    <option value="1">Tablet</option>
-                    <option value="2">Audio</option>
-                    <option value="3">Keyboard</option>
-                    <option value="4">Monitor</option>
+                  <select id="similarityCategory" name="categoryIndex" class="select-input">
+                    {manifest.ui.categories.map((category) => <option value={category.value}>{category.label}</option>)}
                   </select>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="simPrice">Max price ($)</label>
-                    <span class="field__val" id="simPriceVal">1200</span>
+                    <label for="similarityPrice">Price ($)</label>
+                    <span class="field__val" id="similarityPriceValue">{manifest.ui.similarityPresets.laptop.price}</span>
                   </div>
-                  <input id="simPrice" name="simPrice" type="range" min="0" max="2000" step="50" value="1200" />
-                  <div class="field__range-labels"><span>$0</span><span>$2000</span></div>
+                  <input id="similarityPrice" name="price" type="range" min="0" max="2500" step="25" value={manifest.ui.similarityPresets.laptop.price} />
+                  <div class="field__range-labels"><span>$0</span><span>$2,500</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="simBattery">Battery life (h)</label>
-                    <span class="field__val" id="simBatteryVal">15</span>
+                    <label for="similarityBattery">Battery life (h)</label>
+                    <span class="field__val" id="similarityBatteryValue">{manifest.ui.similarityPresets.laptop.batteryHours}</span>
                   </div>
-                  <input id="simBattery" name="simBattery" type="range" min="0" max="40" step="1" value="15" />
+                  <input id="similarityBattery" name="batteryHours" type="range" min="0" max="40" step="1" value={manifest.ui.similarityPresets.laptop.batteryHours} />
                   <div class="field__range-labels"><span>0 h</span><span>40 h</span></div>
                 </div>
-
                 <div class="field">
                   <div class="field__header">
-                    <label for="simWeight">Weight (kg)</label>
-                    <span class="field__val" id="simWeightVal">1.2</span>
+                    <label for="similarityWeight">Weight (kg)</label>
+                    <span class="field__val" id="similarityWeightValue">{manifest.ui.similarityPresets.laptop.weightKg}</span>
                   </div>
-                  <input id="simWeight" name="simWeight" type="range" min="0" max="8" step="0.1" value="1.2" />
+                  <input id="similarityWeight" name="weightKg" type="range" min="0" max="8" step="0.1" value={manifest.ui.similarityPresets.laptop.weightKg} />
                   <div class="field__range-labels"><span>0 kg</span><span>8 kg</span></div>
                 </div>
-
-                <div class="field">
-                  <div class="field__header">
-                    <label for="simK">Top-K results</label>
-                    <span class="field__val" id="simKVal">5</span>
-                  </div>
-                  <input id="simK" name="simK" type="range" min="1" max="8" step="1" value="5" />
-                  <div class="field__range-labels"><span>1</span><span>8</span></div>
-                </div>
-
                 <button class="btn btn--primary" type="submit">Find similar</button>
               </form>
             </div>
 
             <div class="result-stack">
-              <div class="panel" id="simResultPanel">
+              <div class="panel" id="similarityResultPanel">
                 <div class="panel__header">
                   <div>
                     <p class="eyebrow">Nearest neighbours</p>
-                    <h3 id="simResultTitle">—</h3>
+                    <h3 id="similarityLabel">—</h3>
                   </div>
-                  <span class="status-pill status-pill--healthy" id="simLatencyPill">—</span>
+                  <span class="status-pill status-pill--healthy" id="similarityPill">—</span>
                 </div>
-                <div id="simResultList" class="result-list"></div>
-                <p id="simStatus" class="result-status" aria-live="polite">Hit "Find similar" to retrieve nearest neighbours.</p>
+                <div id="similarityMatches" class="result-list"></div>
+                <p id="similarityStatus" class="result-status" aria-live="polite">Hit "Find similar" to retrieve nearest neighbours.</p>
               </div>
 
               <div class="panel latency-panel">
@@ -522,77 +397,50 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Sequence input</p>
-                  <h3>User churn model</h3>
+                  <h3>User engagement model</h3>
                 </div>
               </div>
-
-              <div class="preset-bar">
-                <button type="button" class="preset-btn seq-preset is-active" data-seq-preset="healthy">Healthy user</button>
-                <button type="button" class="preset-btn seq-preset" data-seq-preset="declining">Declining</button>
-                <button type="button" class="preset-btn seq-preset" data-seq-preset="churning">Churn risk</button>
+              <div class="preset-bar" id="temporalPresets">
+                {Object.entries(manifest.ui.temporalPresets).map(([key, preset]) => (
+                  <button type="button" class:list={["preset-btn", key === 'stable' && 'is-active']} data-temporal-preset={key}>{preset.label}</button>
+                ))}
               </div>
-
-              <form id="seqForm" class="inference-form">
+              <form id="temporalForm" class="inference-form">
                 <div class="field">
-                  <label class="field__seq-label">Weekly engagement scores (last 5 weeks)</label>
+                  <label class="field__seq-label">Weekly engagement scores (last {manifest.ui.temporalPresets.stable.scores.length} weeks)</label>
                   <div class="seq-events">
-                    <div class="seq-step">
-                      <span class="seq-step-num">W1</span>
-                      <div style="flex:1">
-                        <input id="seqScore1" name="seqScore1" type="range" min="0" max="100" step="1" value="88" />
-                        <span class="field__val" id="seqVal1" style="float:right;font-size:12px">88</span>
+                    {manifest.ui.temporalPresets.stable.scores.map((score, index) => (
+                      <div class="seq-step">
+                        <span class="seq-step-num">W{index + 1}</span>
+                        <div style="flex:1">
+                          <input class="temporal-input" name={`score-${index}`} type="range" min="0" max="100" step="1" value={score} />
+                          <span class="field__val temporal-value" style="float:right;font-size:12px">{score}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div class="seq-step">
-                      <span class="seq-step-num">W2</span>
-                      <div style="flex:1">
-                        <input id="seqScore2" name="seqScore2" type="range" min="0" max="100" step="1" value="85" />
-                        <span class="field__val" id="seqVal2" style="float:right;font-size:12px">85</span>
-                      </div>
-                    </div>
-                    <div class="seq-step">
-                      <span class="seq-step-num">W3</span>
-                      <div style="flex:1">
-                        <input id="seqScore3" name="seqScore3" type="range" min="0" max="100" step="1" value="91" />
-                        <span class="field__val" id="seqVal3" style="float:right;font-size:12px">91</span>
-                      </div>
-                    </div>
-                    <div class="seq-step">
-                      <span class="seq-step-num">W4</span>
-                      <div style="flex:1">
-                        <input id="seqScore4" name="seqScore4" type="range" min="0" max="100" step="1" value="87" />
-                        <span class="field__val" id="seqVal4" style="float:right;font-size:12px">87</span>
-                      </div>
-                    </div>
-                    <div class="seq-step">
-                      <span class="seq-step-num">W5</span>
-                      <div style="flex:1">
-                        <input id="seqScore5" name="seqScore5" type="range" min="0" max="100" step="1" value="90" />
-                        <span class="field__val" id="seqVal5" style="float:right;font-size:12px">90</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
-
-                <button class="btn btn--primary" type="submit">Predict churn risk</button>
+                <button class="btn btn--primary" type="submit">Predict engagement trend</button>
               </form>
             </div>
 
             <div class="result-stack">
-              <div class="panel" id="seqResultPanel">
+              <div class="panel result-panel" id="temporalResultPanel" data-tone="healthy">
                 <div class="panel__header">
                   <div>
-                    <p class="eyebrow">Churn prediction</p>
-                    <h3 id="seqResultTitle">—</h3>
+                    <p class="eyebrow">Temporal prediction</p>
+                    <h3 id="temporalLabel">—</h3>
                   </div>
-                  <span class="status-pill status-pill--healthy" id="seqLatencyPill">—</span>
+                  <span class="status-pill status-pill--healthy" id="temporalPill">—</span>
                 </div>
-                <div class="prob-bars" id="seqProbBars"></div>
-                <dl class="output-stats" style="margin-top: 16px;">
-                  <div><dt>Algorithm</dt><dd class="mono">extra_tree</dd></div>
-                  <div><dt>Artefact</dt><dd class="mono">engagementSequence.onnx</dd></div>
+                <div class="prob-bars" id="temporalDerived"></div>
+                <dl class="output-stats" style="margin-top:16px">
+                  <div><dt>Prediction</dt><dd id="temporalPrediction" class="mono">—</dd></div>
+                  <div><dt>Latency</dt><dd id="temporalLatency">—</dd></div>
+                  <div><dt>Schema hash</dt><dd class="mono">{temporalTrait.schemaHash.slice(0, 8)}</dd></div>
+                  <div><dt>Artefact</dt><dd class="mono">{temporalTrait.artifactFile}</dd></div>
                 </dl>
-                <p id="seqStatus" class="result-status" aria-live="polite">Hit "Predict churn risk" to see the result.</p>
+                <p id="temporalStatus" class="result-status" aria-live="polite">Hit "Predict engagement trend" to see the result.</p>
               </div>
 
               <div class="panel latency-panel">
@@ -631,71 +479,56 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             <div class="panel">
               <div class="panel__header">
                 <div>
-                  <p class="eyebrow">Input text</p>
-                  <h3>Content classifier <span style="font-weight:400;color:var(--text-secondary)">(generative stand-in)</span></h3>
+                  <p class="eyebrow">Compiled contract</p>
+                  <h3>retentionMessage</h3>
                 </div>
+                <span class="status-pill status-pill--info">generative</span>
               </div>
-
-              <div class="preset-bar">
-                <button type="button" class="preset-btn gen-preset is-active" data-gen-preset="review">Product review</button>
-                <button type="button" class="preset-btn gen-preset" data-gen-preset="ticket">Support ticket</button>
-                <button type="button" class="preset-btn gen-preset" data-gen-preset="feedback">User feedback</button>
+              <div class="preset-bar" id="generativePresets">
+                {generativeEntries.map(([key, example]) => (
+                  <button type="button" class:list={["preset-btn", key === initialGenerativeKey && 'is-active']} data-generative-preset={key}>{example.label}</button>
+                ))}
               </div>
-
-              <form id="genForm" class="inference-form">
-                <div class="field">
-                  <div class="field__header">
-                    <label for="genText">Text to classify</label>
-                  <p class="field__hint" style="font-size:11px;color:var(--text-secondary);margin-top:2px">A real generative trait would stream structured text from an AI SDK provider instead.</p>
-                  </div>
-                  <textarea id="genText" name="genText" rows="4" class="text-input"
-                    placeholder="Enter text to classify...">The shipping was fast but the product quality didn't match the description at all. Very disappointed with the value.</textarea>
+              <div class="inference-form" style="padding: var(--sp-5) var(--sp-6);">
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.65;margin:0 0 var(--sp-5)">
+                  A generative trait compiles to a prompt contract — no ONNX, no embeddings.
+                  At runtime, ScheML resolves the entity's context fields, builds the prompt, and calls your AI provider.
+                </p>
+                <p class="eyebrow" style="margin-bottom:var(--sp-2)">Context fields</p>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--sp-5)">
+                  <span class="context-chip">planTier</span>
+                  <span class="context-chip">willChurn</span>
+                  <span class="context-chip">monthlySpend</span>
                 </div>
-
-                <button class="btn btn--primary" type="submit">Classify</button>
-              </form>
+                <p class="eyebrow" style="margin-bottom:var(--sp-2)">Compiled prompt</p>
+                <textarea id="generativePromptInput" class="contract-prompt-edit" rows="3" maxlength="500" spellcheck="false">Return the next retention motion for this account in one concise decision.</textarea>
+                <dl class="output-stats" style="margin-top:var(--sp-4)">
+                  <div><dt>Output shape</dt><dd>{generativeContract.trait.outputSchemaShape}</dd></div>
+                  <div><dt>Valid outputs</dt><dd>{generativeContract.trait.choiceOptions?.join(' · ')}</dd></div>
+                  <div><dt>Schema hash</dt><dd class="mono">{generativeContract.trait.schemaHash.slice(0, 8)}</dd></div>
+                </dl>
+              </div>
             </div>
 
             <div class="result-stack">
-              <div class="panel" id="genResultPanel">
+              <div class="panel result-panel" id="generativeResultPanel" data-tone="">
                 <div class="panel__header">
                   <div>
-                    <p class="eyebrow">Label distribution</p>
-                    <h3 id="genResultTitle">—</h3>
+                    <p class="eyebrow">Call preview</p>
+                    <h3 id="generativeLabel">{initialGenerative.label}</h3>
                   </div>
-                  <span class="status-pill status-pill--healthy" id="genLatencyPill">—</span>
+                  <span class="status-pill status-pill--info" id="generativePill">ready</span>
                 </div>
-                <div class="prob-bars" id="genProbBars"></div>
-                <dl class="output-stats" style="margin-top: 16px;">
-                  <div><dt>Algorithm</dt><dd class="mono">multinomial_nb</dd></div>
-                  <div><dt>Artefact</dt><dd class="mono">contentClass.onnx</dd></div>
-                </dl>
-                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution. In production, a generative trait is executed via <code>predictGenerative()</code> and returns <code>&#123; traitName, result, timestamp &#125;</code>.</p>
-              </div>
-
-              <div class="panel latency-panel">
-                <div class="panel__header">
-                  <div><p class="eyebrow">Latency comparison</p><h3>Stand-in latency only</h3></div>
+                <div class="gen-preview" id="generativeCallPreview"></div>
+                <form class="gen-run-bar" id="generativeForm">
+                  <button class="btn btn--primary" type="submit">Run live inference</button>
+                  <p id="generativeStatus" class="result-status" aria-live="polite"></p>
+                </form>
+                <div class="gen-result" id="generativeLiveResult" hidden>
+                  <p class="contract-section__label" style="margin-bottom:var(--sp-3)">Model returned</p>
+                  <div class="choice-chips" id="generativeLiveChoices"></div>
+                  <p class="gen-meta">Latency: <span id="generativeLatency" class="mono">—</span>&thinsp;ms &ensp;&middot;&ensp; <code>llama-3.1-8b-instant</code> &ensp;&middot;&ensp; Groq</p>
                 </div>
-                <div class="latency-bars">
-                  <div class="latency-bar">
-                    <div class="latency-bar__label"><span>Local stand-in</span><strong id="genLatencyBar" class="latency-bar__ms">—</strong></div>
-                    <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="genLatencyFill" style="width: 0%"></div></div>
-                  </div>
-                  <div class="latency-bar">
-                    <div class="latency-bar__label"><span>HTTP microservice</span><strong class="latency-bar__ms">~120 ms</strong></div>
-                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 15%"></div></div>
-                  </div>
-                  <div class="latency-bar">
-                    <div class="latency-bar__label"><span>External inference API</span><strong class="latency-bar__ms">~400 ms</strong></div>
-                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 50%"></div></div>
-                  </div>
-                  <div class="latency-bar">
-                    <div class="latency-bar__label"><span>Python subprocess</span><strong class="latency-bar__ms">~800 ms</strong></div>
-                    <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
-                  </div>
-                </div>
-                <p class="latency-note">Scale: 0 – 800 ms. This pane uses an in-process ONNX classifier as a stand-in. Real generative traits depend on your provider, model, and network path.</p>
               </div>
             </div>
 
@@ -714,14 +547,14 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <h2 class="section-title">The model knows what schema it was trained on.</h2>
           <p class="section-desc">
             Every artefact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
-            and you call <code>PredictionSession.loadTrait()</code>, ScheML throws a typed
+            and you call <code>db.scheml.predict()</code>, ScheML throws a typed
             <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
           </p>
           <div class="artifact-ls drift-ls">
             <p class="artifact-ls__prompt"><span class="prompt">$</span> ls -lh .scheml/</p>
             <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size">52K</span><span class="ls-name">userChurn.onnx</span></p>
             <p class="artifact-ls__line"><span class="ls-perm">-rw-r--r--</span><span class="ls-size"> 4K</span><span class="ls-name">userChurn.metadata.json</span></p>
-            <p class="artifact-ls__hint"># both files are bound to schema hash a3f8c1b2</p>
+            <p class="artifact-ls__hint"># both files are bound to schema hash {predictiveTrait.schemaHash.slice(0, 8)}</p>
           </div>
         </div>
 
@@ -734,8 +567,8 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
               </div>
             </div>
             <p class="drift-desc">
-              This artefact was compiled against schema hash <code>a3f8c1b2</code>.
-              Simulate adding a field to the <code>User</code> model and watch trait loading refuse to proceed.
+              This artefact was compiled against schema hash <code>{predictiveTrait.schemaHash.slice(0, 8)}</code>.
+              Simulate adding a field to the <code>User</code> model and watch the session refuse to proceed.
             </p>
             <div class="drift-toggle-row">
               <button class="drift-toggle" type="button" id="driftToggle" aria-pressed="false">
@@ -773,31 +606,17 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             </div>
             <pre class="drift-output" id="driftOutput"><code id="driftOutputCode">// Schema hash matches — inference proceeds normally.
 
-await session.loadTrait('userChurn', &#123;
-  artifactsDir: '.scheml',
-  schemaPath: './prisma/schema.prisma',
-  adapter: 'prisma',
-&#125;);
+const result = await db.scheml.predict('userChurn', user);
 // result.prediction → "0"
-// result.timestamp  → "2026-03-08T12:00:00.000Z"</code></pre>
+// result.timestamp  → "2026-04-07T12:00:00.000Z"</code></pre>
             <div class="drift-explanation" id="driftExplanation">
               <p>
-                The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-                When calling <code>PredictionSession.loadTrait()</code>, ScheML re-hashes the current schema and compares.
-                A match means the compiled feature contract is still valid against the live data shape.
+                The session holds <code>{predictiveTrait.schemaHash.slice(0, 8)}</code> — the hash of the schema at compile time.
+                When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares.
+                A match means the feature resolvers are still valid against the live data shape.
               </p>
             </div>
           </div>
-        </div>
-
-        <div class="panel drift-code-panel">
-          <div class="panel__header">
-            <div>
-              <p class="eyebrow">What the error looks like</p>
-              <h3>SchemaDriftError in practice</h3>
-            </div>
-          </div>
-          <Code code={driftCode} lang="ts" theme="github-dark" />
         </div>
 
       </div>
@@ -821,7 +640,7 @@ await session.loadTrait('userChurn', &#123;
             <button class="code-tab active" role="tab" aria-selected="true" data-tab="define">
               <span class="code-tab__num">01</span>
               <span class="code-tab__label">Define</span>
-              <span class="code-tab__file">models/churn.ts</span>
+              <span class="code-tab__file">scheml.config.ts</span>
             </button>
             <button class="code-tab" role="tab" aria-selected="false" data-tab="train">
               <span class="code-tab__num">02</span>
@@ -831,18 +650,66 @@ await session.loadTrait('userChurn', &#123;
             <button class="code-tab" role="tab" aria-selected="false" data-tab="infer">
               <span class="code-tab__num">03</span>
               <span class="code-tab__label">Infer</span>
-              <span class="code-tab__file">api/infer.ts</span>
+              <span class="code-tab__file">api/predict.ts</span>
             </button>
           </div>
           <div class="code-tabs__panels">
             <div class="code-panel active" id="panel-define" role="tabpanel">
-              <Code code={defineCode} lang="ts" theme="github-dark" />
+              <pre class="code-block"><code>{`import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+const userChurn = defineTrait('User', {
+  type: 'predictive',
+  name: 'userChurn',
+  target: 'willChurn',
+  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
+  output: {
+    field: 'willChurn',
+    taskType: 'binary_classification',
+  },
+  algorithm: { name: 'gbm' },
+  qualityGates: [
+    { metric: 'f1', threshold: 0.80, comparison: 'gte' },
+    { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
+  ],
+});
+
+export default defineConfig({
+  traits: [userChurn],
+});`}</code></pre>
             </div>
             <div class="code-panel" id="panel-train" role="tabpanel">
-              <Code code={trainCode} lang="bash" theme="github-dark" />
+              <pre class="code-block"><code>{`$ scheml train
+
+◉ Loading Prisma schema...
+✔ Schema loaded (hash: ${predictiveTrait.schemaHash.slice(0, 8)})
+◉ Loading trait definitions...
+✔ Loaded 1 trait definition(s)
+◉ Validating traits...
+✔ Traits validated
+◉ Extracting training data via Prisma...
+◉ Training userChurn (gbm)...
+✔ Training complete
+◉ Writing artefacts...
+✔ Artefacts written to ./.scheml
+
+[OK] Training complete
+
+Artefacts:
+  userChurn.metadata.json
+  userChurn.onnx`}</code></pre>
             </div>
             <div class="code-panel" id="panel-infer" role="tabpanel">
-              <Code code={predictCode} lang="ts" theme="github-dark" />
+              <pre class="code-block"><code>{`import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+const result = await db.scheml.predict('userChurn', user);
+
+console.log(result.prediction);  // "1" or "0"
+console.log(result.timestamp);   // "2026-04-07T12:00:00.000Z"
+// Inference ran in ~0.4ms — in the same V8 process.`}</code></pre>
             </div>
           </div>
         </div>
@@ -869,7 +736,6 @@ await session.loadTrait('userChurn', &#123;
       </div>
     </section>
 
-    <!-- FOOTER -->
     <footer class="footer" transition:name="site-footer">
       <div class="footer__container">
         <div class="footer__left">
@@ -888,583 +754,731 @@ await session.loadTrait('userChurn', &#123;
     </footer>
 
   </div>
-
+  <div id="__demo_data__" hidden aria-hidden="true"
+    data-presets={JSON.stringify({
+      predictivePresets: manifest.ui.predictivePresets,
+      anomalyPresets: manifest.ui.anomalyPresets,
+      similarityPresets: manifest.ui.similarityPresets,
+      temporalPresets: manifest.ui.temporalPresets,
+      generativeExamples: generativeContract.examples,
+      generativePromptTemplate: 'Return the next retention motion for this account in one concise decision.',
+      initialGenerativeKey,
+      schemaHashes: {
+        predictive: predictiveTrait.schemaHash.slice(0, 8),
+        anomaly: anomalyTrait.schemaHash.slice(0, 8),
+        similarity: similarityTrait.schemaHash.slice(0, 8),
+        temporal: temporalTrait.schemaHash.slice(0, 8),
+        generative: generativeContract.trait.schemaHash.slice(0, 8),
+      },
+    })}
+  ></div>
   <script>
-    document.addEventListener('astro:page-load', () => {
+  document.addEventListener('astro:page-load', () => {
+    const __raw = document.getElementById('__demo_data__');
+    if (!__raw) return;
+    const { predictivePresets, anomalyPresets, similarityPresets, temporalPresets, generativeExamples, generativePromptTemplate, initialGenerativeKey, schemaHashes } = JSON.parse(__raw.dataset.presets!);
+    // ── Logo typewriter ──────────────────────────────────────────────────
+    const logoInner = document.querySelector('.header__logo .logo-inner');
+    if (logoInner) {
+      const WORD = 'scheml'; const SPEED = 72; const DELAY = 300;
+      logoInner.textContent = ''; logoInner.classList.remove('typing');
+      let i = 0;
+      setTimeout(() => {
+        logoInner.classList.add('typing');
+        const iv = setInterval(() => {
+          logoInner.textContent = WORD.slice(0, ++i);
+          if (i >= WORD.length) { clearInterval(iv); logoInner.classList.remove('typing'); }
+        }, SPEED);
+      }, DELAY);
+    }
 
-      // ── Logo typewriter ──────────────────────────────────────────────
-      const logoInner = document.querySelector('.header__logo .logo-inner') as HTMLElement | null;
-      if (logoInner) {
-        const WORD = 'scheml';
-        const SPEED = 72;
-        const DELAY = 300;
-        logoInner.textContent = '';
-        logoInner.classList.remove('typing');
-        let i = 0;
-        setTimeout(() => {
-          logoInner.classList.add('typing');
-          const iv = setInterval(() => {
-            logoInner.textContent = WORD.slice(0, ++i);
-            if (i >= WORD.length) { clearInterval(iv); logoInner.classList.remove('typing'); }
-          }, SPEED);
-        }, DELAY);
+    // ── Helpers ─────────────────────────────────────────────────────────
+    function flashPanel(el) {
+      if (!el) return;
+      el.classList.remove('result-updated'); void el.offsetWidth;
+      el.classList.add('result-updated');
+      el.addEventListener('animationend', () => el.classList.remove('result-updated'), { once: true });
+    }
+    function updateLatencyBar(barEl, fillEl, ms) {
+      if (barEl) barEl.textContent = ms + ' ms';
+      if (fillEl) fillEl.style.width = Math.min(100, Math.max(1, (ms / 800) * 100)) + '%';
+    }
+
+    // ── Trait section header metadata ──────────────────────────────────
+    const TRAIT_META = {
+      predictive: {
+        tag: 'Live inference · predictive',
+        title: 'Adjust inputs. Get a real prediction.',
+        desc: 'Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code> synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.',
+      },
+      anomaly: {
+        tag: 'Live inference · anomaly',
+        title: 'Detect anomalies in server metrics.',
+        desc: 'Adjust the metric sliders to cross anomaly thresholds. The isolation forest model scores each sample in-process using L2-norm scoring against the trained <code>serverAnomaly</code> artefact — no HTTP round-trip, no serialisation overhead.',
+      },
+      similarity: {
+        tag: 'Live inference · similarity',
+        title: 'Retrieve the nearest neighbours.',
+        desc: 'Set category and feature sliders to find the most similar products from the embedded product space. Cosine similarity runs in-process over the compiled <code>productSimilarity.embeddings.npy</code> index — no vector DB, no external service.',
+      },
+      temporal: {
+        tag: 'Live inference · temporal',
+        title: 'Predict churn from weekly engagement scores.',
+        desc: 'Enter the last five weeks of engagement scores and the <code>extra_tree</code> model predicts whether the user will churn. Runs in-process against the compiled <code>engagementSequence.onnx</code> artefact — no subprocess, no network.',
+      },
+      generative: {
+        tag: 'Live inference · generative',
+        title: 'Browse the compiled prompt contract.',
+        desc: 'The <code>retentionMessage</code> trait compiles into a prompt contract shipped with the bundle. The public page shows the contract only — runtime stays available to API consumers without depending on provider keys.',
+      },
+    };
+
+    // ── Trait tab switching ──────────────────────────────────────────────
+    const traitTabs    = document.querySelectorAll('.trait-tab');
+    const inferenceTag   = document.getElementById('inferenceTag');
+    const inferenceTitle = document.getElementById('inferenceTitle');
+    const inferenceDesc  = document.getElementById('inferenceDesc');
+
+    const TRAIT_DEFINE_CODE = {
+      predictive: `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+export const userChurn = defineTrait('User', {
+  type: 'predictive',
+  name: 'userChurn',
+  target: 'willChurn',
+  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
+  output: { field: 'willChurn', taskType: 'binary_classification' },
+  qualityGates: [
+    { metric: 'f1',       threshold: 0.80, comparison: 'gte' },
+    { metric: 'accuracy', threshold: 0.85, comparison: 'gte' },
+  ],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [userChurn],
+});`,
+      anomaly: `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+export const serverAnomaly = defineTrait('MetricSnapshot', {
+  type: 'anomaly',
+  name: 'serverAnomaly',
+  baseline: ['cpuUsage', 'memoryPressure', 'errorRate'],
+  sensitivity: 'high',
+  qualityGates: [
+    { metric: 'roc_auc', threshold: 0.90, comparison: 'gte' },
+  ],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [serverAnomaly],
+});`,
+      similarity: `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+export const productSimilarity = defineTrait('Product', {
+  type: 'similarity',
+  name: 'productSimilarity',
+  on: ['categoryIndex', 'price', 'batteryHours', 'weightKg'],
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [productSimilarity],
+});`,
+      temporal: `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+
+export const engagementSequence = defineTrait('SessionEvent', {
+  type: 'temporal',
+  name: 'engagementSequence',
+  sequence: 'engagementScore',
+  orderBy: 'createdAt',
+  target: 'willChurn',
+  output: { field: 'willChurn', taskType: 'binary_classification' },
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [engagementSequence],
+});`,
+      generative: `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+export const retentionMessage = defineTrait('User', {
+  type: 'generative',
+  name: 'retentionMessage',
+  context: ['planTier', 'willChurn', 'monthlySpend'],
+  prompt: 'Return the next retention motion in one concise decision.',
+  outputSchema: z.object({
+    action: z.enum(['retain', 'escalate', 'celebrate']),
+  }),
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  generativeProvider: openai('gpt-4o-mini'),
+  traits: [retentionMessage],
+});`,
+    };
+
+    const TRAIT_COMPILE_CODE = {
+      predictive: (h) => `$ scheml train\n\n◉ Loading Prisma schema...\n✔ Schema loaded (hash: ${h})\n◉ Training userChurn (gbm)...\n✔ Training complete (97 iterations)\n◉ Writing artefacts...\n✔ Artefacts written to ./.scheml\n\nArtefacts:\n  userChurn.metadata.json\n  userChurn.onnx`,
+      anomaly:    (h) => `$ scheml train\n\n◉ Loading Prisma schema...\n✔ Schema loaded (hash: ${h})\n◉ Training serverAnomaly (isolation-forest)...\n✔ Anomaly baseline fitted (300 samples)\n◉ Writing artefacts...\n✔ Artefacts written to ./.scheml\n\nArtefacts:\n  serverAnomaly.metadata.json\n  (L2-norm scored in-process, no ONNX)`,
+      similarity: (h) => `$ scheml train\n\n◉ Loading Prisma schema...\n✔ Schema loaded (hash: ${h})\n◉ Training productSimilarity (embeddings)...\n✔ PCA embeddings fitted (512 products \u2192 4 dims)\n◉ Writing artefacts...\n✔ Artefacts written to ./.scheml\n\nArtefacts:\n  productSimilarity.metadata.json\n  productSimilarity.embeddings.npy`,
+      temporal:   (h) => `$ scheml train\n\n◉ Loading Prisma schema...\n✔ Schema loaded (hash: ${h})\n◉ Training engagementSequence (lstm)...\n✔ LSTM sequence model trained (window=5)\n◉ Writing artefacts...\n✔ Artefacts written to ./.scheml\n\nArtefacts:\n  engagementSequence.metadata.json\n  engagementSequence.onnx`,
+      generative: (h) => `$ scheml compile\n\n◉ Loading Prisma schema...\n✔ Schema loaded (hash: ${h})\n◉ Compiling retentionMessage (generative)...\n✔ Prompt contract compiled — no model training\n◉ Writing artefacts...\n✔ Artefacts written to ./.scheml\n\n# Generative traits compile to a prompt contract.\n# Your AI provider is called at runtime, not now.\n\nArtefacts:\n  retentionMessage.metadata.json`,
+    };
+
+    const TRAIT_INFER_CODE = {
+      predictive: `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+const result = await db.scheml.predict('userChurn', user);
+
+console.log(result.prediction);  // "1" or "0"
+console.log(result.label);       // "Will churn" | "Will retain"
+console.log(result.latencyMs);   // ~0.4 ms — ONNX in-process`,
+      anomaly: `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+const result = await db.scheml.predict('serverAnomaly', snapshot);
+
+console.log(result.isAnomaly);   // true | false
+console.log(result.score);       // 0.8743 (isolation score)
+console.log(result.latencyMs);   // <2 ms — scored in-process`,
+      similarity: `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+const result = await db.scheml.predictSimilarity(
+  'productSimilarity',
+  query,
+  { limit: 4 }
+);
+
+// result.matches → [{ entityId, score, product }, ...]
+// Cosine similarity run against .npy index in-process`,
+      temporal: `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+// Pass last 5 weekly engagement readings as a sequence window
+const result = await db.scheml.predict('engagementSequence', window);
+
+console.log(result.prediction);  // "0" | "1"
+console.log(result.label);       // "Stable" | "Churn risk"
+console.log(result.latencyMs);   // LSTM scored in-process`,
+      generative: `import { extendClient } from '@vncsleal/scheml';
+import { PrismaClient } from '@prisma/client';
+import config from './scheml.config';
+
+const db = extendClient(new PrismaClient(), config);
+
+// Calls your AI provider with the compiled contract
+const result = await db.scheml.predictGenerative(
+  'retentionMessage',
+  user
+);
+
+console.log(result.result);  // "retain" | "escalate" | "celebrate"
+// Provider: openai('gpt-4o-mini') — set in scheml.config.ts`,
+    };
+
+    const INFER_FILENAMES = {
+      predictive: 'api/predict.ts', anomaly: 'api/detect.ts',
+      similarity: 'api/similar.ts', temporal: 'api/trend.ts', generative: 'api/retain.ts',
+    };
+
+    function switchTrait(trait) {
+      traitTabs.forEach((t) => {
+        const active = t.dataset.trait === trait;
+        t.classList.toggle('active', active);
+        t.setAttribute('aria-selected', String(active));
+      });
+      document.querySelectorAll('.demo-pane').forEach((p) => {
+        p.classList.toggle('active', p.id === 'pane-' + trait);
+      });
+      const meta = TRAIT_META[trait];
+      if (meta) {
+        if (inferenceTag)   inferenceTag.textContent = meta.tag;
+        if (inferenceTitle) inferenceTitle.textContent = meta.title;
+        if (inferenceDesc)  inferenceDesc.innerHTML = meta.desc;
       }
+      // Update integration code panels to match the selected trait
+      const hash = (schemaHashes && schemaHashes[trait]) || '--------';
+      const defineEl = document.querySelector('#panel-define code');
+      const trainEl  = document.querySelector('#panel-train code');
+      const inferEl  = document.querySelector('#panel-infer code');
+      if (defineEl) defineEl.textContent = TRAIT_DEFINE_CODE[trait] || '';
+      if (trainEl)  trainEl.textContent  = (TRAIT_COMPILE_CODE[trait] || (() => ''))(hash);
+      if (inferEl)  inferEl.textContent  = TRAIT_INFER_CODE[trait]   || '';
+      const inferFileEl = document.querySelector('.code-tab[data-tab="infer"] .code-tab__file');
+      if (inferFileEl) inferFileEl.textContent = INFER_FILENAMES[trait] || 'api/infer.ts';
+    }
 
-      // ── Trait section header metadata ─────────────────────────────────
-      const TRAIT_META: Record<string, { tag: string; title: string; desc: string }> = {
-        predictive: {
-          tag: 'Live inference · predictive',
-          title: 'Adjust inputs. Get a real prediction.',
-          desc: `Each submit hits <code>/api/demo/predict</code>, which calls a <code>PredictionSession</code>-backed helper in the Node.js route. The latency shown is the demo's measured wall-clock time for local ONNX inference.`,
-        },
-        anomaly: {
-          tag: 'Live inference · anomaly',
-          title: 'Detect anomalies in server metrics.',
-          desc: `Adjust the metric sliders to cross anomaly thresholds. The isolation forest model scores each sample in-process using L2-norm scoring against the trained <code>serverAnomaly</code> artefact — no HTTP round-trip, no serialisation overhead.`,
-        },
-        similarity: {
-          tag: 'Live inference · similarity',
-          title: 'Retrieve the nearest neighbours.',
-          desc: `Set category and feature sliders to find the most similar products from the embedded product space. Cosine similarity runs in-process over the compiled <code>productSimilarity.embeddings.npy</code> index — no vector DB, no external service.`,
-        },
-        temporal: {
-          tag: 'Live inference · temporal',
-          title: 'Predict churn from weekly engagement scores.',
-          desc: `Enter the last five weeks of engagement scores and the <code>extra_tree</code> model predicts whether the user will churn. Runs in-process against the compiled <code>engagementSequence.onnx</code> artefact — no subprocess, no network.`,
-        },
-        generative: {
-          tag: 'Live inference · generative (stand-in)',
-          title: 'Text classification as a generative proxy.',
-          desc: `The real <code>generative</code> trait calls your configured AI SDK provider (e.g. <code>openai:gpt-4o-mini</code>) via <code>predictGenerative()</code>. This demo substitutes a multinomial Naive Bayes classifier so the site can run without external credentials.`,
-        },
-      };
+    traitTabs.forEach((tab) => {
+      tab.addEventListener('click', () => switchTrait(tab.dataset.trait || 'predictive'));
+    });
 
-      // ── Trait tab switching ──────────────────────────────────────────
-      const traitTabs    = document.querySelectorAll('.trait-tab');
-      const inferenceTag   = document.getElementById('inferenceTag');
-      const inferenceTitle = document.getElementById('inferenceTitle');
-      const inferenceDesc  = document.getElementById('inferenceDesc');
+    const activeTab = document.querySelector('.trait-tab.active');
+    if (activeTab && activeTab.dataset.trait) switchTrait(activeTab.dataset.trait);
 
-      function switchTrait(trait: string) {
-        traitTabs.forEach((t) => {
-          const el = t as HTMLElement;
-          const active = el.dataset.trait === trait;
-          el.classList.toggle('active', active);
-          el.setAttribute('aria-selected', String(active));
+    // ── Range inputs live-value sync ─────────────────────────────────────
+    const setRangeValue = (input, valueEl) => {
+      if (!input || !valueEl) return;
+      const render = () => { valueEl.textContent = input.value; };
+      input.addEventListener('input', render);
+      render();
+    };
+
+    setRangeValue(document.getElementById('predictiveDays'), document.getElementById('predictiveDaysValue'));
+    setRangeValue(document.getElementById('predictiveSpend'), document.getElementById('predictiveSpendValue'));
+    setRangeValue(document.getElementById('predictiveTickets'), document.getElementById('predictiveTicketsValue'));
+    setRangeValue(document.getElementById('anomalyCpu'), document.getElementById('anomalyCpuValue'));
+    setRangeValue(document.getElementById('anomalyMemory'), document.getElementById('anomalyMemoryValue'));
+    setRangeValue(document.getElementById('anomalyError'), document.getElementById('anomalyErrorValue'));
+    setRangeValue(document.getElementById('similarityPrice'), document.getElementById('similarityPriceValue'));
+    setRangeValue(document.getElementById('similarityBattery'), document.getElementById('similarityBatteryValue'));
+    setRangeValue(document.getElementById('similarityWeight'), document.getElementById('similarityWeightValue'));
+    document.querySelectorAll('.temporal-input').forEach((input) => {
+      const valueEl = input.parentElement?.querySelector('.temporal-value');
+      setRangeValue(input, valueEl);
+    });
+
+    const activatePreset = (selector, activeButton) => {
+      document.querySelectorAll(selector).forEach((button) => button.classList.toggle('is-active', button === activeButton));
+    };
+
+    document.querySelectorAll('[data-predictive-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activatePreset('[data-predictive-preset]', button);
+        const preset = predictivePresets[button.dataset.predictivePreset];
+        document.getElementById('predictiveDays').value = String(preset.daysSinceActive);
+        document.getElementById('predictiveSpend').value = String(preset.monthlySpend);
+        document.getElementById('predictiveTickets').value = String(preset.supportTickets);
+        document.getElementById('predictiveDaysValue').textContent = String(preset.daysSinceActive);
+        document.getElementById('predictiveSpendValue').textContent = String(preset.monthlySpend);
+        document.getElementById('predictiveTicketsValue').textContent = String(preset.supportTickets);
+      });
+    });
+
+    document.querySelectorAll('[data-anomaly-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activatePreset('[data-anomaly-preset]', button);
+        const preset = anomalyPresets[button.dataset.anomalyPreset];
+        document.getElementById('anomalyCpu').value = String(preset.cpuUsage);
+        document.getElementById('anomalyMemory').value = String(preset.memoryPressure);
+        document.getElementById('anomalyError').value = String(preset.errorRate);
+        document.getElementById('anomalyCpuValue').textContent = String(preset.cpuUsage);
+        document.getElementById('anomalyMemoryValue').textContent = String(preset.memoryPressure);
+        document.getElementById('anomalyErrorValue').textContent = String(preset.errorRate);
+      });
+    });
+
+    document.querySelectorAll('[data-similarity-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activatePreset('[data-similarity-preset]', button);
+        const preset = similarityPresets[button.dataset.similarityPreset];
+        document.getElementById('similarityCategory').value = String(preset.categoryIndex);
+        document.getElementById('similarityPrice').value = String(preset.price);
+        document.getElementById('similarityBattery').value = String(preset.batteryHours);
+        document.getElementById('similarityWeight').value = String(preset.weightKg);
+        document.getElementById('similarityPriceValue').textContent = String(preset.price);
+        document.getElementById('similarityBatteryValue').textContent = String(preset.batteryHours);
+        document.getElementById('similarityWeightValue').textContent = String(preset.weightKg);
+      });
+    });
+
+    document.querySelectorAll('[data-temporal-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activatePreset('[data-temporal-preset]', button);
+        const preset = temporalPresets[button.dataset.temporalPreset];
+        document.querySelectorAll('.temporal-input').forEach((input, index) => {
+          input.value = String(preset.scores[index]);
+          const valEl = input.parentElement?.querySelector('.temporal-value');
+          if (valEl) valEl.textContent = String(preset.scores[index]);
         });
-        document.querySelectorAll('.demo-pane').forEach((p) => {
-          p.classList.toggle('active', p.id === `pane-${trait}`);
+      });
+    });
+
+    const renderGenerativePreview = (key) => {
+      const example = generativeExamples[key];
+      document.getElementById('generativeLabel').textContent = example.label;
+      const ctx = example.context;
+      const likelyAction = ctx.willChurn ? 'escalate' : (Number(ctx.monthlySpend) >= 1000 ? 'celebrate' : 'retain');
+      const preview = document.getElementById('generativeCallPreview');
+      if (!preview) return;
+      const choices = ['retain', 'escalate', 'celebrate'];
+      const ctxRows = Object.entries(ctx)
+        .map(([k, v]) => `<div class="gen-ctx-row"><span class="gen-ctx-key">${k}</span><span class="gen-ctx-val">${JSON.stringify(v)}</span></div>`)
+        .join('');
+      preview.innerHTML = `
+        <div class="gen-section">
+          <p class="contract-section__label">Context resolved from User</p>
+          <div class="gen-ctx">${ctxRows}</div>
+        </div>
+        <div class="gen-section">
+          <p class="contract-section__label">Prompt</p>
+          <p class="gen-prompt-text">${(document.getElementById('generativePromptInput')?.value ?? generativePromptTemplate).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+        </div>
+        <div class="gen-section">
+          <p class="contract-section__label">Valid outputs (schema constraint)</p>
+          <div class="choice-chips">
+            ${choices.map((c) => `<span class="choice-chip${c === likelyAction ? ' choice-chip--expected' : ''}">${c}</span>`).join('')}
+          </div>
+        </div>`;
+    };
+
+    renderGenerativePreview(initialGenerativeKey);
+    document.getElementById('generativePromptInput')?.addEventListener('input', () => {
+      const activeBtn = document.querySelector('[data-generative-preset].is-active');
+      const key = activeBtn?.dataset?.generativePreset ?? initialGenerativeKey;
+      renderGenerativePreview(key);
+    });
+    document.querySelectorAll('[data-generative-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activatePreset('[data-generative-preset]', button);
+        renderGenerativePreview(button.dataset.generativePreset);
+        // Reset live result when switching preset
+        document.getElementById('generativeLiveResult').hidden = true;
+        document.getElementById('generativePill').textContent = 'contract only';
+        document.getElementById('generativePill').className = 'status-pill status-pill--info';
+        document.getElementById('generativeResultPanel').dataset.tone = '';
+      });
+    });
+
+    document.getElementById('generativeForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('generativeStatus');
+      button.disabled = true;
+      button.textContent = 'Calling Groq...';
+      status.textContent = '';
+      try {
+        // Get context from the active preset
+        const activePresetBtn = document.querySelector('[data-generative-preset].is-active');
+        const key = activePresetBtn?.dataset?.generativePreset ?? initialGenerativeKey;
+        const ctx = generativeExamples[key]?.context ?? {};
+        const prompt = (document.getElementById('generativePromptInput')?.value ?? '').trim();
+        const response = await fetch('/api/demo/generative', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...ctx, prompt }),
         });
-        const meta = TRAIT_META[trait];
-        if (meta) {
-          if (inferenceTag)   inferenceTag.textContent = meta.tag;
-          if (inferenceTitle) inferenceTitle.textContent = meta.title;
-          if (inferenceDesc)  inferenceDesc.innerHTML = meta.desc;
-        }
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error ?? 'Generative inference failed');
+        const action = data.result.action;
+        const choices = ['retain', 'escalate', 'celebrate'];
+        document.getElementById('generativeLiveChoices').innerHTML = choices
+          .map((c) => `<span class="choice-chip${c === action ? ' choice-chip--live' : ''}">${c}</span>`)
+          .join('');
+        document.getElementById('generativeLatency').textContent = String(data.result.latencyMs);
+        document.getElementById('generativeLiveResult').hidden = false;
+        const pill = document.getElementById('generativePill');
+        pill.textContent = action;
+        const pillMod = action === 'escalate' ? 'danger' : action === 'celebrate' ? 'healthy' : 'info';
+        pill.className = `status-pill status-pill--${pillMod}`;
+        document.getElementById('generativeResultPanel').dataset.tone = action === 'escalate' ? 'danger' : action === 'celebrate' ? 'healthy' : '';
+        flashPanel(document.getElementById('generativeResultPanel'));
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Request failed';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Run live inference';
       }
+    });
 
-      traitTabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          const trait = (tab as HTMLElement).dataset.trait ?? 'predictive';
-          switchTrait(trait);
+    document.getElementById('predictiveForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('predictiveStatus');
+      button.disabled = true;
+      button.textContent = 'Running...';
+      status.textContent = '';
+      try {
+        const payload = {
+          daysSinceActive: Number(document.getElementById('predictiveDays').value),
+          monthlySpend: Number(document.getElementById('predictiveSpend').value),
+          supportTickets: Number(document.getElementById('predictiveTickets').value),
+        };
+        const response = await fetch('/api/demo/predict', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-      });
-
-      // initialise the active pane
-      const activeTraitTab = document.querySelector('.trait-tab.active') as HTMLElement | null;
-      if (activeTraitTab?.dataset.trait) switchTrait(activeTraitTab.dataset.trait);
-
-      // ── Helpers ──────────────────────────────────────────────────────
-      function flashPanel(el: HTMLElement | null) {
-        if (!el) return;
-        el.classList.remove('result-updated');
-        void el.offsetWidth;
-        el.classList.add('result-updated');
-        el.addEventListener('animationend', () => el.classList.remove('result-updated'), { once: true });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Prediction failed');
+        document.getElementById('predictiveLabel').textContent = data.prediction.label;
+        document.getElementById('predictiveRaw').textContent = String(data.prediction.prediction);
+        document.getElementById('predictiveLatency').textContent = `${data.prediction.latencyMs} ms`;
+        updateLatencyBar(document.getElementById('latencyPrisml'), document.getElementById('latencyFill'), data.prediction.latencyMs);
+        const pill = document.getElementById('predictivePill');
+        const isChurnPred = String(data.prediction.prediction) === '1';
+        pill.textContent = isChurnPred ? '1 — churn' : '0 — safe';
+        pill.className = `status-pill ${isChurnPred ? 'status-pill--danger' : 'status-pill--healthy'}`;
+        document.getElementById('predictiveResultPanel').dataset.tone = isChurnPred ? 'danger' : 'healthy';
+        flashPanel(document.getElementById('predictiveResultPanel'));
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Request failed';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Run prediction';
       }
+    });
 
-      function updateLatencyBar(barEl: HTMLElement | null, fillEl: HTMLElement | null, ms: number) {
-        if (barEl) barEl.textContent = `${ms} ms`;
-        if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(1, (ms / 800) * 100))}%`;
+    document.getElementById('anomalyForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('anomalyStatus');
+      button.disabled = true;
+      button.textContent = 'Scoring...';
+      status.textContent = '';
+      try {
+        const payload = {
+          cpuUsage: Number(document.getElementById('anomalyCpu').value),
+          memoryPressure: Number(document.getElementById('anomalyMemory').value),
+          errorRate: Number(document.getElementById('anomalyError').value),
+        };
+        const response = await fetch('/api/demo/anomaly', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Anomaly request failed');
+        document.getElementById('anomalyLabel').textContent = data.result.label;
+        document.getElementById('anomalyScore').textContent = data.result.score.toFixed(4);
+        document.getElementById('anomalyLatency').textContent = `${data.result.latencyMs} ms`;
+        const pill = document.getElementById('anomalyPill');
+        pill.textContent = data.result.isAnomaly ? 'anomaly' : 'normal';
+        pill.className = `status-pill ${data.result.isAnomaly ? 'status-pill--danger' : 'status-pill--healthy'}`;
+        document.getElementById('anomalyResultPanel').dataset.tone = data.result.isAnomaly ? 'danger' : 'healthy';
+        flashPanel(document.getElementById('anomalyResultPanel'));
+        updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), data.result.latencyMs);
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Request failed';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Score anomaly';
       }
+    });
 
-      function simDelay(minMs: number, maxMs: number): Promise<number> {
-        const ms = minMs + Math.random() * (maxMs - minMs);
-        return new Promise<number>((resolve) => setTimeout(() => resolve(parseFloat(ms.toFixed(2))), 60));
-      }
-
-      // ── PREDICTIVE ───────────────────────────────────────────────────
-      const daysInput   = document.getElementById('daysSinceActive') as HTMLInputElement | null;
-      const spendInput  = document.getElementById('monthlySpend') as HTMLInputElement | null;
-      const ticketsInput = document.getElementById('supportTickets') as HTMLInputElement | null;
-      const daysVal     = document.getElementById('daysVal');
-      const spendVal    = document.getElementById('spendVal');
-      const ticketsVal  = document.getElementById('ticketsVal');
-
-      daysInput?.addEventListener('input', () => { if (daysVal) daysVal.textContent = daysInput!.value; });
-      spendInput?.addEventListener('input', () => { if (spendVal) spendVal.textContent = spendInput!.value; });
-      ticketsInput?.addEventListener('input', () => { if (ticketsVal) ticketsVal.textContent = ticketsInput!.value; });
-
-      const presets: Record<string, { days: number; spend: number; tickets: number }> = {
-        'healthy':  { days: 3,  spend: 750, tickets: 0  },
-        'at-risk':  { days: 34, spend: 192, tickets: 7  },
-        'churning': { days: 70, spend: 45,  tickets: 12 },
-      };
-      document.querySelectorAll('.preset-btn[data-preset]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = (btn as HTMLElement).dataset.preset ?? '';
-          const p = presets[key]; if (!p) return;
-          if (daysInput)    { daysInput.value    = String(p.days);    if (daysVal)    daysVal.textContent    = String(p.days); }
-          if (spendInput)   { spendInput.value   = String(p.spend);   if (spendVal)   spendVal.textContent   = String(p.spend); }
-          if (ticketsInput) { ticketsInput.value = String(p.tickets); if (ticketsVal) ticketsVal.textContent = String(p.tickets); }
-          document.querySelectorAll('.preset-btn[data-preset]').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
+    document.getElementById('similarityForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('similarityStatus');
+      button.disabled = true;
+      button.textContent = 'Searching...';
+      status.textContent = '';
+      try {
+        const payload = {
+          categoryIndex: Number(document.getElementById('similarityCategory').value),
+          price: Number(document.getElementById('similarityPrice').value),
+          batteryHours: Number(document.getElementById('similarityBattery').value),
+          weightKg: Number(document.getElementById('similarityWeight').value),
+          limit: 4,
+        };
+        const response = await fetch('/api/demo/similarity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-      });
-
-      const inferenceForm  = document.getElementById('inferenceForm');
-      const resultPanel    = document.getElementById('resultPanel');
-      const resultLabel    = document.getElementById('resultLabel');
-      const resultPill     = document.getElementById('resultPill');
-      const resultRaw      = document.getElementById('resultRaw');
-      const resultLatency  = document.getElementById('resultLatency');
-      const resultStatus   = document.getElementById('resultStatus');
-      const latencyPrisml  = document.getElementById('latencyPrisml');
-      const latencyFill    = document.getElementById('latencyFill');
-
-      inferenceForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = inferenceForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        if (btn) { btn.textContent = 'Running...'; btn.disabled = true; }
-        if (resultStatus) resultStatus.textContent = '';
-        try {
-          const payload = {
-            daysSinceActive: Number(daysInput?.value ?? 0),
-            monthlySpend:    Number(spendInput?.value  ?? 0),
-            supportTickets:  Number(ticketsInput?.value ?? 0),
-          };
-          const res  = await fetch('/api/demo/predict', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error ?? 'Prediction failed');
-          const isChurn   = String(data.prediction.prediction) === '1';
-          const latencyMs = data.prediction.latencyMs ?? 0;
-          if (resultPanel)  resultPanel.dataset.tone = isChurn ? 'danger' : 'healthy';
-          if (resultLabel)  resultLabel.textContent  = isChurn ? 'Will churn' : 'Will retain';
-          if (resultPill) { resultPill.textContent = isChurn ? '1 — positive' : '0 — negative'; resultPill.className = `status-pill ${isChurn ? 'status-pill--danger' : 'status-pill--healthy'}`; }
-          if (resultRaw)     resultRaw.textContent  = String(data.prediction.prediction);
-          if (resultLatency) resultLatency.textContent = `${latencyMs} ms`;
-          updateLatencyBar(latencyPrisml, latencyFill, latencyMs);
-          flashPanel(resultPanel);
-        } catch (err) {
-          if (resultStatus) resultStatus.textContent = err instanceof Error ? err.message : 'Request failed';
-        } finally {
-          if (btn) { btn.textContent = 'Run prediction'; btn.disabled = false; }
-        }
-      });
-
-      // ── ANOMALY ───────────────────────────────────────────────────────
-      const cpuInput  = document.getElementById('cpuUsage') as HTMLInputElement | null;
-      const memInput  = document.getElementById('memPressure') as HTMLInputElement | null;
-      const errInput  = document.getElementById('errorRate') as HTMLInputElement | null;
-      const cpuVal    = document.getElementById('cpuVal');
-      const memVal    = document.getElementById('memVal');
-      const errVal    = document.getElementById('errVal');
-
-      cpuInput?.addEventListener('input', () => { if (cpuVal) cpuVal.textContent = cpuInput!.value; });
-      memInput?.addEventListener('input', () => { if (memVal) memVal.textContent = memInput!.value; });
-      errInput?.addEventListener('input', () => { if (errVal) errVal.textContent = errInput!.value; });
-
-      const anomPresets: Record<string, { cpu: number; mem: number; err: number }> = {
-        healthy:  { cpu: 45,  mem: 62,  err: 0.8 },
-        spike:    { cpu: 55,  mem: 94,  err: 1.2 },
-        critical: { cpu: 92,  mem: 97,  err: 7.4 },
-      };
-      document.querySelectorAll('.anom-preset').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = (btn as HTMLElement).dataset.anomPreset ?? '';
-          const p = anomPresets[key]; if (!p) return;
-          if (cpuInput) { cpuInput.value = String(p.cpu); if (cpuVal) cpuVal.textContent = String(p.cpu); }
-          if (memInput) { memInput.value = String(p.mem); if (memVal) memVal.textContent = String(p.mem); }
-          if (errInput) { errInput.value = String(p.err); if (errVal) errVal.textContent = String(p.err); }
-          document.querySelectorAll('.anom-preset').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-        });
-      });
-
-      function simAnomaly(_cpu: number, _mem: number, _err: number) {
-        return 0; // replaced by real API
-      }
-
-      const anomalyForm = document.getElementById('anomalyForm');
-      anomalyForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = anomalyForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        if (btn) { btn.textContent = 'Running...'; btn.disabled = true; }
-        const cpu = Number(cpuInput?.value ?? 45);
-        const mem = Number(memInput?.value ?? 62);
-        const err = Number(errInput?.value ?? 0.8);
-        try {
-          const res = await fetch('/api/demo/anomaly', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ cpuUsage: cpu, memoryPressure: mem, errorRate: err }),
-          });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error ?? 'Anomaly request failed');
-          const { isAnomaly, score, latencyMs } = data.result;
-          const panel = document.getElementById('anomalyResultPanel');
-          if (panel) panel.dataset.tone = isAnomaly ? 'danger' : 'healthy';
-          const lbl = document.getElementById('anomalyResultLabel');
-          if (lbl) lbl.textContent = isAnomaly ? 'Anomaly detected' : 'Normal';
-          const pill = document.getElementById('anomalyResultPill');
-          if (pill) { pill.textContent = isAnomaly ? '1 — anomaly' : '0 — normal'; pill.className = `status-pill ${isAnomaly ? 'status-pill--danger' : 'status-pill--healthy'}`; }
-          const sc = document.getElementById('anomalyScore');
-          if (sc) sc.textContent = String(score);
-          const lat = document.getElementById('anomalyLatency');
-          if (lat) lat.textContent = `${latencyMs} ms`;
-          updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), latencyMs);
-          const st = document.getElementById('anomalyStatus'); if (st) st.textContent = '';
-          flashPanel(panel);
-        } catch (err) {
-          const st = document.getElementById('anomalyStatus');
-          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
-        }
-        if (btn) { btn.textContent = 'Run inference'; btn.disabled = false; }
-      });
-
-      // ── SIMILARITY ────────────────────────────────────────────────────
-      type SimPreset = { cat: number; price: number; battery: number; weight: number };
-      const simPresets: Record<string, SimPreset> = {
-        laptop:  { cat: 0, price: 1200, battery: 15, weight: 1.2 },
-        audio:   { cat: 2, price: 300,  battery: 25, weight: 0.25 },
-        monitor: { cat: 4, price: 400,  battery: 0,  weight: 6.0 },
-      };
-
-      const simCatInput     = document.getElementById('simCategory') as HTMLSelectElement | null;
-      const simPriceInput   = document.getElementById('simPrice') as HTMLInputElement | null;
-      const simBatteryInput = document.getElementById('simBattery') as HTMLInputElement | null;
-      const simWeightInput  = document.getElementById('simWeight') as HTMLInputElement | null;
-      const simKInput       = document.getElementById('simK') as HTMLInputElement | null;
-      const simPriceVal     = document.getElementById('simPriceVal');
-      const simBatteryVal   = document.getElementById('simBatteryVal');
-      const simWeightVal    = document.getElementById('simWeightVal');
-      const simKVal         = document.getElementById('simKVal');
-
-      simPriceInput?.addEventListener('input',   () => { if (simPriceVal)   simPriceVal.textContent   = simPriceInput!.value; });
-      simBatteryInput?.addEventListener('input', () => { if (simBatteryVal) simBatteryVal.textContent = simBatteryInput!.value; });
-      simWeightInput?.addEventListener('input',  () => { if (simWeightVal)  simWeightVal.textContent  = simWeightInput!.value; });
-      simKInput?.addEventListener('input',       () => { if (simKVal)       simKVal.textContent       = simKInput!.value; });
-
-      document.querySelectorAll('.sim-preset').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = (btn as HTMLElement).dataset.simPreset ?? '';
-          const p = simPresets[key]; if (!p) return;
-          if (simCatInput)     simCatInput.value     = String(p.cat);
-          if (simPriceInput)  { simPriceInput.value  = String(p.price);   if (simPriceVal)   simPriceVal.textContent   = String(p.price); }
-          if (simBatteryInput){ simBatteryInput.value = String(p.battery); if (simBatteryVal) simBatteryVal.textContent = String(p.battery); }
-          if (simWeightInput) { simWeightInput.value  = String(p.weight);  if (simWeightVal)  simWeightVal.textContent  = String(p.weight); }
-          document.querySelectorAll('.sim-preset').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-        });
-      });
-
-      const simForm = document.getElementById('simForm');
-      simForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = simForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        if (btn) { btn.textContent = 'Searching...'; btn.disabled = true; }
-        const categoryInt = Number(simCatInput?.value ?? 0);
-        const price       = Number(simPriceInput?.value ?? 1200);
-        const batteryLife = Number(simBatteryInput?.value ?? 15);
-        const weightKg    = Number(simWeightInput?.value ?? 1.2);
-        const k           = Number(simKInput?.value ?? 5);
-        try {
-          const res = await fetch('/api/demo/similarity', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ categoryInt, price, batteryLife, weightKg, k }),
-          });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error ?? 'Similarity request failed');
-          const { results, latencyMs } = data.result;
-          const list = document.getElementById('simResultList');
-          if (list) {
-            list.innerHTML = results.map((r: { name: string; category: string; score: number }) => `
-              <div class="result-item">
-                <div class="result-item__left">
-                  <span class="result-item__name">${r.name}</span>
-                  <span class="result-item__cat">${r.category}</span>
-                </div>
-                <span class="result-item__score">${r.score.toFixed(3)}</span>
-              </div>
-            `).join('');
-          }
-          const title = document.getElementById('simResultTitle');
-          if (title) title.textContent = `Top ${results.length} matches`;
-          const latPill = document.getElementById('simLatencyPill');
-          if (latPill) latPill.textContent = `${latencyMs} ms`;
-          updateLatencyBar(document.getElementById('simLatencyBar'), document.getElementById('simLatencyFill'), latencyMs);
-          const st = document.getElementById('simStatus'); if (st) st.textContent = '';
-          flashPanel(document.getElementById('simResultPanel'));
-        } catch (err) {
-          const st = document.getElementById('simStatus');
-          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
-        }
-        if (btn) { btn.textContent = 'Find similar'; btn.disabled = false; }
-      });
-
-      // ── TEMPORAL ─────────────────────────────────────────────────────
-      type SeqPreset = [number, number, number, number, number];
-      const seqPresets: Record<string, SeqPreset> = {
-        healthy:  [90, 88, 91, 87, 92],
-        declining:[80, 65, 50, 35, 20],
-        churning: [15, 12,  8, 20, 10],
-      };
-
-      const seqScoreInputs = [1, 2, 3, 4, 5].map((n) => ({
-        input: document.getElementById(`seqScore${n}`) as HTMLInputElement | null,
-        val:   document.getElementById(`seqVal${n}`) as HTMLElement | null,
-      }));
-
-      seqScoreInputs.forEach(({ input, val }) => {
-        input?.addEventListener('input', () => { if (val && input) val.textContent = input.value; });
-      });
-
-      document.querySelectorAll('.seq-preset').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = (btn as HTMLElement).dataset.seqPreset ?? '';
-          const p = seqPresets[key]; if (!p) return;
-          seqScoreInputs.forEach(({ input, val }, i) => {
-            if (input) { input.value = String(p[i]); if (val) val.textContent = String(p[i]); }
-          });
-          document.querySelectorAll('.seq-preset').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-        });
-      });
-
-      const seqForm = document.getElementById('seqForm');
-      seqForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = seqForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        if (btn) { btn.textContent = 'Predicting...'; btn.disabled = true; }
-        const scores = seqScoreInputs.map(({ input }) => Number(input?.value ?? 50));
-        try {
-          const res = await fetch('/api/demo/temporal', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ scores }),
-          });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error ?? 'Temporal request failed');
-          const { predicted, confidence, latencyMs } = data.result;
-          const willChurn = predicted === '1';
-          const barsEl = document.getElementById('seqProbBars');
-          if (barsEl) {
-            const riskPct = (confidence * 100).toFixed(1);
-            const riskLabel = willChurn ? 'Will churn' : 'Will not churn';
-            const fillClass = willChurn ? 'prob-bar__fill--top' : 'prob-bar__fill';
-            barsEl.innerHTML = `
-              <div class="prob-bar">
-                <div class="prob-bar__header">
-                  <span class="prob-bar__label">${riskLabel}</span>
-                  <span class="prob-bar__pct">${riskPct}%</span>
-                </div>
-                <div class="prob-bar__track">
-                  <div class="${fillClass}" style="width: ${riskPct}%"></div>
-                </div>
-              </div>
-            `;
-          }
-          const title = document.getElementById('seqResultTitle');
-          if (title) title.textContent = willChurn ? 'Churn detected' : 'No churn predicted';
-          const seqPanel = document.getElementById('seqResultPanel');
-          const latPill = document.getElementById('seqLatencyPill');
-          if (latPill) latPill.textContent = `${latencyMs} ms`;
-          updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), latencyMs);
-          const st = document.getElementById('seqStatus'); if (st) st.textContent = '';
-          flashPanel(seqPanel);
-        } catch (err) {
-          const st = document.getElementById('seqStatus');
-          if (st) st.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
-        }
-        if (btn) { btn.textContent = 'Predict churn risk'; btn.disabled = false; }
-      });
-
-      // ── GENERATIVE ────────────────────────────────────────────────────
-      const GEN_LABELS = ['Negative sentiment', 'Positive sentiment', 'Shipping concern', 'Quality feedback', 'Support needed'];
-      const GEN_PATTERNS: Record<string, string[]> = {
-        'Negative sentiment': ['disappoint','poor',"didn't",'bad','terrible','issue','wrong','broken','worst','hate'],
-        'Positive sentiment': ['great','excellent','amazing','love','perfect','fast','wonderful','best','recommend','happy'],
-        'Shipping concern':   ['ship','deliver','packag','fast','quick','late','arrived','tracking','dispatch','delay'],
-        'Quality feedback':   ['quality','material','durable','solid','cheap','flimsy','premium','build','finish','defect'],
-        'Support needed':     ['support','help','service','response','ticket','agent','resolve','contact','fix','refund'],
-      };
-
-      const genPresets: Record<string, string> = {
-        review:   "The shipping was fast but the product quality didn't match the description at all. Very disappointed with the value.",
-        ticket:   'My order arrived damaged. I need help getting a replacement. Support has not responded in 3 days.',
-        feedback: 'Absolutely love this product! Build quality is excellent and it arrived two days early. Highly recommend.',
-      };
-
-      const genText = document.getElementById('genText') as HTMLTextAreaElement | null;
-
-      document.querySelectorAll('.gen-preset').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const key = (btn as HTMLElement).dataset.genPreset ?? '';
-          if (genText && genPresets[key]) genText.value = genPresets[key];
-          document.querySelectorAll('.gen-preset').forEach((b) => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-        });
-      });
-
-      function simClassify(text: string): Array<[string, number]> {
-        const t = text.toLowerCase();
-        const rawScores = GEN_LABELS.map((label) => {
-          const pats = GEN_PATTERNS[label] ?? [];
-          const hits = pats.filter((p) => t.includes(p)).length;
-          return [label, hits / (pats.length || 1) + Math.random() * 0.06] as [string, number];
-        });
-        const total = rawScores.reduce((s, [, v]) => s + v, 0) || 1;
-        return rawScores.map(([l, v]) => [l, parseFloat((v / total).toFixed(3))] as [string, number]).sort((a, b) => b[1] - a[1]);
-      }
-
-      const genForm = document.getElementById('genForm');
-      genForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = genForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        if (btn) { btn.textContent = 'Classifying...'; btn.disabled = true; }
-        const latencyMs = await simDelay(0.12, 0.38);
-        const text = genText?.value.trim() || '';
-        const results = simClassify(text);
-        const barsEl = document.getElementById('genProbBars');
-        if (barsEl) {
-          barsEl.innerHTML = results.map(([label, prob], i) => `
-            <div class="prob-bar">
-              <div class="prob-bar__header">
-                <span class="prob-bar__label">${label}</span>
-                <span class="prob-bar__pct">${(prob * 100).toFixed(1)}%</span>
-              </div>
-              <div class="prob-bar__track">
-                <div class="prob-bar__fill${i === 0 ? ' prob-bar__fill--top' : ''}" style="width: ${(prob * 100).toFixed(1)}%"></div>
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Similarity request failed');
+        document.getElementById('similarityLabel').textContent = `${data.result.matches.length} nearest neighbours`;
+        document.getElementById('similarityPill').textContent = `${data.result.matches.length} matches`;
+        document.getElementById('similarityPill').className = 'status-pill status-pill--info';
+        document.getElementById('similarityMatches').innerHTML = data.result.matches.map((match, i) => {
+          const score = Number(match.score);
+          const barPct = Math.round(score * 100);
+          return `
+          <div class="result-item">
+            <div class="result-item__left">
+              <span class="result-item__rank">${i + 1}</span>
+              <div class="result-item__info">
+                <span class="result-item__name">${match.product?.name ?? match.entityId}</span>
+                <span class="result-item__cat">${match.product?.categoryLabel ?? ''}</span>
               </div>
             </div>
-          `).join('');
-        }
-        const title = document.getElementById('genResultTitle');
-        if (title) title.textContent = results[0]?.[0] ?? '—';
-        const latPill = document.getElementById('genLatencyPill');
-        if (latPill) latPill.textContent = `${latencyMs} ms`;
-        updateLatencyBar(document.getElementById('genLatencyBar'), document.getElementById('genLatencyFill'), latencyMs);
-        const st = document.getElementById('genStatus'); if (st) st.textContent = '';
-        flashPanel(document.getElementById('genResultPanel'));
-        if (btn) { btn.textContent = 'Classify'; btn.disabled = false; }
-      });
-
-      // ── SCHEMA DRIFT TOGGLE ──────────────────────────────────────────
-      const driftToggle      = document.getElementById('driftToggle');
-      const driftToggleLabel = document.getElementById('driftToggleLabel');
-      const driftOutput      = document.getElementById('driftOutput');
-      const driftOutputCode  = document.getElementById('driftOutputCode');
-      const driftResultTitle = document.getElementById('driftResultTitle');
-      const driftResultPill  = document.getElementById('driftResultPill');
-      const driftExplanation = document.getElementById('driftExplanation');
-      const schemaDiff       = document.getElementById('schemaDiff');
-      let driftActive = false;
-
-      const normalCode = `// Schema hash matches — inference proceeds normally.
-
-    await session.loadTrait('userChurn', {
-      artifactsDir: '.scheml',
-      schemaPath: './prisma/schema.prisma',
-      adapter: 'prisma',
-    });
-    // result.prediction → "0"
-    // result.timestamp  → "2026-03-08T12:00:00.000Z"`;
-
-      const errorCode = `// PredictionSession validates the schema hash while loading.
-
-    await session.loadTrait('userChurn', {
-      artifactsDir: '.scheml',
-      schemaPath: './prisma/schema.prisma',
-      adapter: 'prisma',
-    }); // schema now hashes to 7d2e9f1a
-
-    // ✖ Throws before any inference:
-    // SchemaDriftError: Trait 'userChurn' was trained on schema
-    // hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
-    // Run \`scheml train\` to rebuild the artifact.`;
-
-      driftToggle?.addEventListener('click', () => {
-        driftActive = !driftActive;
-        driftToggle.setAttribute('aria-pressed', String(driftActive));
-        driftToggle.classList.toggle('is-active', driftActive);
-        if (driftToggleLabel) driftToggleLabel.textContent = driftActive ? 'Schema has changed' : 'Schema matches artifact';
-        if (schemaDiff) schemaDiff.setAttribute('aria-hidden', String(!driftActive));
-        if (driftResultTitle) driftResultTitle.textContent = driftActive ? 'SchemaDriftError thrown' : 'Prediction runs normally';
-        if (driftResultPill) { driftResultPill.textContent = driftActive ? 'Error' : 'OK'; driftResultPill.className = `status-pill ${driftActive ? 'status-pill--danger' : 'status-pill--healthy'}`; }
-        if (driftOutputCode) driftOutputCode.textContent = driftActive ? errorCode : normalCode;
-        if (driftOutput) { if (driftActive) driftOutput.setAttribute('data-tone', 'danger'); else driftOutput.removeAttribute('data-tone'); }
-        if (driftExplanation) {
-          driftExplanation.innerHTML = driftActive
-            ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>. ScheML catches the mismatch before running any inference and throws <code>SchemaDriftError</code>. You are forced to retrain — no silent model incorrectness.</p>`
-            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time. When calling <code>PredictionSession.loadTrait()</code>, ScheML re-hashes the current schema and compares. A match means the compiled feature contract is still valid against the live data shape.</p>`;
-        }
-      });
-
-      // ── CODE TABS ────────────────────────────────────────────────────
-      const tabs   = document.querySelectorAll('.code-tab');
-      const panels = document.querySelectorAll('.code-panel');
-      tabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          const target = tab.getAttribute('data-tab');
-          tabs.forEach((t)  => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
-          panels.forEach((p) => p.classList.remove('active'));
-          tab.classList.add('active');
-          tab.setAttribute('aria-selected', 'true');
-          document.getElementById(`panel-${target === 'predict' ? 'infer' : target}`)?.classList.add('active');
-        });
-      });
-
-      // ── COPY INSTALL COMMAND ─────────────────────────────────────────
-      const copyBtn    = document.getElementById('copyBtn');
-      const installCmd = document.getElementById('installCmd');
-      copyBtn?.addEventListener('click', async () => {
-        await navigator.clipboard.writeText('npm install @vncsleal/scheml');
-        installCmd?.classList.add('copied');
-        setTimeout(() => installCmd?.classList.remove('copied'), 2000);
-      });
-
-      // ── MOBILE MENU ──────────────────────────────────────────────────
-      const menuBtn = document.getElementById('menuBtn');
-      const header  = document.querySelector('.header');
-      menuBtn?.addEventListener('click', () => header?.classList.toggle('header--open'));
-      document.querySelectorAll('.header__nav-link').forEach((link) => {
-        link.addEventListener('click', () => header?.classList.remove('header--open'));
-      });
-
-      // ── HEADER SCROLL ────────────────────────────────────────────────
-      const heroSection = document.querySelector('.hero');
-      const headerEl = document.querySelector('.header') as HTMLElement | null;
-      if (heroSection && headerEl) {
-        new IntersectionObserver(
-          ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
-          { threshold: 0 }
-        ).observe(heroSection);
+            <div class="result-item__score-block">
+              <span class="result-item__score">${score.toFixed(4)}</span>
+              <div class="result-item__bar"><div class="result-item__bar-fill" style="width:${barPct}%"></div></div>
+            </div>
+          </div>`;
+        }).join('');
+        updateLatencyBar(document.getElementById('simLatencyBar'), document.getElementById('simLatencyFill'), data.result.latencyMs);
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Request failed';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Find neighbors';
       }
-
-      // ── SCROLL REVEAL ────────────────────────────────────────────────
-      const revealObs = new IntersectionObserver((entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) { e.target.classList.add('revealed'); revealObs.unobserve(e.target); }
-        });
-      }, { threshold: 0.06, rootMargin: '0px 0px -32px 0px' });
-
-      document.querySelectorAll('.drift-section .section-header, .drift-grid .panel, .drift-code-panel, .code-section .section-header').forEach((el) => {
-        el.classList.add('reveal-pending');
-        revealObs.observe(el);
-      });
-
     });
+
+    document.getElementById('temporalForm')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const status = document.getElementById('temporalStatus');
+      button.disabled = true;
+      button.textContent = 'Running...';
+      status.textContent = '';
+      try {
+        const scores = [...document.querySelectorAll('.temporal-input')].map((input) => Number(input.value));
+        const response = await fetch('/api/demo/temporal', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scores }),
+        });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Temporal request failed');
+        document.getElementById('temporalLabel').textContent = data.result.label;
+        document.getElementById('temporalPrediction').textContent = String(data.result.prediction);
+        document.getElementById('temporalLatency').textContent = `${data.result.latencyMs} ms`;
+        const isChurnSeq = String(data.result.prediction) === '1';
+        document.getElementById('temporalPill').textContent = isChurnSeq ? '1 — churn' : '0 — stable';
+        document.getElementById('temporalPill').className = `status-pill ${isChurnSeq ? 'status-pill--danger' : 'status-pill--healthy'}`;
+        document.getElementById('temporalResultPanel').dataset.tone = isChurnSeq ? 'danger' : 'healthy';
+        flashPanel(document.getElementById('temporalResultPanel'));
+        updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), data.result.latencyMs);
+        document.getElementById('temporalDerived').innerHTML = Object.entries(data.result.derivedFeatures).map(([key, value]) => {
+          const num = Number(value);
+          // clamp 0-1 range for the track; treat values > 1 as already 0..100 scale
+          const pct = num <= 1 ? Math.round(num * 100) : Math.min(100, Math.round(num));
+          return `
+          <div class="derived-chip">
+            <span class="derived-chip__key">${key.replace(/__/g, ' ')}</span>
+            <div class="derived-chip__track"><div class="derived-chip__fill" style="width:${pct}%"></div></div>
+            <strong class="derived-chip__val">${num.toFixed(3)}</strong>
+          </div>`;
+        }).join('');
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : 'Request failed';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Run temporal inference';
+      }
+    });
+
+    // ── SCHEMA DRIFT TOGGLE ────────────────────────────────────────────
+    const driftToggle      = document.getElementById('driftToggle');
+    const driftToggleLabel = document.getElementById('driftToggleLabel');
+    const driftOutputCode  = document.getElementById('driftOutputCode');
+    const driftResultTitle = document.getElementById('driftResultTitle');
+    const driftResultPill  = document.getElementById('driftResultPill');
+    const driftExplanation = document.getElementById('driftExplanation');
+    const schemaDiff       = document.getElementById('schemaDiff');
+    const driftOutput      = document.getElementById('driftOutput');
+    let driftActive = false;
+
+    const normalCode = `// Schema hash matches — inference proceeds normally.
+
+const result = await db.scheml.predict('userChurn', user);
+// result.prediction → "0"
+// result.timestamp  → "2026-03-08T12:00:00.000Z"`;
+
+    const errorCode = `// extendClient validates the schema hash on predict().
+
+const result = await db.scheml.predict('userChurn', user); // schema now hashes to 7d2e9f1a
+
+// ✖ Throws before any inference:
+// SchemaDriftError: Trait 'userChurn' was trained on schema
+// hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
+// Run \`scheml train\` to rebuild the artifact.`;
+
+    if (driftOutputCode) driftOutputCode.textContent = normalCode;
+
+    driftToggle && driftToggle.addEventListener('click', () => {
+      driftActive = !driftActive;
+      driftToggle.setAttribute('aria-pressed', String(driftActive));
+      driftToggle.classList.toggle('is-active', driftActive);
+      if (driftToggleLabel) driftToggleLabel.textContent = driftActive ? 'Schema has changed' : 'Schema matches artifact';
+      if (schemaDiff) schemaDiff.setAttribute('aria-hidden', String(!driftActive));
+      if (driftResultTitle) driftResultTitle.textContent = driftActive ? 'SchemaDriftError thrown' : 'Prediction runs normally';
+      if (driftResultPill) {
+        driftResultPill.textContent = driftActive ? 'Error' : 'OK';
+        driftResultPill.className = 'status-pill ' + (driftActive ? 'status-pill--danger' : 'status-pill--healthy');
+      }
+      if (driftOutputCode) driftOutputCode.textContent = driftActive ? errorCode : normalCode;
+      if (driftOutput) {
+        if (driftActive) driftOutput.setAttribute('data-tone', 'danger');
+        else driftOutput.removeAttribute('data-tone');
+      }
+      if (driftExplanation) {
+        driftExplanation.innerHTML = driftActive
+          ? '<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>. ScheML catches the mismatch before running any inference and throws <code>SchemaDriftError</code>. You are forced to retrain — no silent model incorrectness.</p>'
+          : '<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time. When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares. A match means the feature resolvers are still valid against the live data shape.</p>';
+      }
+    });
+
+    // ── CODE TABS ──────────────────────────────────────────────────────
+    const tabs   = document.querySelectorAll('.code-tab');
+    const panels = document.querySelectorAll('.code-panel');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.getAttribute('data-tab');
+        tabs.forEach((t) => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        panels.forEach((p) => p.classList.remove('active'));
+        tab.classList.add('active'); tab.setAttribute('aria-selected', 'true');
+        document.getElementById('panel-' + (target === 'predict' ? 'infer' : target))?.classList.add('active');
+      });
+    });
+
+    // ── COPY INSTALL COMMAND ───────────────────────────────────────────
+    const copyBtn    = document.getElementById('copyBtn');
+    const installCmd = document.getElementById('installCmd');
+    copyBtn && copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText('npm install @vncsleal/scheml');
+      installCmd?.classList.add('copied');
+      setTimeout(() => installCmd?.classList.remove('copied'), 2000);
+    });
+
+    // ── MOBILE MENU ────────────────────────────────────────────────────
+    const menuBtn = document.getElementById('menuBtn');
+    const header  = document.querySelector('.header');
+    menuBtn && menuBtn.addEventListener('click', () => header?.classList.toggle('header--open'));
+    document.querySelectorAll('.header__nav-link').forEach((link) => {
+      link.addEventListener('click', () => header?.classList.remove('header--open'));
+    });
+
+    // ── HEADER SCROLL ──────────────────────────────────────────────────
+    const heroSection = document.querySelector('.hero');
+    const headerEl = document.querySelector('.header');
+    if (heroSection && headerEl) {
+      new IntersectionObserver(
+        ([entry]) => headerEl.classList.toggle('header--scrolled', !entry.isIntersecting),
+        { threshold: 0 }
+      ).observe(heroSection);
+    }
+
+    // ── SCROLL REVEAL ──────────────────────────────────────────────────
+    const revealObs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('revealed'); revealObs.unobserve(e.target); }
+      });
+    }, { threshold: 0.06, rootMargin: '0px 0px -32px 0px' });
+
+    document.querySelectorAll('.drift-section .section-header, .drift-grid .panel, .drift-code-panel, .code-section .section-header').forEach((el) => {
+      el.classList.add('reveal-pending');
+      revealObs.observe(el);
+    });
+
+  });
   </script>
 
   <style is:global>
@@ -1585,7 +1599,7 @@ await session.loadTrait('userChurn', &#123;
     }
 
     /* Probability bars (temporal / generative) */
-    .prob-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .prob-bars { display: flex; flex-direction: column; gap: 5px; padding: var(--sp-4) var(--sp-4) var(--sp-3); border-top: 1px solid var(--border-subtle); }
     .prob-bar { }
     .prob-bar__header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
     .prob-bar__label { color: var(--text-secondary); }
@@ -1603,31 +1617,150 @@ await session.loadTrait('userChurn', &#123;
     .prob-bar__fill--top { background: var(--amber-50); }
 
     /* Similarity result list */
-    .result-list { display: flex; flex-direction: column; gap: 5px; margin-top: 16px; }
+    .result-list { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-4) var(--sp-4) var(--sp-3); margin: 0; border-top: 1px solid var(--border-subtle); }
     .result-item {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto;
       align-items: center;
-      justify-content: space-between;
-      padding: 7px 10px;
+      gap: 12px;
+      padding: 10px 14px;
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
       font-size: 13px;
+      transition: border-color 120ms;
     }
-    .result-item__left { display: flex; align-items: center; gap: 8px; }
-    .result-item__name { color: var(--text-primary); }
+    .result-item:hover { border-color: var(--border-strong); }
+    .result-item__left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .result-item__rank {
+      flex-shrink: 0;
+      width: 20px; height: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-placeholder);
+      background: var(--bg); border: 1px solid var(--border-subtle);
+    }
+    .result-item__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .result-item__name {
+      color: var(--text-primary);
+      font-size: 13px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .result-item__cat {
       font-size: 10px;
       font-family: var(--font-mono);
       color: var(--text-placeholder);
-      padding: 1px 6px;
-      background: var(--bg);
-      border: 1px solid var(--border-subtle);
     }
+    .result-item__score-block { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
     .result-item__score {
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 12px; font-weight: 600;
       color: var(--amber-40);
     }
+    .result-item__bar {
+      width: 60px; height: 3px;
+      background: var(--border-subtle);
+      overflow: hidden;
+    }
+    .result-item__bar-fill {
+      height: 100%;
+      background: var(--amber-40);
+      opacity: 0.7;
+    }
+
+    /* Derived feature chips (temporal result) */
+    .derived-chip {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      font-size: 12px;
+    }
+    .derived-chip__key {
+      color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .derived-chip__track {
+      width: 56px; height: 3px;
+      background: var(--border-subtle); overflow: hidden;
+    }
+    .derived-chip__fill {
+      height: 100%; background: var(--amber-40); opacity: 0.6;
+    }
+    .derived-chip__val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--amber-40); text-align: right; }
+
+    /* Generative contract components */
+    .context-chip {
+      font-family: var(--font-mono); font-size: 11px;
+      padding: 2px 8px;
+      background: var(--bg); border: 1px solid var(--border-strong);
+      color: var(--amber-40);
+    }
+    .contract-prompt {
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+      padding: var(--sp-3) var(--sp-4);
+      background: var(--bg); border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      white-space: pre-wrap; word-break: break-word; margin: 0;
+    }
+    .contract-prompt-edit {
+      width: 100%; box-sizing: border-box;
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+      padding: var(--sp-3) var(--sp-4);
+      background: var(--bg); border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      resize: vertical; white-space: pre-wrap; word-break: break-word; margin: 0;
+      transition: border-color 120ms ease;
+    }
+    .contract-prompt-edit:focus {
+      outline: none; border-color: var(--amber-60);
+    }
+    .contract-section__label {
+      font-size: 10px; font-family: var(--font-mono); letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-placeholder); margin-bottom: var(--sp-2);
+    }
+    .gen-preview { display: flex; flex-direction: column; }
+    .gen-section {
+      padding: var(--sp-4) var(--sp-6);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .gen-ctx { display: flex; flex-direction: column; gap: 6px; }
+    .gen-ctx-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-6); }
+    .gen-ctx-key { font-family: var(--font-mono); font-size: 12px; color: var(--text-placeholder); flex-shrink: 0; }
+    .gen-ctx-val { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); text-align: right; }
+    .gen-prompt-text {
+      font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+      color: var(--text-secondary); margin: 0; white-space: pre-wrap;
+    }
+    .choice-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .choice-chip {
+      font-family: var(--font-mono); font-size: 12px;
+      padding: 4px 12px;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      color: var(--text-placeholder);
+    }
+    .choice-chip--expected {
+      background: rgba(241, 194, 27, 0.10);
+      border-color: rgba(241, 194, 27, 0.3);
+      color: var(--amber-40);
+    }
+    .choice-chip--live {
+      background: rgba(66, 190, 101, 0.12);
+      border-color: rgba(66, 190, 101, 0.4);
+      color: var(--green-50);
+      font-weight: 600;
+    }
+    .gen-run-bar {
+      display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3);
+      padding: var(--sp-4) var(--sp-6);
+    }
+    .gen-run-bar .btn { width: 100%; justify-content: center; }
+    .gen-result {
+      padding: var(--sp-4) var(--sp-6) var(--sp-5);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .gen-meta { font-size: 12px; color: var(--text-placeholder); margin-top: var(--sp-3); }
 
     /* Hero trait pills (kept for reference) */
     .hero-trait-pills {
@@ -1771,6 +1904,7 @@ await session.loadTrait('userChurn', &#123;
     }
     .status-pill--healthy { background: rgba(66, 190, 101, 0.12); color: var(--green-50); }
     .status-pill--danger  { background: rgba(250, 77, 86, 0.12);  color: var(--red-50); }
+    .status-pill--info    { background: rgba(241, 194, 27, 0.10);  color: var(--amber-40); }
 
     /* Buttons */
     .btn {
@@ -1796,12 +1930,13 @@ await session.loadTrait('userChurn', &#123;
     .inference-section { background: var(--bg-elevated); }
     .inference-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); }
     .preset-bar {
-      display: flex; gap: var(--sp-2);
+      display: flex; flex-wrap: wrap; gap: var(--sp-2);
       padding: var(--sp-4) var(--sp-6);
       border-bottom: 1px solid var(--border-subtle);
     }
     .preset-btn {
-      height: 28px; padding: 0 var(--sp-3);
+      height: auto; padding: var(--sp-1) var(--sp-3);
+      white-space: normal; text-align: left; line-height: 1.4;
       background: none; border: 1px solid var(--border-subtle);
       font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
       cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
@@ -1809,6 +1944,8 @@ await session.loadTrait('userChurn', &#123;
     .preset-btn:hover, .preset-btn.is-active {
       background: var(--bg-elevated); color: var(--text-primary); border-color: var(--amber-60);
     }
+    #generativePresets { flex-direction: column; gap: var(--sp-2); }
+    #generativePresets .preset-btn { width: 100%; padding: var(--sp-2) var(--sp-3); }
     .inference-form { padding: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-6); }
     .field { display: flex; flex-direction: column; gap: var(--sp-2); }
     .field__header { display: flex; justify-content: space-between; align-items: center; }
@@ -2068,6 +2205,7 @@ await session.loadTrait('userChurn', &#123;
     .anim-delay-2 { animation-delay: 340ms; }
     .anim-delay-3 { animation-delay: 520ms; }
     @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+    @keyframes cursor-blink { 50% { opacity: 0; } }
 
     /* Responsive */
     @media (max-width: 900px) {
