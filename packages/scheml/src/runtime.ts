@@ -5,10 +5,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ScheMLConfig } from './defineConfig';
+import {
+  metadataFileName,
+  parseArtifactMetadata,
+  isPredictiveArtifact,
+  isAnomalyArtifact,
+  isTemporalArtifact,
+} from './artifacts';
 import type { AnyTraitDefinition } from './traitTypes';
 import { requireTraitEntityName, resolveConfiguredAdapter, resolveSchemaPath } from './adapterResolution';
-import { PredictionSession } from './prediction';
+import { PredictionSession, type PredictionSessionOptions } from './prediction';
 import { TTLCache } from './cache';
+import { getMaterializedColumnName } from './materialization';
 
 export interface ExtendClientOptions {
   artifactsDir?: string;
@@ -16,6 +24,16 @@ export interface ExtendClientOptions {
   mode?: 'materialized' | 'live';
   cacheTtlMs?: number;
   materializedColumnsPresent?: boolean;
+}
+
+export function createPredictionSession(
+  config: Pick<ScheMLConfig, 'generativeProvider'>,
+  options: PredictionSessionOptions = {}
+): PredictionSession {
+  return new PredictionSession({
+    ...options,
+    generativeProvider: options.generativeProvider ?? config.generativeProvider,
+  });
 }
 
 function getTraits(config: ScheMLConfig): AnyTraitDefinition[] {
@@ -31,6 +49,36 @@ function featureNamesFor(trait: AnyTraitDefinition): string[] {
 
 function supportsLiveInference(trait: AnyTraitDefinition): boolean {
   return trait.type === 'predictive' || trait.type === 'temporal' || trait.type === 'anomaly';
+}
+
+function resolveLiveFeatureNames(trait: AnyTraitDefinition, metadataPath: string): string[] {
+  const content = fs.readFileSync(metadataPath, 'utf-8');
+  const metadata = parseArtifactMetadata(JSON.parse(content));
+
+  if (!metadata) {
+    throw new Error(`Invalid artifact metadata for live trait ${trait.name}`);
+  }
+
+  if (isPredictiveArtifact(metadata)) {
+    return metadata.features.order;
+  }
+
+  if (isAnomalyArtifact(metadata)) {
+    return metadata.featureNames;
+  }
+
+  if (isTemporalArtifact(metadata)) {
+    const featureOrder = metadata.features?.order;
+    if (!featureOrder || featureOrder.length === 0) {
+      throw new Error(
+        `Temporal live trait ${trait.name} is missing compiled feature metadata. Retrain the trait artifacts before using live mode.`
+      );
+    }
+
+    return featureOrder;
+  }
+
+  return featureNamesFor(trait);
 }
 
 /**
@@ -64,6 +112,7 @@ export async function extendClient(
   const artifactsDir = path.resolve(options.artifactsDir ?? path.resolve(process.cwd(), '.scheml'));
 
   let predictionSession: PredictionSession | undefined;
+  const liveFeatureNamesByTrait = new Map<string, string[]>();
   if (mode === 'live') {
     if (!schemaPath && typeof config.adapter === 'string') {
       throw new Error(
@@ -71,19 +120,20 @@ export async function extendClient(
         'Set schema in scheml.config.ts or pass options.schemaPath to extendClient().'
       );
     }
-    predictionSession = new PredictionSession();
+    predictionSession = createPredictionSession(config);
     const missingArtifacts: string[] = [];
 
     for (const trait of traits) {
       requireTraitEntityName(trait, adapterName);
       if (!supportsLiveInference(trait)) continue;
 
-      const metadataPath = path.join(artifactsDir, `${trait.name}.metadata.json`);
+      const metadataPath = path.join(artifactsDir, metadataFileName(trait.name));
       if (!fs.existsSync(metadataPath)) {
         missingArtifacts.push(trait.name);
         continue;
       }
       await predictionSession.loadTrait(trait.name, { artifactsDir, schemaPath, adapter });
+      liveFeatureNamesByTrait.set(trait.name, resolveLiveFeatureNames(trait, metadataPath));
     }
 
     if (missingArtifacts.length > 0) {
@@ -98,8 +148,8 @@ export async function extendClient(
         return {
           traitName: trait.name,
           entityName: requireTraitEntityName(trait, adapterName),
-          featureNames: featureNamesFor(trait),
-          materializedColumn: trait.name,
+          featureNames: liveFeatureNamesByTrait.get(trait.name) ?? featureNamesFor(trait),
+          materializedColumn: getMaterializedColumnName(trait),
           supportsLiveInference: supportsLiveInference(trait),
         };
       }) as Array<{

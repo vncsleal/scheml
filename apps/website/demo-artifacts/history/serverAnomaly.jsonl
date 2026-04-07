@@ -1,1 +1,0 @@
-{"trait":"serverAnomaly","model":"ServerMetric","adapter":"prisma","schemaHash":"74b15913b930ef60c53394812f9f5cbb11c43cf1502c1211975b6b26a1d3d75d","definedAt":"2026-04-04T19:29:07.296Z","definedBy":"human:Vinicius Leal","trainedAt":"2026-04-04T19:29:07.366Z","artifactVersion":"1","status":"trained"}

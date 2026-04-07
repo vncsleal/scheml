@@ -1,10 +1,14 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PrismaQueryInterceptor } from '../../src/adapters/prisma';
 import { TTLCache } from '../../src/cache';
 import type { PredictionSession } from '../../src/prediction';
-import { extendClient } from '../../src/runtime';
+import { createPredictionSession, extendClient } from '../../src/runtime';
 import { registerAdapter } from '../../src/adapters';
 import type { ScheMLConfig } from '../../src/defineConfig';
+import { createAdvancedTempProject } from '../support/project';
 
 type TraitScalar = number | string | boolean | null;
 type RuntimeRow = Record<string, unknown>;
@@ -87,14 +91,17 @@ const customAdapterFactory = vi.fn(() => ({
     readSchema: vi.fn(async () => ({ entities: new Map(), rawSource: '' })),
     hashModel: vi.fn(() => 'hash'),
   },
-  createInterceptor: vi.fn(() => ({
-    extendClient: (client: unknown) => client,
-  })),
+  createInterceptor: customCreateInterceptor,
 }));
+
+const customCreateInterceptor = vi.fn(() => ({
+    extendClient: (client: unknown) => client,
+  }));
 
 beforeEach(() => {
   registerAdapter('runtime-test', customAdapterFactory);
   customAdapterFactory.mockClear();
+  customCreateInterceptor.mockClear();
 });
 
 afterEach(() => {
@@ -214,6 +221,14 @@ describe('PrismaQueryInterceptor', () => {
 });
 
 describe('extendClient', () => {
+  it('creates prediction sessions from config defaults', () => {
+    const provider = { model: 'gpt-4.1-mini' };
+    const session = createPredictionSession({ generativeProvider: provider });
+
+    expect(session).toBeDefined();
+    expect(typeof session.predictGenerative).toBe('function');
+  });
+
   it('fails loudly in live mode when a predictive trait artifact is missing', async () => {
     const config: ScheMLConfig = {
       adapter: 'runtime-test',
@@ -233,6 +248,81 @@ describe('extendClient', () => {
     await expect(
       extendClient({}, config, { mode: 'live', artifactsDir: '/tmp/does-not-exist' })
     ).rejects.toThrow('Missing metadata for: churnRisk');
+  });
+
+  it('uses the trait name as the materialized predictive column', async () => {
+    const config: ScheMLConfig = {
+      adapter: 'runtime-test',
+      traits: [
+        {
+          type: 'predictive',
+          name: 'churnRisk',
+          entity: 'User',
+          target: 'churned',
+          features: ['spend'],
+          output: { field: 'predictedChurnRisk', taskType: 'binary_classification' },
+        },
+      ],
+    };
+
+    await extendClient({}, config, { mode: 'materialized' });
+
+    expect(customCreateInterceptor).toHaveBeenCalledTimes(1);
+    expect(customCreateInterceptor.mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({
+        traitName: 'churnRisk',
+        materializedColumn: 'churnRisk',
+      }),
+    ]);
+  });
+
+  it('uses compiled temporal artifact features for live extendClient bindings', async () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-runtime-temporal-'));
+
+    try {
+      const project = await createAdvancedTempProject(rootDir);
+      const temporalCreateInterceptor = vi.fn(() => ({
+        extendClient: (client: unknown) => client,
+      }));
+
+      registerAdapter('runtime-temporal-test', () => ({
+        name: 'runtime-temporal-test',
+        reader: {
+          readSchema: vi.fn(async () => ({ entities: new Map(), rawSource: '' })),
+          hashModel: vi.fn(() => project.schemaHash),
+        },
+        createInterceptor: temporalCreateInterceptor,
+      }));
+
+      const config: ScheMLConfig = {
+        adapter: 'runtime-temporal-test',
+        schema: project.schemaPath,
+        traits: [
+          {
+            type: 'temporal',
+            name: project.temporalTraitName,
+            entity: 'Product',
+            sequence: 'sequenceValues',
+            orderBy: 'createdAt',
+            target: 'recentMaxViews',
+            output: { field: 'engagementForecast', taskType: 'regression' },
+          },
+        ],
+      };
+
+      await extendClient({}, config, { mode: 'live', artifactsDir: project.artifactsDir });
+
+      expect(temporalCreateInterceptor).toHaveBeenCalledTimes(1);
+      expect(temporalCreateInterceptor.mock.calls[0]?.[0]).toEqual([
+        expect.objectContaining({
+          traitName: project.temporalTraitName,
+          featureNames: ['windowMean', 'windowSum', 'windowMin', 'windowMax'],
+          supportsLiveInference: true,
+        }),
+      ]);
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 });
 

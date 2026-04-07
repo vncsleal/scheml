@@ -234,7 +234,7 @@ ScheML intentionally does not optimize for:
 
 - online learning
 - dynamic experimentation platforms
-- runtime model routing layers
+- runtime trait routing layers
 - mutable artifact state
 - implicit adapter discovery
 

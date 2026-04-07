@@ -10,9 +10,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
-import { parseArtifactMetadata, type ArtifactMetadata } from '../artifacts';
+import { metadataFileName, parseArtifactMetadata, type ArtifactMetadata } from '../artifacts';
 import { readLatestHistoryRecord } from '../history';
 import { readFeedbackRecords } from '../feedback';
+import { assertValidTraitName } from '../traitNames';
 
 interface InspectArgs {
   trait?: string;
@@ -34,17 +35,8 @@ type QualityGateRecord = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function sanitizeTraitName(name: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(
-      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
-    );
-  }
-  return name;
-}
-
 function metadataPath(outputDir: string, traitName: string): string {
-  return path.join(outputDir, `${traitName}.metadata.json`);
+  return path.join(outputDir, metadataFileName(traitName));
 }
 
 function loadMetadata(outputDir: string, traitName: string): ArtifactMetadata | null {
@@ -165,7 +157,7 @@ export const inspectCommand = {
       throw new Error('Trait name is required. Usage: scheml inspect <trait>');
     }
 
-    const traitName = sanitizeTraitName(argv.trait);
+    const traitName = assertValidTraitName(argv.trait);
     const outputDir = path.resolve(argv.output ?? './.scheml');
     const jsonMode = argv.json ?? false;
 

@@ -14,7 +14,7 @@ It is not a hosted ML platform, an online learning system, or a runtime experime
 
 ScheML is aimed at TypeScript and Prisma teams that want:
 - deterministic builds
-- schema-aware model artifacts
+- schema-aware trait artifacts
 - local inference without adding a separate prediction service
 - an ML workflow that can live inside the same repo as application code
 

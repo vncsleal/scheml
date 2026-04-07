@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
+import { sanitizeTraitFileComponent } from './traitNames';
 
 // ---------------------------------------------------------------------------
 // Record schema
@@ -223,11 +224,11 @@ export function detectAuthor(): string {
 // ---------------------------------------------------------------------------
 
 export function historyDir(outputDir: string): string {
-  return path.join(outputDir, 'history');
+  return path.resolve(outputDir, 'history');
 }
 
 export function historyFilePath(outputDir: string, traitName: string): string {
-  return path.join(outputDir, 'history', `${traitName}.jsonl`);
+  return path.join(historyDir(outputDir), `${sanitizeTraitFileComponent(traitName)}.jsonl`);
 }
 
 // ---------------------------------------------------------------------------

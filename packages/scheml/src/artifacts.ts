@@ -15,6 +15,8 @@
  * extend it with type-specific fields.
  */
 
+import { sanitizeTraitFileComponent } from './traitNames';
+
 // ---------------------------------------------------------------------------
 // Base
 // ---------------------------------------------------------------------------
@@ -334,11 +336,11 @@ export function isGenerativeArtifact(m: unknown): m is GenerativeArtifactMetadat
  * continues to work without changes to glob patterns.
  */
 export function metadataFileName(traitName: string): string {
-  return `${traitName}.metadata.json`;
+  return `${sanitizeTraitFileComponent(traitName)}.metadata.json`;
 }
 
 export function onnxFileName(traitName: string): string {
-  return `${traitName}.onnx`;
+  return `${sanitizeTraitFileComponent(traitName)}.onnx`;
 }
 
 export function anomalyFileName(_traitName: string): string {
@@ -348,10 +350,10 @@ export function anomalyFileName(_traitName: string): string {
 
 export function similarityIndexFileName(traitName: string, strategy: SimilarityStrategy): string {
   return strategy === 'faiss_ivf'
-    ? `${traitName}.faiss`
-    : `${traitName}.embeddings.npy`;
+    ? `${sanitizeTraitFileComponent(traitName)}.faiss`
+    : `${sanitizeTraitFileComponent(traitName)}.embeddings.npy`;
 }
 
 export function similarityIdsFileName(traitName: string): string {
-  return `${traitName}.ids.json`;
+  return `${sanitizeTraitFileComponent(traitName)}.ids.json`;
 }

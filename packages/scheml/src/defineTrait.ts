@@ -55,15 +55,15 @@ import {
   TemporalTrait,
   GenerativeTrait,
 } from './traitTypes';
+import { feedbackFilePath } from './feedback';
+import { assertValidTraitName } from './traitNames';
 
 // ---------------------------------------------------------------------------
 // Feedback persistence (append-only JSONL)
 // ---------------------------------------------------------------------------
 
 function feedbackPath(traitName: string): string {
-  // Sanitize trait name to prevent path traversal.
-  const safeName = path.basename(traitName).replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.resolve(process.cwd(), '.scheml', 'feedback', `${safeName}.jsonl`);
+  return feedbackFilePath(path.resolve(process.cwd(), '.scheml'), traitName);
 }
 
 function appendFeedback(traitName: string, entry: object): Promise<void> {
@@ -146,13 +146,7 @@ export function defineTrait(
   entity: unknown,
   config: Omit<AnyTraitDefinition, 'entity'>
 ): ResolvedTrait {
-  // Validate name: must be safe for use in file paths and CLI args.
-  // Prevents path traversal (e.g. '../../etc/passwd') in artifact file naming.
-  if (!/^[a-zA-Z0-9_-]+$/.test(config.name)) {
-    throw new Error(
-      `Invalid trait name "${config.name}". Names must contain only letters, numbers, underscores, and hyphens.`
-    );
-  }
+  assertValidTraitName(config.name);
 
   const definition: AnyTraitDefinition = {
     ...config,

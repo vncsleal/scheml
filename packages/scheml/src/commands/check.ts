@@ -24,7 +24,7 @@ interface CheckArgs {
   config?: string;
   schema?: string;
   output?: string;
-  model?: string;
+  trait?: string;
   json?: boolean;
 }
 
@@ -41,7 +41,7 @@ async function loadConfigModule(configPath: string) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function loadMetadataFiles(outputDir: string, model?: string): string[] {
+function loadMetadataFiles(outputDir: string, trait?: string): string[] {
   if (!fs.existsSync(outputDir)) {
     throw new Error(`Output directory not found: ${outputDir}`);
   }
@@ -49,10 +49,10 @@ function loadMetadataFiles(outputDir: string, model?: string): string[] {
   const entries = fs.readdirSync(outputDir);
   const metadataFiles = entries.filter((file) => file.endsWith('.metadata.json'));
 
-  if (model) {
-    const match = `${model}.metadata.json`;
+  if (trait) {
+    const match = `${trait}.metadata.json`;
     if (!metadataFiles.includes(match)) {
-      throw new Error(`Metadata not found for model "${model}" in ${outputDir}`);
+      throw new Error(`Metadata not found for trait "${trait}" in ${outputDir}`);
     }
     return [path.join(outputDir, match)];
   }
@@ -94,9 +94,9 @@ export const checkCommand = {
         type: 'string',
         default: './.scheml',
       })
-      .option('model', {
-        alias: 'm',
-        description: 'Single model name to validate',
+      .option('trait', {
+        alias: 't',
+        description: 'Single trait name to validate',
         type: 'string',
       })
       .option('json', {
@@ -121,12 +121,12 @@ export const checkCommand = {
     const adapterName = adapter.name;
 
     const outputDir = path.resolve(argv.output ?? './.scheml');
-    const modelFilter = argv.model;
+    const traitFilter = argv.trait;
     const jsonMode = argv.json ?? false;
 
     const reader = adapter.reader;
     const graph = await reader.readSchema(schemaPath ?? '');
-    const metadataPaths = loadMetadataFiles(outputDir, modelFilter);
+    const metadataPaths = loadMetadataFiles(outputDir, traitFilter);
 
     const errors: string[] = [];
     const warnings: string[] = [];

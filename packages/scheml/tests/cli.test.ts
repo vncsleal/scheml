@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createTempProject } from './support/project';
+import { createAdvancedTempProject, createTempProject } from './support/project';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(PACKAGE_ROOT, 'dist', 'bin.js');
@@ -54,6 +54,22 @@ describe('scheml CLI integration', () => {
       expect(status).not.toBe(0);
       expect(payload.ok).toBe(false);
       expect(payload.drift).toHaveLength(1);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('check --trait filters validation to a single trait artifact', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-cli-check-trait-'));
+    try {
+      const project = await createAdvancedTempProject(tempRoot);
+      const { status, stdout } = run(['check', '--trait', project.anomalyTraitName, '--json'], tempRoot);
+      const payload = JSON.parse(stdout.trim());
+
+      expect(status).toBe(0);
+      expect(payload.ok).toBe(true);
+      expect(payload.drift).toHaveLength(0);
+      expect(payload.errors).toHaveLength(0);
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -172,6 +188,75 @@ describe('scheml CLI integration', () => {
       expect(payload.ok).toBe(true);
       expect(fs.existsSync(path.join(tempRoot, 'scheml.config.ts'))).toBe(true);
       expect(fs.existsSync(path.join(tempRoot, '.scheml'))).toBe(true);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('materialize --json writes predictive results through the adapter write path', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-cli-materialize-predictive-'));
+    try {
+      const project = await createAdvancedTempProject(tempRoot);
+      const { status, stdout } = run(['materialize', '--trait', project.predictiveTraitName, '--json'], tempRoot);
+      const payload = JSON.parse(stdout.trim());
+
+      expect(status).toBe(0);
+      expect(payload.ok).toBe(true);
+      expect(payload.rowsWritten).toBe(3);
+      expect(payload.column).toBe(project.predictiveTraitName);
+
+      const rows = JSON.parse(fs.readFileSync(project.dataPath, 'utf-8')) as Array<Record<string, unknown>>;
+      expect(rows.every((row) => typeof row[project.predictiveTraitName] === 'number')).toBe(true);
+
+      const historyPath = path.join(project.artifactsDir, 'history', `${project.predictiveTraitName}.jsonl`);
+      const records = fs
+        .readFileSync(historyPath, 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { status: string });
+      expect(records.at(-1)?.status).toBe('materialized');
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('materialize --json writes anomaly scores through the adapter write path', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-cli-materialize-anomaly-'));
+    try {
+      const project = await createAdvancedTempProject(tempRoot);
+      const { status, stdout } = run(['materialize', '--trait', project.anomalyTraitName, '--json'], tempRoot);
+      const payload = JSON.parse(stdout.trim());
+
+      expect(status).toBe(0);
+      expect(payload.ok).toBe(true);
+      expect(payload.rowsWritten).toBe(3);
+      expect(payload.column).toBe(project.anomalyTraitName);
+
+      const rows = JSON.parse(fs.readFileSync(project.dataPath, 'utf-8')) as Array<Record<string, unknown>>;
+      expect(rows.every((row) => typeof row[project.anomalyTraitName] === 'number')).toBe(true);
+
+      const historyPath = path.join(project.artifactsDir, 'history', `${project.anomalyTraitName}.jsonl`);
+      const records = fs
+        .readFileSync(historyPath, 'utf-8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { status: string });
+      expect(records.at(-1)?.status).toBe('materialized');
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('materialize --json disconnects the extractor after success', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scheml-cli-materialize-cleanup-success-'));
+    try {
+      const project = await createAdvancedTempProject(tempRoot);
+      const { status } = run(['materialize', '--trait', project.predictiveTraitName, '--json'], tempRoot);
+
+      expect(status).toBe(0);
+
+      const cleanup = JSON.parse(fs.readFileSync(project.cleanupPath, 'utf-8')) as { events: string[] };
+      expect(cleanup.events).toContain('disconnect');
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }

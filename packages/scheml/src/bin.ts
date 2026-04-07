@@ -38,7 +38,7 @@ async function main() {
   await yargs(hideBin(process.argv))
     .version('version', 'Show version', VERSION)
     .help()
-    .command('train', 'Train ScheML models from definitions', trainCommand)
+    .command('train', 'Train ScheML trait artifacts from definitions', trainCommand)
     .command('check', 'Validate schema-only contract compatibility', checkCommand)
     .command('status', 'Show project status for trained traits', statusCommand)
     .command('history', 'Show trait history records', historyCommand)

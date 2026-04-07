@@ -13,8 +13,15 @@ import {
   resolveConfiguredAdapter,
   resolveSchemaPath,
 } from '../adapterResolution';
+import { getMaterializedColumnName } from '../materialization';
 import type { AnyTraitDefinition } from '../traitTypes';
-import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
+import {
+  loadConfigModule,
+  normalizeConfigExports,
+  resolveTraitDefinitions,
+  selectTraitDefinitions,
+} from './configHelpers';
+import { assertValidTraitName } from '../traitNames';
 
 interface MigrateArgs {
   config?: string;
@@ -24,15 +31,6 @@ interface MigrateArgs {
   dialect?: string;
   json?: boolean;
   'migrations-dir'?: string;
-}
-
-function sanitizeTraitName(name: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(
-      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
-    );
-  }
-  return name;
 }
 
 function extractDatasourceProvider(schemaContent: string): string {
@@ -144,7 +142,7 @@ export const migrateCommand = {
   },
   handler: async (argv: MigrateArgs) => {
     const configPath = path.resolve(argv.config ?? './scheml.config.ts');
-    const traitFilter = argv.trait ? sanitizeTraitName(argv.trait) : undefined;
+    const traitFilter = argv.trait ? assertValidTraitName(argv.trait) : undefined;
     const rawMigrationsDir = argv['migrations-dir'];
     const rawDialect = typeof argv.dialect === 'string' ? argv.dialect : undefined;
     const jsonMode = argv.json ?? false;
@@ -173,19 +171,18 @@ export const migrateCommand = {
         ?? resolveDefaultMigrationsDir(adapterName, schemaPath)
     );
 
-    const allTraits = extractTraitDefinitions(configExports);
-    const traits = traitFilter
-      ? allTraits.filter((trait) => trait.name === traitFilter)
-      : allTraits;
-
-    if (traitFilter && traits.length === 0) {
-      const message = `Trait "${traitFilter}" not found in config`;
+    const allTraits = resolveTraitDefinitions(configExports);
+    let traits: AnyTraitDefinition[];
+    try {
+      traits = selectTraitDefinitions(allTraits, traitFilter);
+    } catch (error) {
+      const message = (error as Error).message;
       if (jsonMode) {
         process.exitCode = 1;
         process.stdout.write(JSON.stringify({ ok: false, error: message, code: 'TRAIT_NOT_FOUND' }) + '\n');
         return;
       }
-      throw new Error(message);
+      throw error;
     }
 
     const statements: string[] = [];
@@ -194,6 +191,7 @@ export const migrateCommand = {
 
     for (const trait of traits) {
       const entityName = requireTraitEntityName(trait, adapterName);
+      const materializedColumn = getMaterializedColumnName(trait);
 
       const entityDef = schemaGraph.entities.get(entityName);
       if (!entityDef) {
@@ -201,14 +199,14 @@ export const migrateCommand = {
         continue;
       }
 
-      if (entityDef.fields[trait.name]) {
+      if (entityDef.fields[materializedColumn]) {
         skipped.push({ trait: trait.name, reason: 'column already exists' });
         continue;
       }
 
       const sqlType = columnTypeForTraitType(trait.type, provider);
       statements.push(
-        `ALTER TABLE "${escapeSqlId(entityName)}" ADD COLUMN "${escapeSqlId(trait.name)}" ${sqlType} NULL;`
+        `ALTER TABLE "${escapeSqlId(entityName)}" ADD COLUMN "${escapeSqlId(materializedColumn)}" ${sqlType} NULL;`
       );
     }
 

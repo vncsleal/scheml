@@ -69,9 +69,10 @@ Different trait types may emit different runtime artifact files, but metadata is
 Option A, explicit runtime session:
 
 ```typescript
-import { PredictionSession } from '@vncsleal/scheml';
+import { createPredictionSession } from '@vncsleal/scheml';
+import config from './scheml.config';
 
-const session = new PredictionSession();
+const session = createPredictionSession(config);
 
 await session.loadTrait('productSales', {
   artifactsDir: '.scheml',
@@ -96,6 +97,13 @@ const client = await extendClient(prisma, config, {
   mode: 'materialized',
 });
 ```
+
+Materialized column contract:
+
+- persisted trait columns are keyed by `trait.name`
+- `output.field` describes trait output metadata and artifact shape
+- `scheml migrate`, `scheml materialize`, and `extendClient(..., { mode: 'materialized' })` all use the trait name as the database column
+- `scheml materialize` always disposes its prediction session and disconnects the adapter extractor before exit, including failure paths
 
 ## Current Runtime Support
 
@@ -122,13 +130,24 @@ Runtime entrypoints:
 - anomaly: `predict()`, `predictBatch()`
 - temporal: `predict()`, `predictBatch()`
 - similarity: `predictSimilarity()`
-- generative: metadata contract, not ONNX runtime serving
+- generative: `predictGenerative()` using `defineConfig({ generativeProvider })` as the default provider, with an optional per-call override
+
+Generative runtime contract:
+
+- `defineConfig({ generativeProvider })` is the project-level default provider for generative traits
+- `scheml train` fails fast for generative traits when no provider is configured
+- `createPredictionSession(config)` binds that configured provider into runtime sessions
+- `session.predictGenerative(trait, entity, overrideProvider?)` still supports explicit provider overrides when needed
 
 ## Public API Highlights
 
 ### `defineTrait(entity, config)`
 
 Declares a trait and returns a resolved trait with `record()` and `recordBatch()` helpers.
+
+Trait composition uses object references via `traits: [...]`. At config load time, ScheML validates the full trait graph with `resolveTraitGraph()` semantics and rejects missing references, duplicate names, and dependency cycles before training starts. When dependencies are present, ScheML trains in topological order so prerequisite traits run before dependents.
+
+Trait names are part of the on-disk contract for artifacts, history, and feedback. Use only letters, digits, underscores, and hyphens.
 
 ### `defineConfig(config)`
 
@@ -137,6 +156,8 @@ Declares the explicit adapter, schema source, and traits for a project.
 ### `extendClient(client, config, options?)`
 
 Extends supported clients in either `materialized` or `live` mode.
+
+In `materialized` mode, ScheML reads persisted values from the column named after the trait itself. For predictive traits, this means `trait.name` is the database column contract; `output.field` does not rename the materialized column.
 
 `hybrid` mode is not supported.
 
@@ -180,6 +201,12 @@ qualityGates: [
 
 `scheml train` exits non-zero if any gate fails.
 
+Current enforcement scope:
+
+- predictive and temporal traits enforce quality gates against reported test metrics during `scheml train`
+- anomaly, similarity, and generative traits do not yet emit evaluable training metrics for gate enforcement
+- if those trait types declare `qualityGates`, `scheml train` now fails fast with a configuration error instead of silently ignoring the gates
+
 ## Feature Encoding
 
 | Feature type | Runtime encoding behavior |
@@ -202,6 +229,12 @@ Main commands:
 - `scheml audit`
 - `scheml migrate`
 - `scheml init`
+
+Training order and `--trait` behavior:
+
+- ScheML validates the configured trait dependency graph before training begins
+- training runs in dependency order, not raw array order from `config.traits`
+- `scheml train --trait <name>` includes that trait's dependencies automatically and trains the resulting dependency closure in topological order
 
 ## License
 

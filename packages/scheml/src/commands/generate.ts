@@ -9,7 +9,7 @@ import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { requireTraitEntityName, resolveConfiguredAdapter } from '../adapterResolution';
 import type { AnyTraitDefinition } from '../traitTypes';
-import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
+import { loadConfigModule, normalizeConfigExports, resolveTraitDefinitions } from './configHelpers';
 
 type GenerateArgs = {
   config: string;
@@ -109,7 +109,7 @@ export const generateCommand = {
     const configModule = await loadConfigModule(configPath);
     const configExports = normalizeConfigExports(configModule);
 
-    const traits = extractTraitDefinitions(configExports);
+    const traits = resolveTraitDefinitions(configExports);
     const adapterName = resolveConfiguredAdapter((configExports as { adapter?: unknown }).adapter).name;
     const declaration = buildDeclaration(traits, adapterName);
 

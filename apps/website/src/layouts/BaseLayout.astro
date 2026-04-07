@@ -7,7 +7,7 @@ const siteOrigin = Astro.site?.origin ?? 'https://getscheml.vercel.app';
 
 const {
   title = 'ScheML',
-  description = 'ScheML is to machine learning what Prisma is to databases. Define intelligence traits in TypeScript — compile once, run in-process.',
+  description = 'ScheML is to machine learning what Prisma is to databases. Define intelligence traits in TypeScript, compile runtime artefacts, and load them from your app.',
   siteName = 'ScheML',
   twitterHandle = '@iamvinico',
 } = Astro.props;
@@ -87,13 +87,14 @@ const image = `${siteOrigin}/og.png`;
       "isAccessibleForFree": true,
       "featureList": [
         "Five intelligence trait types: predictive, anomaly, similarity, temporal, generative",
-        "Prisma, Drizzle, and Zod adapters",
-        "Compile traits to versioned ONNX / FAISS / JSON artefacts",
-        "In-process inference — no Python sidecars",
+        "Prisma, Drizzle, TypeORM, and Zod adapters",
+        "Compile traits to versioned ONNX / NPY / FAISS / JSON artefacts",
+        "Local runtime inference for predictive, anomaly, similarity, and temporal traits",
+        "Provider-backed generative traits via the AI SDK",
         "Schema drift guard via SHA-256 hash",
         "Quality gates with threshold checks",
         "TraitGraph for composable trait pipelines",
-        "Feedback loop via db.scheml.record()"
+        "Feedback loop via trait record() / recordBatch() helpers"
       ]
     })} />
 

@@ -12,6 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { QualityGate } from './types';
+import { sanitizeTraitFileComponent } from './traitNames';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,8 +58,12 @@ export interface AccuracyDecayResult {
 // I/O helpers
 // ---------------------------------------------------------------------------
 
+export function feedbackDir(outputDir: string): string {
+  return path.resolve(outputDir, 'feedback');
+}
+
 export function feedbackFilePath(outputDir: string, traitName: string): string {
-  return path.join(outputDir, 'feedback', `${traitName}.jsonl`);
+  return path.join(feedbackDir(outputDir), `${sanitizeTraitFileComponent(traitName)}.jsonl`);
 }
 
 export function readFeedbackRecords(outputDir: string, traitName: string): FeedbackRecord[] {

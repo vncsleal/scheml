@@ -4,14 +4,14 @@
 
 ### Schema Validation
 
-Every model is bound to a specific Prisma schema via SHA256 hash:
+Every trained trait artifact is bound to a specific Prisma schema via SHA256 hash:
 
 - Normalizes schema (removes whitespace, comments)
 - Computes deterministic hash
 - Records hash in metadata
 - At runtime, **rejects predictions** if hash doesn't match
 
-**Effect:** Prevents silent bugs from schema drift after model compilation.
+**Effect:** Prevents silent bugs from schema drift after artifact compilation.
 
 This is **non-negotiable** and causes hard failures (not warnings).
 
@@ -24,7 +24,7 @@ Predictions are deterministic within platform guarantees:
 - No external service calls
 - No time-dependent behavior
 
-**Effect:** Models are reproducible and auditable.
+**Effect:** Trait artifacts are reproducible and auditable.
 
 ### Type Safety
 
@@ -57,14 +57,14 @@ try {
 
 ### Immutable Artifacts
 
-Models compile to immutable artifacts:
+Traits compile to immutable artifacts:
 
 - Never modified after generation
 - Committed to git (auditable)
 - No runtime mutations
 - Deterministic within numeric bounds
 
-**Effect:** Models don't change unexpectedly.
+**Effect:** Artifacts don't change unexpectedly.
 
 ---
 
@@ -93,7 +93,7 @@ During `scheml train`:
 ### In Production
 
 At runtime:
-- Models execute in-process
+- Trait artifacts execute in-process
 - No data leaves your application
 - No telemetry or logging
 - Feature data is transient (not stored)
@@ -104,7 +104,7 @@ At runtime:
 
 ### Quality Gates
 
-Models must pass quality gates before export:
+Trainable trait artifacts must pass quality gates before export:
 
 ```typescript
 qualityGates: [
@@ -119,10 +119,10 @@ qualityGates: [
 If any gate fails:
 - Artifact generation **aborts**
 - Exit code is non-zero
-- No model is exported
+- No artifact is exported
 - You must fix and retrain
 
-**Effect:** Prevents deploying low-quality models.
+**Effect:** Prevents deploying low-quality artifacts.
 
 ### Batch Validation
 
@@ -142,7 +142,7 @@ If any entity fails validation:
 
 ### Schema Drift Detection
 
-If Prisma schema changes after model compilation:
+If Prisma schema changes after artifact compilation:
 
 ```typescript
 // Schema changed - hash mismatch
@@ -153,7 +153,7 @@ await session.predict(model, entity, resolvers);
 
 No predictions happen if schema drifts.
 
-**Effect:** Prevents using stale models with new schema.
+**Effect:** Prevents using stale trait artifacts with new schema.
 
 ---
 
@@ -175,7 +175,7 @@ TypeScript's type system prevents this at compile time.
 
 > **Note:** Static AST analysis of feature resolvers is not yet implemented. TypeScript provides compile-time safety, but callers are responsible for avoiding patterns like `eval` or dynamic `require` within feature resolvers.
 
-### Model Artifacts
+### Artifact Formats
 
 ONNX models are:
 - Binary format (not executable code)
@@ -208,12 +208,12 @@ Dependencies should be:
 ### Data Protection
 
 If using ScheML in GDPR/CCPA jurisdiction:
-- Models don't store personal data
+- Trait artifacts don't store personal data
 - Feature extraction is transient
 - Artifacts are not PII
 - Training data is your responsibility
 
-### Model Governance
+### Artifact Governance
 
 ScheML enforces:
 - Reproducible training (git artifacts)
@@ -248,7 +248,7 @@ These are **your responsibility** as a developer.
 ### Deployment Safety
 
 1. Commit artifacts to git
-2. Use feature branches for model updates
+2. Use feature branches for trait updates
 3. Require code review for artifact changes
 4. Monitor prediction errors in production
 5. Retrain when schema changes
@@ -260,7 +260,7 @@ Track in production:
 - Error rates
 - Unseen categories
 - Schema drift failures
-- Model version distribution
+- Artifact version distribution
 
 ### Retraining
 
@@ -311,7 +311,7 @@ Before using in production:
 
 ScheML depends on:
 - `@prisma/client` — database ORM
-- `onnxruntime-node` — model predictions
+- `onnxruntime-node` — ONNX predictions
 - `yargs` — CLI parsing
 - TypeScript & Node.js — runtime
 

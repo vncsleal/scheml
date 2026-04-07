@@ -141,21 +141,39 @@ Supported trait kinds:
 - `temporal`
 - `generative`
 
+Trait graph behavior:
+
+- trait composition uses object references via `traits: [...]`, not string names
+- config loading validates the full trait graph before command execution
+- duplicate trait names, missing referenced traits, and dependency cycles are treated as configuration errors
+- commands that operate on configured traits consume them in topological dependency order
+
+Trait names are also used as stable file-backed identifiers for artifacts, history, and feedback. Keep them limited to letters, digits, underscores, and hyphens.
+
 ### `defineConfig(config)`
 
 Typed factory for `scheml.config.ts`.
 
 ```typescript
 import { defineConfig } from '@vncsleal/scheml';
+import { openai } from '@ai-sdk/openai';
 
 export default defineConfig({
   adapter: 'prisma',
   schema: './prisma/schema.prisma',
+  generativeProvider: openai('gpt-4.1-mini'),
   traits: [churnRisk],
 });
 ```
 
 `adapter` is required. It can be a built-in adapter name or a configured adapter instance.
+
+`generativeProvider` behavior:
+
+- acts as the project-level default provider for generative traits
+- is validated during `scheml train` when a generative trait is present
+- is applied to runtime sessions created with `createPredictionSession(config)`
+- can still be overridden per call with `session.predictGenerative(trait, entity, provider)`
 
 ## Adapter API
 
@@ -259,6 +277,16 @@ Helpers for deterministic categorical contract construction.
 
 Creates a reusable runtime inference session.
 
+For config-backed generative traits, prefer:
+
+```typescript
+import { createPredictionSession } from '@vncsleal/scheml';
+import config from './scheml.config';
+
+const session = createPredictionSession(config);
+const output = await session.predictGenerative(productPitch, product);
+```
+
 ### `session.loadTrait(traitName, options)`
 
 Loads a trait artifact from disk and validates it against the current schema using an explicit adapter.
@@ -282,6 +310,7 @@ Rules:
 - predictive and temporal traits load ONNX sessions
 - anomaly traits load metadata-backed runtime scoring state
 - similarity traits load the similarity index and use `predictSimilarity()`
+- generative traits use `predictGenerative()` and the configured default provider
 
 ### `session.initializeModel(metadataPath, onnxPath, schemaHash)`
 
@@ -332,6 +361,12 @@ const extended = await extendClient(prisma, config, {
 });
 ```
 
+Materialized column contract:
+
+- persisted trait values are stored in the database column named after `trait.name`
+- this contract is shared by `scheml migrate`, `scheml materialize`, and `extendClient(..., { mode: 'materialized' })`
+- for predictive traits, `output.field` remains artifact/output metadata and does not rename the persisted column
+
 Supported runtime modes:
 
 - `materialized`
@@ -354,6 +389,8 @@ scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --outpu
 Responsibilities:
 
 - load config and traits
+- validate the trait dependency graph
+- order traits topologically before execution
 - resolve the explicit adapter
 - read and hash the schema
 - extract training data
@@ -362,13 +399,41 @@ Responsibilities:
 - evaluate quality gates
 - emit immutable artifacts
 
+`scheml train --trait <name>` selects the requested trait together with its dependencies and trains that dependency closure in topological order.
+
+Quality gate enforcement currently applies to trait types whose training backends emit evaluation metrics during training. Today that means predictive and temporal traits. If anomaly, similarity, or generative traits declare `qualityGates`, `scheml train` fails fast with a configuration error rather than treating those gates as passive metadata.
+
 ### `scheml check`
 
 Validates current schema compatibility against existing artifacts without retraining.
 
+Use `--trait <name>` to validate a single trait artifact.
+
 ```bash
 scheml check --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
+scheml check --trait churnRisk --json
 ```
+
+### `scheml materialize`
+
+Runs batch inference for one materializable trait and writes predictions back to the database column named after `trait.name`.
+
+```bash
+scheml materialize --trait churnRisk --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
+scheml materialize --trait churnRisk --json
+```
+
+Current support:
+
+- predictive traits
+- anomaly traits
+
+Operational guarantees:
+
+- loads the trained artifact before extraction so schema drift fails before writes begin
+- writes predictions in batches using the requested `--batch-size`
+- appends a `materialized` history record only after successful writes complete
+- always disposes the in-memory prediction session and disconnects the adapter extractor in a `finally` path, whether materialization succeeds or throws
 
 ### Other Commands
 
@@ -378,6 +443,8 @@ scheml check --config ./scheml.config.ts --schema ./prisma/schema.prisma --outpu
 - `scheml audit` summarizes artifact history state
 - `scheml migrate` writes schema migrations for materialized trait columns on migration-capable adapters
 - `scheml init` scaffolds a starter config and `.scheml/` directory
+
+For materialized traits, the generated database column is always the trait name. Example: a predictive trait named `churnRisk` materializes into a `churnRisk` column even if `output.field` is `predictedChurnRisk`.
 
 ## Errors
 
@@ -410,7 +477,7 @@ Common categories include:
 ```
 
 **Throws:**
-- `ArtifactError` — if model not initialized
+- `ArtifactError` — if the trait artifact is not initialized
 - `FeatureExtractionError` — if resolver fails
 - `HydrationError` — if required fields missing
 - `UnseenCategoryError` — if categorical value unseen
@@ -443,7 +510,7 @@ console.log(result.successCount);
 
 #### `session.dispose(modelName): Promise<void>`
 
-Release ONNX session for a model.
+Release the ONNX session for a loaded trait artifact.
 
 ```typescript
 await session.dispose('userLTV');

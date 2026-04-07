@@ -6,7 +6,7 @@ import { getDemoModelInfo, predictDemoChurn } from '../lib/demoPrediction';
 export const prerender = false;
 
 const title = 'ScheML — Live Demo';
-const description = 'Run a real ONNX model in-process. Adjust features, see the prediction and latency, then simulate a schema drift error — the thing that makes ScheML different.';
+const description = 'Run the local inference demos, inspect their latency, and simulate a schema drift error. The generative pane shows the runtime contract with a local stand-in instead of a live provider call.';
 
 const demoInfo = await getDemoModelInfo();
 const initialInputs = { daysSinceActive: 34, monthlySpend: 192, supportTickets: 7 };
@@ -14,7 +14,7 @@ const initialPrediction = await predictDemoChurn(initialInputs, 'demo-default');
 
 const defineCode = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const userChurn = defineTrait('User', {
+export const userChurn = defineTrait('User', {
   type: 'predictive',
   name: 'userChurn',
   target: 'willChurn',
@@ -31,10 +31,13 @@ const userChurn = defineTrait('User', {
 });
 
 export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
   traits: [userChurn],
 });`;
 
-const trainCode = `$ scheml train
+const trainCode = `$ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
+$ scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 
 ◉ Loading Prisma schema...
 ✔ Schema loaded (hash: a3f8c1b2)
@@ -54,13 +57,21 @@ Artefacts:
   userChurn.metadata.json
   userChurn.onnx`;
 
-const predictCode = `import { extendClient } from '@vncsleal/scheml';
-import { PrismaClient } from '@prisma/client';
-import config from './scheml.config';
+const predictCode = `import { PredictionSession } from '@vncsleal/scheml';
 
-const db = extendClient(new PrismaClient(), config);
+const session = new PredictionSession();
 
-const result = await db.scheml.predict('userChurn', user);
+await session.loadTrait('userChurn', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+const result = await session.predict('userChurn', user, {
+  lastActiveAt: (row) => row.lastActiveAt,
+  monthlySpend: (row) => row.monthlySpend,
+  supportTickets: (row) => row.supportTickets,
+});
 
 console.log(result.prediction);  // "1" or "0"
 console.log(result.timestamp);   // "2026-03-08T12:00:00.000Z"
@@ -72,10 +83,15 @@ const driftCode = `// After adding a new field to schema.prisma:
 //   subscriptionTier String   // ← new field
 // }
 
-// extendClient validates the schema hash on every predict() call.
-const result = await db.scheml.predict('userChurn', user); // schema now hashes to 7d2e9f1a
+const session = new PredictionSession();
 
-// ✖ Throws:
+await session.loadTrait('userChurn', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+// ✖ Throws before inference:
 // SchemaDriftError: Trait 'userChurn' was trained on schema
 // hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
 // Run \`scheml train\` to rebuild the artifact.`;
@@ -132,7 +148,8 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           Intelligence that<br/>ships with your code.
         </h1>
         <p class="hero__lead anim-fade-up anim-delay-2">
-          Five trait types. One API. Each runs in-process — no serialisation, no network hop.
+          Five trait types. One API. Predictive, anomaly, temporal, and similarity inference stay in-process;
+          generative traits call your configured AI provider through the AI SDK.
           Select a trait type to run an interactive demo.
         </p>
         <div class="trait-tabs anim-fade-up anim-delay-3" id="traitTabs" role="tablist" aria-label="Trait type demo">
@@ -153,8 +170,8 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <p class="section-tag" id="inferenceTag">Live inference · predictive</p>
           <h2 class="section-title" id="inferenceTitle">Adjust inputs. Get a real prediction.</h2>
           <p class="section-desc" id="inferenceDesc">
-            Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code>
-            synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.
+            Each submit hits <code>/api/demo/predict</code>, which calls a <code>PredictionSession</code>-backed helper
+            in the Node.js route. The latency shown is the demo's measured wall-clock time for local ONNX inference.
           </p>
         </div>
 
@@ -653,16 +670,16 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                   <div><dt>Algorithm</dt><dd class="mono">multinomial_nb</dd></div>
                   <div><dt>Artefact</dt><dd class="mono">contentClass.onnx</dd></div>
                 </dl>
-                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution. In production, a generative trait returns <code>&#123; description: "..." &#125;</code> from your configured AI provider.</p>
+                <p id="genStatus" class="result-status" aria-live="polite">Hit "Classify" to see the label distribution. In production, a generative trait is executed via <code>predictGenerative()</code> and returns <code>&#123; traitName, result, timestamp &#125;</code>.</p>
               </div>
 
               <div class="panel latency-panel">
                 <div class="panel__header">
-                  <div><p class="eyebrow">Latency comparison</p><h3>Why in-process matters</h3></div>
+                  <div><p class="eyebrow">Latency comparison</p><h3>Stand-in latency only</h3></div>
                 </div>
                 <div class="latency-bars">
                   <div class="latency-bar">
-                    <div class="latency-bar__label"><span>ScheML in-process</span><strong id="genLatencyBar" class="latency-bar__ms">—</strong></div>
+                    <div class="latency-bar__label"><span>Local stand-in</span><strong id="genLatencyBar" class="latency-bar__ms">—</strong></div>
                     <div class="latency-bar__track"><div class="latency-bar__fill latency-bar__fill--accent" id="genLatencyFill" style="width: 0%"></div></div>
                   </div>
                   <div class="latency-bar">
@@ -678,7 +695,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
                     <div class="latency-bar__track"><div class="latency-bar__fill" style="width: 100%"></div></div>
                   </div>
                 </div>
-                <p class="latency-note">Scale: 0 – 800 ms. ScheML runs ONNX Runtime in-process — no serialisation, no network hop.</p>
+                <p class="latency-note">Scale: 0 – 800 ms. This pane uses an in-process ONNX classifier as a stand-in. Real generative traits depend on your provider, model, and network path.</p>
               </div>
             </div>
 
@@ -697,7 +714,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
           <h2 class="section-title">The model knows what schema it was trained on.</h2>
           <p class="section-desc">
             Every artefact carries a SHA-256 hash of the Prisma schema at compile time. If the schema changes
-            and you call <code>db.scheml.predict()</code>, ScheML throws a typed
+            and you call <code>PredictionSession.loadTrait()</code>, ScheML throws a typed
             <code>SchemaDriftError</code> before a single inference runs. No silent incorrectness.
           </p>
           <div class="artifact-ls drift-ls">
@@ -718,7 +735,7 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             </div>
             <p class="drift-desc">
               This artefact was compiled against schema hash <code>a3f8c1b2</code>.
-              Simulate adding a field to the <code>User</code> model and watch the session refuse to proceed.
+              Simulate adding a field to the <code>User</code> model and watch trait loading refuse to proceed.
             </p>
             <div class="drift-toggle-row">
               <button class="drift-toggle" type="button" id="driftToggle" aria-pressed="false">
@@ -756,14 +773,18 @@ const initialIsChurn = String(initialPrediction.prediction) === '1';
             </div>
             <pre class="drift-output" id="driftOutput"><code id="driftOutputCode">// Schema hash matches — inference proceeds normally.
 
-const result = await db.scheml.predict('userChurn', user);
+await session.loadTrait('userChurn', &#123;
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+&#125;);
 // result.prediction → "0"
 // result.timestamp  → "2026-03-08T12:00:00.000Z"</code></pre>
             <div class="drift-explanation" id="driftExplanation">
               <p>
                 The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time.
-                When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares.
-                A match means the feature resolvers are still valid against the live data shape.
+                When calling <code>PredictionSession.loadTrait()</code>, ScheML re-hashes the current schema and compares.
+                A match means the compiled feature contract is still valid against the live data shape.
               </p>
             </div>
           </div>
@@ -894,7 +915,7 @@ const result = await db.scheml.predict('userChurn', user);
         predictive: {
           tag: 'Live inference · predictive',
           title: 'Adjust inputs. Get a real prediction.',
-          desc: `Each submit hits <code>/api/demo/predict</code>, which calls <code>db.scheml.predict()</code> synchronously in the Node.js route. The latency shown is actual wall-clock ONNX inference time.`,
+          desc: `Each submit hits <code>/api/demo/predict</code>, which calls a <code>PredictionSession</code>-backed helper in the Node.js route. The latency shown is the demo's measured wall-clock time for local ONNX inference.`,
         },
         anomaly: {
           tag: 'Live inference · anomaly',
@@ -914,7 +935,7 @@ const result = await db.scheml.predict('userChurn', user);
         generative: {
           tag: 'Live inference · generative (stand-in)',
           title: 'Text classification as a generative proxy.',
-          desc: `The real <code>generative</code> trait calls an AI SDK provider (e.g. <code>openai:gpt-4o-mini</code>) in-process and returns structured text. This demo substitutes a multinomial Naive Bayes classifier — same in-process execution model, no API key required.`,
+          desc: `The real <code>generative</code> trait calls your configured AI SDK provider (e.g. <code>openai:gpt-4o-mini</code>) via <code>predictGenerative()</code>. This demo substitutes a multinomial Naive Bayes classifier so the site can run without external credentials.`,
         },
       };
 
@@ -1352,18 +1373,26 @@ const result = await db.scheml.predict('userChurn', user);
 
       const normalCode = `// Schema hash matches — inference proceeds normally.
 
-const result = await db.scheml.predict('userChurn', user);
-// result.prediction → "0"
-// result.timestamp  → "2026-03-08T12:00:00.000Z"`;
+    await session.loadTrait('userChurn', {
+      artifactsDir: '.scheml',
+      schemaPath: './prisma/schema.prisma',
+      adapter: 'prisma',
+    });
+    // result.prediction → "0"
+    // result.timestamp  → "2026-03-08T12:00:00.000Z"`;
 
-      const errorCode = `// extendClient validates the schema hash on predict().
+      const errorCode = `// PredictionSession validates the schema hash while loading.
 
-const result = await db.scheml.predict('userChurn', user); // schema now hashes to 7d2e9f1a
+    await session.loadTrait('userChurn', {
+      artifactsDir: '.scheml',
+      schemaPath: './prisma/schema.prisma',
+      adapter: 'prisma',
+    }); // schema now hashes to 7d2e9f1a
 
-// ✖ Throws before any inference:
-// SchemaDriftError: Trait 'userChurn' was trained on schema
-// hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
-// Run \`scheml train\` to rebuild the artifact.`;
+    // ✖ Throws before any inference:
+    // SchemaDriftError: Trait 'userChurn' was trained on schema
+    // hash a3f8c1b2 but the current schema hash is 7d2e9f1a.
+    // Run \`scheml train\` to rebuild the artifact.`;
 
       driftToggle?.addEventListener('click', () => {
         driftActive = !driftActive;
@@ -1378,7 +1407,7 @@ const result = await db.scheml.predict('userChurn', user); // schema now hashes 
         if (driftExplanation) {
           driftExplanation.innerHTML = driftActive
             ? `<p>The new field <code>subscriptionTier</code> changed the schema hash to <code>7d2e9f1a</code>. ScheML catches the mismatch before running any inference and throws <code>SchemaDriftError</code>. You are forced to retrain — no silent model incorrectness.</p>`
-            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time. When calling <code>db.scheml.predict()</code>, ScheML re-hashes the current schema and compares. A match means the feature resolvers are still valid against the live data shape.</p>`;
+            : `<p>The session holds <code>a3f8c1b2</code> — the hash of the schema at compile time. When calling <code>PredictionSession.loadTrait()</code>, ScheML re-hashes the current schema and compares. A match means the compiled feature contract is still valid against the live data shape.</p>`;
         }
       });
 

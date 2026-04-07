@@ -29,7 +29,9 @@
     "test:watch": "turbo run test:watch"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*",
+    "apps/*"
   ],
   "devDependencies": {
     "@types/node": "^25.2.0",

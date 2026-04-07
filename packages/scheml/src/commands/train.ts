@@ -22,7 +22,7 @@ import chalk from 'chalk';
 import {
   VERSION,
 } from '..';
-import { ModelDefinitionError, ConfigurationError } from '..';
+import { ModelDefinitionError, ConfigurationError, QualityGateError } from '..';
 import type {
   PredictiveArtifactMetadata,
   AnomalyArtifactMetadata,
@@ -30,11 +30,14 @@ import type {
   TemporalArtifactMetadata,
   GenerativeArtifactMetadata,
 } from '../artifacts';
+import { metadataFileName } from '../artifacts';
+import type { QualityGate, TrainingMetrics } from '../types';
 import { normalizeFeatureVector } from '../encoding';
 import {
   validateGenerativeTrait,
   compileGenerativeTrait,
 } from '../generative';
+import { requireGenerativeProvider } from '../generativeProvider';
 import {
   appendHistoryRecord,
   detectAuthor,
@@ -47,7 +50,12 @@ import {
 } from '../adapterResolution';
 import type { ScheMLAdapter } from '../adapters/interface';
 import { fitTrainingContract, splitTrainingRows, type TrainingRow } from '../trainingContract';
-import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
+import {
+  loadConfigModule,
+  normalizeConfigExports,
+  resolveTraitDefinitions,
+  selectTraitDefinitions,
+} from './configHelpers';
 
 const SENSITIVITY_TO_CONTAMINATION: Record<'low' | 'medium' | 'high', number> = {
   low: 0.05,
@@ -96,6 +104,7 @@ type PythonTemporalResponse = {
   aggregations: TemporalArtifactMetadata['aggregations'];
   onnxPath: string;
   bestEstimator?: string;
+  metrics: NonNullable<TemporalArtifactMetadata['trainingMetrics']>;
 };
 
 type PythonPredictiveResponse = {
@@ -103,6 +112,56 @@ type PythonPredictiveResponse = {
   onnxPath: string;
   bestEstimator: string;
 };
+
+export function evaluateQualityGates(
+  modelName: string,
+  qualityGates: QualityGate[] | undefined,
+  metrics: TrainingMetrics[] | undefined,
+): Record<string, { threshold: number; result: number }> | undefined {
+  if (!qualityGates?.length) {
+    return undefined;
+  }
+
+  if (!metrics?.length) {
+    throw new ConfigurationError(
+      `Trait "${modelName}" declares quality gates, but the training backend did not report metrics to evaluate.`
+    );
+  }
+
+  const results: Record<string, { threshold: number; result: number }> = {};
+
+  for (const gate of qualityGates) {
+    const metric = metrics.find((entry) => entry.metric === gate.metric && entry.split === 'test')
+      ?? metrics.find((entry) => entry.metric === gate.metric);
+
+    if (!metric) {
+      throw new ConfigurationError(
+        `Trait "${modelName}" declares a quality gate for "${gate.metric}", but the training backend did not report that metric.`
+      );
+    }
+
+    results[gate.metric] = {
+      threshold: gate.threshold,
+      result: metric.value,
+    };
+
+    const passed = gate.comparison === 'gte'
+      ? metric.value >= gate.threshold
+      : metric.value <= gate.threshold;
+
+    if (!passed) {
+      throw new QualityGateError(
+        modelName,
+        gate.metric,
+        gate.threshold,
+        metric.value,
+        gate.comparison
+      );
+    }
+  }
+
+  return results;
+}
 
 function getNumericField(row: ExtractedEntityRow, field: string): number {
   return Number(row[field] ?? 0);
@@ -242,16 +301,16 @@ export const trainCommand = {
 
       const configModule = await loadConfigModule(configPath);
       const configExports = normalizeConfigExports(configModule);
-      let traitDefinitions = extractTraitDefinitions(configExports);
+      let traitDefinitions = resolveTraitDefinitions(configExports);
 
       const traitFilter = argv.trait as string | undefined;
       if (traitFilter) {
-        traitDefinitions = traitDefinitions.filter((trait) => trait.name === traitFilter);
-        if (traitDefinitions.length === 0) {
-          throw new ModelDefinitionError(
-            traitFilter,
-            `Trait "${traitFilter}" not found in config`
-          );
+        try {
+          traitDefinitions = selectTraitDefinitions(traitDefinitions, traitFilter, {
+            includeDependencies: true,
+          });
+        } catch (error) {
+          throw new ModelDefinitionError(traitFilter, (error as Error).message);
         }
       }
 
@@ -415,6 +474,11 @@ export const trainCommand = {
             predictiveResult.stdout,
             'Python predictive backend'
           );
+          const predictiveQualityGateResults = evaluateQualityGates(
+            trait.name,
+            trait.qualityGates,
+            predictiveResponse.metrics,
+          );
           const predictiveSchemaHash = adapter.reader.hashModel(graph, entityName);
           const predictiveMetadata: PredictiveArtifactMetadata = {
             traitType: 'predictive',
@@ -459,11 +523,11 @@ export const trainCommand = {
             onnxFile: path.basename(predictiveResponse.onnxPath),
           };
           fs.writeFileSync(
-            path.join(outputDir, `${trait.name}.metadata.json`),
+            path.join(outputDir, metadataFileName(trait.name)),
             JSON.stringify(predictiveMetadata, null, 2)
           );
           spinner.succeed(`Trained predictive trait ${chalk.bold(trait.name)}`);
-          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          traitArtifactNames.push(metadataFileName(trait.name));
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
@@ -473,10 +537,16 @@ export const trainCommand = {
             definedBy: detectAuthor(),
             trainedAt: new Date().toISOString(),
             artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            qualityGates: predictiveQualityGateResults,
             status: 'trained',
           });
 
         } else if (trait.type === 'anomaly') {
+          if (trait.qualityGates?.length) {
+            throw new ConfigurationError(
+              `Trait "${trait.name}" declares quality gates, but anomaly training does not report evaluable metrics yet.`
+            );
+          }
           const features = trait.baseline;
           const contamination = SENSITIVITY_TO_CONTAMINATION[trait.sensitivity];
           const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
@@ -531,11 +601,11 @@ export const trainCommand = {
             normScoreStats: anomalyResponse.normScoreStats,
           };
           fs.writeFileSync(
-            path.join(outputDir, `${trait.name}.metadata.json`),
+            path.join(outputDir, metadataFileName(trait.name)),
             JSON.stringify(anomalyMetadata, null, 2)
           );
           spinner.succeed(`Trained anomaly trait ${chalk.bold(trait.name)}`);
-          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          traitArtifactNames.push(metadataFileName(trait.name));
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
@@ -549,6 +619,11 @@ export const trainCommand = {
           });
 
         } else if (trait.type === 'similarity') {
+          if (trait.qualityGates?.length) {
+            throw new ConfigurationError(
+              `Trait "${trait.name}" declares quality gates, but similarity training does not report evaluable metrics yet.`
+            );
+          }
           const features = trait.on;
           const entities = await adapter.extractor.extract(entityName, { orderBy: 'id' });
           if (!entities.length) {
@@ -601,11 +676,11 @@ export const trainCommand = {
             entityIdsFile: simResponse.strategy === 'faiss_ivf' ? simResponse.idsFile : undefined,
           };
           fs.writeFileSync(
-            path.join(outputDir, `${trait.name}.metadata.json`),
+            path.join(outputDir, metadataFileName(trait.name)),
             JSON.stringify(simMetadata, null, 2)
           );
           spinner.succeed(`Trained similarity trait ${chalk.bold(trait.name)}`);
-          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          traitArtifactNames.push(metadataFileName(trait.name));
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
@@ -672,6 +747,11 @@ export const trainCommand = {
             seqResult.stdout,
             'Python temporal backend'
           );
+          const temporalQualityGateResults = evaluateQualityGates(
+            trait.name,
+            trait.qualityGates,
+            seqResponse.metrics,
+          );
           const seqSchemaHash = adapter.reader.hashModel(graph, entityName);
           // Build FeatureSchema from the expanded feature names returned by Python
           const expandedNames: string[] = seqResponse.expandedFeatureNames ?? [];
@@ -704,13 +784,14 @@ export const trainCommand = {
             taskType: trait.output.taskType,
             bestEstimator: seqResponse.bestEstimator,
             features: seqFeatures,
+            trainingMetrics: seqResponse.metrics,
           };
           fs.writeFileSync(
-            path.join(outputDir, `${trait.name}.metadata.json`),
+            path.join(outputDir, metadataFileName(trait.name)),
             JSON.stringify(seqMetadata, null, 2)
           );
           spinner.succeed(`Trained temporal trait ${chalk.bold(trait.name)}`);
-          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          traitArtifactNames.push(metadataFileName(trait.name));
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,
@@ -720,10 +801,17 @@ export const trainCommand = {
             definedBy: detectAuthor(),
             trainedAt: new Date().toISOString(),
             artifactVersion: nextArtifactVersion(outputDir, trait.name),
+            qualityGates: temporalQualityGateResults,
             status: 'trained',
           });
         // generative: no Python backend — compile-time template validation only
         } else if (trait.type === 'generative') {
+          if (trait.qualityGates?.length) {
+            throw new ConfigurationError(
+              `Trait "${trait.name}" declares quality gates, but generative trait compilation does not report evaluable metrics.`
+            );
+          }
+          requireGenerativeProvider(trait.name, configExports.generativeProvider);
           const availableFields = new Set(Object.keys(graph.entities.get(entityName)?.fields ?? {}));
           validateGenerativeTrait(trait, availableFields);
           const genSchemaHash = adapter.reader.hashModel(graph, entityName);
@@ -733,11 +821,11 @@ export const trainCommand = {
             qualityGates: trait.qualityGates,
           };
           fs.writeFileSync(
-            path.join(outputDir, `${trait.name}.metadata.json`),
+            path.join(outputDir, metadataFileName(trait.name)),
             JSON.stringify(genMetadata, null, 2)
           );
           spinner.succeed(`Compiled generative trait ${chalk.bold(trait.name)}`);
-          traitArtifactNames.push(`${trait.name}.metadata.json`);
+          traitArtifactNames.push(metadataFileName(trait.name));
           appendHistoryRecord(outputDir, {
             trait: trait.name,
             model: entityName,

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import {
+  feedbackDir,
   feedbackFilePath,
   readFeedbackRecords,
   checkFeedbackDecay,
@@ -25,10 +26,10 @@ afterEach(() => {
 });
 
 function writeFeedbackRecords(traitName: string, records: Omit<FeedbackRecord, 'recordedAt'>[]): void {
-  const dir = path.join(tmpDir, 'feedback');
+  const dir = feedbackDir(tmpDir);
   fs.mkdirSync(dir, { recursive: true });
   const lines = records.map((r) => JSON.stringify({ ...r, recordedAt: new Date().toISOString() }));
-  fs.writeFileSync(path.join(dir, `${traitName}.jsonl`), lines.join('\n') + '\n', 'utf-8');
+  fs.writeFileSync(feedbackFilePath(tmpDir, traitName), lines.join('\n') + '\n', 'utf-8');
 }
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,11 @@ describe('feedbackFilePath', () => {
   it('returns path under feedback/ subdirectory', () => {
     const p = feedbackFilePath('/project/.scheml', 'churnRisk');
     expect(p).toBe(path.join('/project/.scheml', 'feedback', 'churnRisk.jsonl'));
+  });
+
+  it('normalizes unsafe trait names before building the path', () => {
+    const p = feedbackFilePath('/project/.scheml', '../churn risk');
+    expect(p).toBe(path.join('/project/.scheml', 'feedback', 'churn_risk.jsonl'));
   });
 });
 
@@ -69,6 +75,16 @@ describe('readFeedbackRecords', () => {
     ]);
     const records = readFeedbackRecords(tmpDir, 'ltv');
     expect(records[0].predicted).toBeUndefined();
+  });
+
+  it('reads records back through the normalized feedback path', () => {
+    writeFeedbackRecords('../churn risk', [
+      { entityId: 'u1', actual: true, predicted: 0.9 },
+    ]);
+
+    const records = readFeedbackRecords(tmpDir, '../churn risk');
+    expect(records).toHaveLength(1);
+    expect(records[0].entityId).toBe('u1');
   });
 });
 

@@ -12,21 +12,13 @@ import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { readHistoryRecords, type HistoryRecord } from '../history';
+import { assertValidTraitName } from '../traitNames';
 
 type DiffCommandArgs = {
   trait?: string;
   output: string;
   json?: boolean;
 };
-
-function sanitizeTraitName(name: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(
-      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
-    );
-  }
-  return name;
-}
 
 // ---------------------------------------------------------------------------
 // Change detection
@@ -142,7 +134,7 @@ export const diffCommand = {
       throw new Error('Trait name is required. Usage: scheml diff <trait>');
     }
 
-    const traitName = sanitizeTraitName(argv.trait);
+    const traitName = assertValidTraitName(argv.trait);
     const outputDir = path.resolve(argv.output);
     const jsonMode = argv.json ?? false;
 

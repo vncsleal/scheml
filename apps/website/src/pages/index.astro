@@ -8,13 +8,13 @@ const description = 'ScheML is to machine learning what Prisma is to databases. 
 // ── Trait define snippets ─────────────────────────────────
 const defineCodePredictive = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const churnRisk = defineTrait('User', {
+export const churnRisk = defineTrait('User', {
   type: 'predictive',
   name: 'churnRisk',
-  target: 'cancelledAt',
-  features: ['logins', 'subscription', 'totalSpend', 'monthsActive'],
+  target: 'willChurn',
+  features: ['lastActiveAt', 'monthlySpend', 'supportTickets'],
   output: {
-    field: 'willChurn',
+    field: 'predictedChurnRisk',
     taskType: 'binary_classification',
   },
   qualityGates: [
@@ -22,36 +22,47 @@ const churnRisk = defineTrait('User', {
   ],
 });
 
-export default defineConfig({ traits: [churnRisk] });`;
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [churnRisk],
+});`;
 
 const defineCodeAnomaly = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const orderFraud = defineTrait('Order', {
+export const orderFraud = defineTrait('Order', {
   type: 'anomaly',
   name: 'orderFraud',
-  features: ['amount', 'itemCount', 'shippingCountry', 'accountAgeDays'],
-  algorithm: { name: 'iforest' },
+  baseline: ['amount', 'itemCount', 'refundRate'],
+  sensitivity: 'medium',
   qualityGates: [
     { metric: 'roc_auc', threshold: 0.90, comparison: 'gte' },
   ],
 });
 
-export default defineConfig({ traits: [orderFraud] });`;
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [orderFraud],
+});`;
 
 const defineCodeSimilarity = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const productRecommend = defineTrait('Product', {
+export const productRecommend = defineTrait('Product', {
   type: 'similarity',
   name: 'productRecommend',
-  features: ['category', 'price', 'brand', 'avgRating'],
-  algorithm: { name: 'cosine' },
+  on: ['price', 'rating', 'categoryAffinity'],
 });
 
-export default defineConfig({ traits: [productRecommend] });`;
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [productRecommend],
+});`;
 
 const defineCodeTemporal = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
 
-const engagementTrend = defineTrait('SessionEvent', {
+export const engagementTrend = defineTrait('SessionEvent', {
   type: 'temporal',
   name: 'engagementTrend',
   sequence: 'engagementScore',
@@ -60,22 +71,32 @@ const engagementTrend = defineTrait('SessionEvent', {
   output: { field: 'predictedChurn', taskType: 'binary_classification' },
 });
 
-export default defineConfig({ traits: [engagementTrend] });`;
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [engagementTrend],
+});`;
 
 const defineCodeGenerative = `import { defineTrait, defineConfig } from '@vncsleal/scheml';
+import { openai } from '@ai-sdk/openai';
 
-const productDescription = defineTrait('Product', {
+export const productDescription = defineTrait('Product', {
   type: 'generative',
   name: 'productDescription',
-  contextFields: ['name', 'category', 'specs'],
-  output: { field: 'description' },
-  provider: { sdk: 'ai', model: 'openai:gpt-4o-mini' },
+  context: ['name', 'category', 'specs'],
+  prompt: 'Write a concise product description for this catalog entry.',
 });
 
-export default defineConfig({ traits: [productDescription] });`;
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  generativeProvider: openai('gpt-4o-mini'),
+  traits: [productDescription],
+});`;
 
 // ── Compile / Infer snippets ──────────────────────────────
-const trainCode = `$ scheml train
+const trainCode = `$ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
+$ scheml train --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
 
 ◉ Loading schema...
 ✔ Schema loaded
@@ -97,33 +118,89 @@ Artefacts:
   churnRisk.metadata.json
   churnRisk.onnx`;
 
-const inferCodePredictive = `import { extendClient } from '@vncsleal/scheml';
-import { PrismaClient } from '@prisma/client';
-import config from './scheml.config';
+const inferCodePredictive = `import { PredictionSession } from '@vncsleal/scheml';
 
-const db = extendClient(new PrismaClient(), config);
+const session = new PredictionSession();
 
-const result = await db.scheml.predict('churnRisk', user);
-// → { prediction: "1", timestamp: "2026-04-02T..." }`;
+await session.loadTrait('churnRisk', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
 
-const inferCodeAnomaly = `const result = await db.scheml.predict('orderFraud', order);
-// → { score: 0.87, isAnomaly: true }`;
+const result = await session.predict('churnRisk', user, {
+  lastActiveAt: (row) => row.lastActiveAt,
+  monthlySpend: (row) => row.monthlySpend,
+  supportTickets: (row) => row.supportTickets,
+});
+// → { modelName: "churnRisk", prediction: "1", timestamp: "2026-04-02T..." }`;
 
-const inferCodeSimilarity = `const results = await db.scheml.findSimilar(
+const inferCodeAnomaly = `import { PredictionSession } from '@vncsleal/scheml';
+
+const session = new PredictionSession();
+
+await session.loadTrait('orderFraud', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+const result = await session.predict('orderFraud', order, {
+  amount: (row) => row.amount,
+  itemCount: (row) => row.itemCount,
+  refundRate: (row) => row.refundRate,
+});
+// → { modelName: "orderFraud", prediction: 0.87, confidence: 0.87, timestamp: "2026-04-02T..." }`;
+
+const inferCodeSimilarity = `import { PredictionSession } from '@vncsleal/scheml';
+
+const session = new PredictionSession();
+
+await session.loadTrait('productRecommend', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+const result = await session.predictSimilarity(
   'productRecommend',
   seedProduct,
+  {
+    price: (row) => row.price,
+    rating: (row) => row.rating,
+    categoryAffinity: (row) => row.categoryAffinity,
+  },
   { limit: 10 }
 );
-// → Product[] ranked by cosine similarity`;
+// → { traitName: "productRecommend", matches: [...], timestamp: "2026-04-02T..." }`;
 
-const inferCodeTemporal = `const result = await db.scheml.predict('engagementTrend', sessionWindow);
-// → { prediction: "1", timestamp: "2026-04-02T..." }`;
+const inferCodeTemporal = `import { PredictionSession } from '@vncsleal/scheml';
 
-const inferCodeGenerative = `const result = await db.scheml.generate(
-  'productDescription',
-  product
+const session = new PredictionSession();
+
+await session.loadTrait('engagementTrend', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
+
+const result = await session.predict('engagementTrend', sessionWindow, {
+  engagementScore: (row) => row.engagementScore,
+});
+// → { modelName: "engagementTrend", prediction: "1", timestamp: "2026-04-02T..." }`;
+
+const inferCodeGenerative = `import { PredictionSession } from '@vncsleal/scheml';
+import { openai } from '@ai-sdk/openai';
+import { productDescription } from './scheml.config';
+
+const session = new PredictionSession();
+
+const result = await session.predictGenerative(
+  productDescription,
+  product,
+  openai('gpt-4o-mini')
 );
-// → { description: "Lightweight merino blend..." }`;
+// → { traitName: "productDescription", result: "Lightweight merino blend...", timestamp: "2026-04-02T..." }`;
 ---
 
 <BaseLayout title={title} description={description}>
@@ -183,7 +260,8 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
 
           <p class="hero__lead">
             Define intelligence traits — predictive, anomaly, similarity, temporal, or generative — in TypeScript.
-            ScheML compiles them to versioned build artefacts and runs each one in-process — no model registry, no microservices.
+            ScheML compiles them to versioned build artefacts. Predictive, anomaly, temporal, and similarity inference run in-process;
+            generative traits call your configured AI provider through the AI SDK.
           </p>
 
           <div class="hero__actions">
@@ -262,7 +340,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             </svg>
           </div>
           <div class="pipeline__label">Infer</div>
-          <div class="pipeline__desc">In-process</div>
+          <div class="pipeline__desc">App runtime</div>
         </div>
       </div>
     </section>
@@ -272,10 +350,10 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
       <div class="code-section__container">
         <div class="section-header">
           <p class="section-tag">Workflow</p>
-          <h2 class="section-title">Three files. Zero infrastructure.</h2>
+          <h2 class="section-title">Three files. No model-serving layer.</h2>
           <p class="section-desc">
-            Define any intelligence trait in TypeScript, compile once, run in-process.
-            Same feature resolvers at train time and inference time — the encoding cannot drift.
+            Define any intelligence trait in TypeScript, compile runtime artefacts, and keep one application-facing contract.
+            Predictive, anomaly, similarity, and temporal traits load local artefacts; generative traits call your configured AI provider.
           </p>
         </div>
 
@@ -389,8 +467,8 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
                 <rect x="22" y="13" width="8" height="9" rx="1"/>
               </svg>
             </div>
-            <h3 class="feature-card__title">Three adapters</h3>
-            <p class="feature-card__desc">Prisma (model string), Drizzle (table object), Zod (schema object). Same trait definition — swap only the entity declaration.</p>
+            <h3 class="feature-card__title">Four adapters</h3>
+            <p class="feature-card__desc">Prisma (model string), Drizzle (table object), TypeORM (entity class), and Zod (schema object). Same trait definition — swap only the entity declaration.</p>
           </div>
 
           <div class="feature-card">
@@ -401,7 +479,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">In-process inference</h3>
-            <p class="feature-card__desc">ONNX Runtime, FAISS, and AI SDK calls run in-process. No serialization, no network hop. Predictive trait latency typically &lt;1 ms.</p>
+            <p class="feature-card__desc">PredictionSession runs predictive, anomaly, temporal, and similarity inference directly in your app process. Generative traits call your configured AI provider through the AI SDK.</p>
           </div>
 
           <div class="feature-card">
@@ -412,7 +490,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Schema drift guard</h3>
-            <p class="feature-card__desc">Every artefact carries a SHA-256 hash of the schema at compile time. <code>db.scheml.predict()</code> re-hashes on every call — <code>SchemaDriftError</code> before a single inference runs.</p>
+            <p class="feature-card__desc">Every artefact carries a SHA-256 hash of the schema at compile time. <code>PredictionSession.loadTrait()</code> and live <code>extendClient()</code> validate that hash before inference starts.</p>
           </div>
 
           <div class="feature-card">
@@ -448,7 +526,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               </svg>
             </div>
             <h3 class="feature-card__title">Feedback loop</h3>
-            <p class="feature-card__desc"><code>db.scheml.record()</code> and <code>db.scheml.recordBatch()</code> push observed outcomes back. Re-run <code>scheml train</code> to close the loop without changing your schema.</p>
+            <p class="feature-card__desc">Resolved traits expose <code>record()</code> and <code>recordBatch()</code> helpers for observed outcomes. Pair them with <code>scheml check</code> and <code>scheml train</code> to monitor and refresh artifacts.</p>
           </div>
         </div>
       </div>
@@ -473,8 +551,8 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               <h3 class="arch-card__title">Declaration</h3>
             </div>
             <p class="arch-card__body">
-              Use <code>defineTrait()</code> to declare an intelligence trait against a Prisma model, Drizzle table, or Zod schema.
-              Specify feature fields, algorithm, and quality constraints. No data access — purely declarative.
+              Use <code>defineTrait()</code> to declare an intelligence trait against a Prisma model, Drizzle table, TypeORM entity, or Zod schema.
+              Then wire adapter and schema source through <code>defineConfig()</code>. No data access happens inside the trait declaration itself.
             </p>
             <div class="arch-card__tags">
               <span class="tag">defineTrait()</span>
@@ -490,11 +568,11 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             </div>
             <p class="arch-card__body">
               The CLI loads trait definitions, extracts training data via your adapter, and materialises a training dataset.
-              A Python backend trains the model and exports a versioned artefact — ONNX, FAISS, embedded pickle, or JSON config — plus a schema hash.
+              A Python backend trains the model and exports versioned runtime artefacts — ONNX, NPY / FAISS, or JSON metadata — plus a schema hash.
             </p>
             <div class="arch-card__tags">
               <span class="tag">scheml train</span>
-              <span class="tag">ONNX / FAISS / AI SDK</span>
+              <span class="tag">ONNX / NPY / FAISS / JSON</span>
               <span class="tag">Schema hash</span>
             </div>
           </div>
@@ -505,13 +583,14 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               <h3 class="arch-card__title">Inference</h3>
             </div>
             <p class="arch-card__body">
-              At runtime, <code>extendClient()</code> wraps your ORM client. The same feature resolvers that ran at train time
-              run at inference time — encoding cannot drift. Schema hash is validated on every call.
+              At runtime, use <code>PredictionSession</code> for explicit inference, or <code>await extendClient(...)</code> for supported adapters.
+              The same compiled feature contract is used at inference time, and schema hashes are validated when traits are loaded.
             </p>
             <div class="arch-card__tags">
-              <span class="tag">extendClient()</span>
+              <span class="tag">PredictionSession</span>
+              <span class="tag">await extendClient()</span>
               <span class="tag">In-process</span>
-              <span class="tag">Deterministic</span>
+              <span class="tag">Schema hash</span>
             </div>
           </div>
         </div>
@@ -543,7 +622,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
               <li><span class="supported__check">&#10003;</span> Random forest</li>
               <li><span class="supported__check">&#10003;</span> Gradient boosting</li>
               <li><span class="supported__check">&#10003;</span> Isolation forest</li>
-              <li><span class="supported__check">&#10003;</span> LSTM</li>
+              <li><span class="supported__check">&#10003;</span> Extra trees</li>
             </ul>
           </div>
           <div class="supported__col">
@@ -561,6 +640,7 @@ const inferCodeGenerative = `const result = await db.scheml.generate(
             <ul class="supported__list">
               <li><span class="supported__check">&#10003;</span> Prisma (model string)</li>
               <li><span class="supported__check">&#10003;</span> Drizzle (table object)</li>
+              <li><span class="supported__check">&#10003;</span> TypeORM (entity class)</li>
               <li><span class="supported__check">&#10003;</span> Zod (schema object)</li>
             </ul>
           </div>

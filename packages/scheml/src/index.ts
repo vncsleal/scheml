@@ -66,6 +66,7 @@ export {
 } from './encoding';
 
 // Prediction engine
+export type { PredictionSessionOptions } from './prediction';
 export { ModelMetadataLoader, FeatureExtractor, PredictionSession } from './prediction';
 
 // Adapter system
@@ -159,7 +160,7 @@ export { extractArtifactFeatureNames, checkArtifactDrift } from './drift';
 // Runtime extension helpers
 export { TTLCache } from './cache';
 export type { ExtendClientOptions } from './runtime';
-export { extendClient } from './runtime';
+export { createPredictionSession, extendClient } from './runtime';
 
 // Feedback — accuracy decay detection from ground-truth observations
 export type { FeedbackRecord, AccuracyDecayResult } from './feedback';

@@ -16,10 +16,16 @@ import {
   resolveConfiguredAdapter,
   resolveSchemaPath,
 } from '../adapterResolution';
-import { parseArtifactMetadata } from '../artifacts';
+import { metadataFileName, parseArtifactMetadata } from '../artifacts';
 import { appendHistoryRecord, detectAuthor, readLatestHistoryRecord } from '../history';
+import { getMaterializedColumnName } from '../materialization';
 import type { AnyTraitDefinition } from '../traitTypes';
-import { extractTraitDefinitions, loadConfigModule, normalizeConfigExports } from './configHelpers';
+import {
+  loadConfigModule,
+  normalizeConfigExports,
+  resolveTraitDefinitions,
+  selectTraitDefinitions,
+} from './configHelpers';
 
 type MaterializableTraitLike = AnyTraitDefinition & {
   type: 'predictive' | 'anomaly';
@@ -97,6 +103,9 @@ export const materializeCommand = {
   handler: async (argv: MaterializeArgs) => {
     const spinner = ora();
     const jsonMode = argv.json ?? false;
+    let predictionSession: PredictionSession | undefined;
+    let extractorDisconnect: (() => Promise<void>) | undefined;
+    let materializeError: Error | undefined;
 
     if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
       throw new Error('Trait name is required. Usage: scheml materialize --trait <name>');
@@ -111,11 +120,8 @@ export const materializeCommand = {
       if (!jsonMode) spinner.start('Loading config...');
       const configModule = await loadConfigModule(configPath);
       const configExports = normalizeConfigExports(configModule);
-      const traits = extractTraitDefinitions(configExports);
-      const trait = traits.find((item) => item.name === traitName);
-      if (!trait) {
-        throw new Error(`Trait "${traitName}" not found in config`);
-      }
+      const traits = resolveTraitDefinitions(configExports);
+      const [trait] = selectTraitDefinitions(traits, traitName);
       if (!isMaterializableTrait(trait)) {
         throw new Error(
           `Trait "${traitName}" has type "${trait.type}". Materialize currently supports predictive and anomaly traits only.`
@@ -138,16 +144,17 @@ export const materializeCommand = {
       if (!adapter.extractor) {
         throw new Error(`Adapter "${adapterName}" does not support data extraction`);
       }
+      extractorDisconnect = adapter.extractor.disconnect?.bind(adapter.extractor);
 
-      const metadataPath = path.join(outputDir, `${trait.name}.metadata.json`);
+      const metadataPath = path.join(outputDir, metadataFileName(trait.name));
       if (!fs.existsSync(metadataPath)) {
         throw new Error(`Artifact metadata not found for trait "${trait.name}" in ${outputDir}`);
       }
       const entityName = requireTraitEntityName(trait, adapterName);
 
       if (!jsonMode) spinner.start('Initializing inference session...');
-      const session = new PredictionSession();
-      await session.loadTrait(trait.name, { artifactsDir: outputDir, schemaPath, adapter });
+      predictionSession = new PredictionSession();
+      await predictionSession.loadTrait(trait.name, { artifactsDir: outputDir, schemaPath, adapter });
       if (!jsonMode) spinner.succeed('Inference session ready');
 
       if (!jsonMode) spinner.start(`Extracting rows via ${adapterName}...`);
@@ -162,14 +169,12 @@ export const materializeCommand = {
         ? (trait as PredictiveTraitLike).features
         : (trait as AnomalyTraitLike).baseline;
       const resolvers = buildFeatureResolvers(featureNames);
-      const materializedColumn = trait.type === 'predictive'
-        ? (trait as PredictiveTraitLike).output.field
-        : trait.name;
+      const materializedColumn = getMaterializedColumnName(trait);
 
       let written = 0;
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
-        const predictions = await session.predictBatch(trait.name, batch, resolvers);
+        const predictions = await predictionSession.predictBatch(trait.name, batch, resolvers);
         const results = predictions.results.map((prediction, index) => {
           const row = batch[index] as Record<string, unknown>;
           const entityId = row['id'] ?? row['_id'];
@@ -214,9 +219,10 @@ export const materializeCommand = {
 
       spinner.succeed(`Materialized ${written} rows for trait ${chalk.bold(trait.name)}`);
       console.log(chalk.green('\n[OK] Materialization complete.'));
-  console.log(chalk.dim(`Column: ${materializedColumn}`));
+      console.log(chalk.dim(`Column: ${materializedColumn}`));
       console.log(chalk.dim(`Rows written: ${written}`));
     } catch (error) {
+      materializeError = error as Error;
       if (jsonMode) {
         process.exitCode = 1;
         process.stdout.write(
@@ -227,6 +233,39 @@ export const materializeCommand = {
       }
       spinner.fail((error as Error).message);
       throw error;
+    } finally {
+      const cleanupFailures: string[] = [];
+
+      if (predictionSession) {
+        try {
+          await predictionSession.disposeAll();
+        } catch (error) {
+          cleanupFailures.push(`prediction session cleanup failed: ${(error as Error).message}`);
+        }
+      }
+
+      if (extractorDisconnect) {
+        try {
+          await extractorDisconnect();
+        } catch (error) {
+          cleanupFailures.push(`adapter disconnect failed: ${(error as Error).message}`);
+        }
+      }
+
+      if (cleanupFailures.length > 0) {
+        const cleanupError = new Error(
+          `Materialize cleanup failed: ${cleanupFailures.join('; ')}`
+        );
+        if (materializeError) {
+          if (jsonMode) {
+            process.stderr.write(`${cleanupError.message}\n`);
+          } else {
+            spinner.warn(cleanupError.message);
+          }
+        } else {
+          throw cleanupError;
+        }
+      }
     }
   },
 };

@@ -29,9 +29,12 @@ import {
 import { computeSchemaHashForMetadata } from './contracts';
 import type { GenerativeTrait } from './traitTypes';
 import { detectOutputSchemaShape } from './generative';
+import { requireGenerativeProvider } from './generativeProvider';
 import type { ScheMLAdapter } from './adapters/interface';
 import { resolveConfiguredAdapter } from './adapterResolution';
 import {
+  metadataFileName,
+  onnxFileName,
   isPredictiveArtifact,
   isAnomalyArtifact,
   isSimilarityArtifact,
@@ -67,6 +70,10 @@ type AiModuleLike = {
     | { model: unknown; schema: unknown; prompt: string }
   ): Promise<{ object: unknown }>;
 };
+
+export interface PredictionSessionOptions {
+  generativeProvider?: unknown;
+}
 
 function buildFeatureSchema(names: string[]): FeatureSchema {
   return {
@@ -386,6 +393,15 @@ export class PredictionSession {
   private metadata: Map<string, ModelMetadata> = new Map();
   private anomalyMetadata: Map<string, AnomalyArtifactMetadata> = new Map();
   private similarityArtifacts: Map<string, LoadedSimilarityArtifact> = new Map();
+  private generativeProvider?: unknown;
+
+  constructor(options: PredictionSessionOptions = {}) {
+    this.generativeProvider = options.generativeProvider;
+  }
+
+  setGenerativeProvider(provider: unknown): void {
+    this.generativeProvider = provider;
+  }
 
   /**
    * Initialize a model for predictions using explicit paths.
@@ -434,7 +450,7 @@ export class PredictionSession {
       );
     }
     const schemaFilePath = opts?.schemaPath ? path.resolve(opts.schemaPath) : '';
-    const metadataPath = path.resolve(dir, `${traitName}.metadata.json`);
+    const metadataPath = path.resolve(dir, metadataFileName(traitName));
     const adapterImpl = resolveConfiguredAdapter(opts.adapter);
     const graph = await adapterImpl.reader.readSchema(schemaFilePath);
     const artifact = this.metadataLoader.loadArtifactMetadata(metadataPath);
@@ -446,7 +462,7 @@ export class PredictionSession {
 
     if (isPredictiveArtifact(artifact) || isTemporalArtifact(artifact)) {
       const meta = this.metadataLoader.loadMetadata(metadataPath);
-      const onnxFile = (meta as { onnxFile?: string }).onnxFile ?? `${traitName}.onnx`;
+      const onnxFile = (meta as { onnxFile?: string }).onnxFile ?? onnxFileName(traitName);
       const onnxPath = path.resolve(dir, onnxFile);
       await this.initializeModel(metadataPath, onnxPath, hash);
       return;
@@ -933,19 +949,20 @@ export class PredictionSession {
    *
    * @param trait   - The generative trait definition (used at inference time).
    * @param entity  - The entity to generate output for.
-   * @param provider - A `LanguageModel` instance from `ai` (e.g. `openai('gpt-4o')`).
+  * @param provider - Optional `LanguageModel` override from `ai` (e.g. `openai('gpt-4o')`).
+  * Falls back to the session's configured `generativeProvider` when omitted.
    *
    * @example
    * ```ts
    * import { openai } from '@ai-sdk/openai';
-   * const output = await session.predictGenerative(retentionMessage, user, openai('gpt-4o'));
+   * const output = await session.predictGenerative(retentionMessage, user);
    * // output.result is the generated string / enum value / object
    * ```
    */
   async predictGenerative<T>(
     trait: GenerativeTrait<T>,
     entity: T,
-    provider: unknown
+    provider?: unknown
   ): Promise<GenerativePredictionOutput> {
     // Build context object from the configured entity fields
     const context: Record<string, unknown> = {};
@@ -954,6 +971,11 @@ export class PredictionSession {
     }
 
     const prompt = `<context>\n${JSON.stringify(context, null, 2)}\n</context>\n\n${trait.prompt}`;
+    const resolvedProvider = requireGenerativeProvider(
+      trait.name,
+      this.generativeProvider,
+      provider
+    );
 
     // Dynamic import — 'ai' is an optional peer dependency.
     // This gives a clear error message if the user hasn't installed it.
@@ -974,7 +996,7 @@ export class PredictionSession {
 
     try {
       if (detected.shape === 'text') {
-        const { text } = await generateText({ model: provider, prompt });
+        const { text } = await generateText({ model: resolvedProvider, prompt });
         return {
           traitName: trait.name,
           result: text as string,
@@ -982,7 +1004,7 @@ export class PredictionSession {
         };
       } else if (detected.shape === 'choice') {
         const { object } = await generateObject({
-          model: provider,
+          model: resolvedProvider,
           output: 'enum',
           enum: detected.choiceOptions ?? [],
           prompt,
@@ -995,7 +1017,7 @@ export class PredictionSession {
       } else {
         // 'object' shape — pass the user's Zod schema directly to generateObject
         const { object } = await generateObject({
-          model: provider,
+          model: resolvedProvider,
           schema: trait.outputSchema,
           prompt,
         });

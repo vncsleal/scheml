@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -11,11 +11,13 @@ import type {
   AnomalyArtifactMetadata,
   SimilarityArtifactMetadata,
 } from '../../src/artifacts';
+import type { GenerativeTrait } from '../../src/traitTypes';
 
 type PriceOnlyEntity = { price: number };
 type UserAnomalyEntity = { spend: number; sessions: number };
 type ProductSimilarityEntity = { price: number; rating: number };
 type BehaviorSimilarityEntity = { f1: number; f2: number };
+type GenerativeEntity = { plan: string; churned: boolean };
 
 function createSchemaGraph(entityName: string): SchemaGraph {
   return {
@@ -98,6 +100,11 @@ beforeAll(() => {
 
 afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.doUnmock('ai');
 });
 
 function writeTmpMetadata(name: string, metadata: unknown): string {
@@ -477,6 +484,76 @@ describe('PredictionSession — similarity runtime inference', () => {
         f2: (entity) => entity.f2,
       })
     ).rejects.toThrow(/predictSimilarity\(\)/);
+  });
+});
+
+describe('PredictionSession — generative runtime inference', () => {
+  it('uses the configured default provider for generative traits', async () => {
+    const provider = { model: 'default-provider' };
+    const generateText = vi.fn(async ({ model }: { model: unknown; prompt: string }) => ({
+      text: JSON.stringify({ model, ok: true }),
+    }));
+
+    vi.doMock('ai', () => ({
+      generateText,
+      generateObject: vi.fn(),
+    }));
+
+    const session = new PredictionSession({ generativeProvider: provider });
+    const trait: GenerativeTrait<GenerativeEntity> = {
+      type: 'generative',
+      name: 'retentionMessage',
+      entity: 'User',
+      context: ['plan', 'churned'],
+      prompt: 'Write a retention message.',
+    } as GenerativeTrait<GenerativeEntity>;
+
+    const result = await session.predictGenerative(trait, { plan: 'pro', churned: false });
+
+    expect(generateText).toHaveBeenCalledOnce();
+    expect(generateText.mock.calls[0]?.[0]).toMatchObject({ model: provider });
+    expect(result.traitName).toBe('retentionMessage');
+  });
+
+  it('prefers an explicit provider override for generative traits', async () => {
+    const configuredProvider = { model: 'configured-provider' };
+    const overrideProvider = { model: 'override-provider' };
+    const generateText = vi.fn(async ({ model }: { model: unknown; prompt: string }) => ({
+      text: JSON.stringify({ model, ok: true }),
+    }));
+
+    vi.doMock('ai', () => ({
+      generateText,
+      generateObject: vi.fn(),
+    }));
+
+    const session = new PredictionSession({ generativeProvider: configuredProvider });
+    const trait: GenerativeTrait<GenerativeEntity> = {
+      type: 'generative',
+      name: 'retentionMessage',
+      entity: 'User',
+      context: ['plan'],
+      prompt: 'Write a retention message.',
+    } as GenerativeTrait<GenerativeEntity>;
+
+    await session.predictGenerative(trait, { plan: 'pro', churned: false }, overrideProvider);
+
+    expect(generateText.mock.calls[0]?.[0]).toMatchObject({ model: overrideProvider });
+  });
+
+  it('fails fast when generative inference has no configured provider', async () => {
+    const session = new PredictionSession();
+    const trait: GenerativeTrait<GenerativeEntity> = {
+      type: 'generative',
+      name: 'retentionMessage',
+      entity: 'User',
+      context: ['plan'],
+      prompt: 'Write a retention message.',
+    } as GenerativeTrait<GenerativeEntity>;
+
+    await expect(
+      session.predictGenerative(trait, { plan: 'pro', churned: false })
+    ).rejects.toThrow(/generative provider/i);
   });
 });
 

@@ -189,11 +189,19 @@ describe('metadataFileName', () => {
     expect(metadataFileName('userChurn')).toBe('userChurn.metadata.json');
     expect(metadataFileName('sessionAnomaly')).toBe('sessionAnomaly.metadata.json');
   });
+
+  it('sanitizes unsafe trait names before building file names', () => {
+    expect(metadataFileName('../user churn')).toBe('user_churn.metadata.json');
+  });
 });
 
 describe('onnxFileName', () => {
   it('returns traitName.onnx', () => {
     expect(onnxFileName('userChurn')).toBe('userChurn.onnx');
+  });
+
+  it('sanitizes unsafe trait names for ONNX files', () => {
+    expect(onnxFileName('../user churn')).toBe('user_churn.onnx');
   });
 });
 

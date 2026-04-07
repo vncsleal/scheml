@@ -2,6 +2,8 @@ import { createJiti } from 'jiti';
 import { pathToFileURL } from 'url';
 import type { AnyTraitDefinition } from '../traitTypes';
 import type { ScheMLConfig } from '../defineConfig';
+import { resolveTraitGraph, topologicalSort } from '../traitGraph';
+import { assertValidTraitName } from '../traitNames';
 
 export type CommandConfigExports = Record<string, unknown> & Partial<ScheMLConfig> & {
   default?: Partial<ScheMLConfig>;
@@ -45,8 +47,14 @@ export function extractTraitDefinitions(configExports: CommandConfigExports): An
   const seen = new Set<string>();
 
   for (const value of configuredTraits) {
-    if (!isTraitDefinition(value) || seen.has(value.name)) {
+    if (!isTraitDefinition(value)) {
       continue;
+    }
+
+    assertValidTraitName(value.name);
+
+    if (seen.has(value.name)) {
+      throw new Error(`Duplicate trait name: "${value.name}". Each trait must have a unique name.`);
     }
 
     seen.add(value.name);
@@ -54,4 +62,46 @@ export function extractTraitDefinitions(configExports: CommandConfigExports): An
   }
 
   return traits;
+}
+
+export function resolveTraitDefinitions(configExports: CommandConfigExports): AnyTraitDefinition[] {
+  const traits = extractTraitDefinitions(configExports);
+  resolveTraitGraph(traits);
+  return topologicalSort(traits);
+}
+
+export function selectTraitDefinitions(
+  traits: AnyTraitDefinition[],
+  traitName?: string,
+  options: { includeDependencies?: boolean } = {}
+): AnyTraitDefinition[] {
+  if (!traitName) {
+    return traits;
+  }
+
+  const target = traits.find((trait) => trait.name === traitName);
+  if (!target) {
+    throw new Error(`Trait "${traitName}" not found in config`);
+  }
+
+  if (!options.includeDependencies) {
+    return [target];
+  }
+
+  const includedNames = new Set<string>();
+
+  const visit = (trait: AnyTraitDefinition): void => {
+    if (includedNames.has(trait.name)) {
+      return;
+    }
+
+    for (const dependency of trait.traits ?? []) {
+      visit(dependency);
+    }
+
+    includedNames.add(trait.name);
+  };
+
+  visit(target);
+  return traits.filter((trait) => includedNames.has(trait.name));
 }

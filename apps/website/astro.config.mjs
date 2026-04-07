@@ -10,7 +10,7 @@ export default defineConfig({
   adapter: vercel({
     includeFiles: [
       // Demo model artifacts
-      'demo-artifacts/schema.prisma',
+      'demo-artifacts/schema.source',
       'demo-artifacts/userChurn.metadata.json',
       'demo-artifacts/userChurn.onnx',
       'demo-artifacts/serverAnomaly.metadata.json',

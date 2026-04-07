@@ -71,6 +71,8 @@
   "peerDependencies": {
     "@prisma/client": ">=5.0.0",
     "ai": ">=4.0.0",
+    "drizzle-orm": ">=0.29.0",
+    "zod": ">=3.0.0",
     "typeorm": ">=0.3.0"
   },
   "peerDependenciesMeta": {
@@ -78,6 +80,12 @@
       "optional": true
     },
     "ai": {
+      "optional": true
+    },
+    "drizzle-orm": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     },
     "typeorm": {

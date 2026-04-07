@@ -61,6 +61,8 @@ Text-schema helpers such as `hashSchemaText()` and `hashSchemaEntitySubset()` re
 
 `scheml check` validates the current schema contract against existing artifacts without retraining.
 
+When you need to scope validation, use `scheml check --trait <name>` to target one trait artifact.
+
 It is intended for fast CI and local feedback.
 
 ## Feature Resolution And Normalization
@@ -158,7 +160,7 @@ ScheML uses typed errors to fail loudly when contracts break.
 Key failure categories include:
 
 - schema drift
-- invalid model definition
+- invalid trait definition
 - feature extraction failure
 - hydration mismatch
 - unseen categories
@@ -182,4 +184,4 @@ ScheML does not aim to provide:
 - online learning
 - runtime adapter guessing
 - hybrid fallback serving modes
-- broad hosted model orchestration
+- broad hosted trait orchestration

@@ -119,6 +119,12 @@ describe('historyFilePath', () => {
       '/app/.scheml/history/userChurn.jsonl'
     );
   });
+
+  it('normalizes unsafe trait names before building the path', () => {
+    expect(historyFilePath('/app/.scheml', '../user churn')).toBe(
+      '/app/.scheml/history/user_churn.jsonl'
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -167,6 +173,15 @@ describe('appendHistoryRecord', () => {
     appendHistoryRecord(tmpDir, makeRecord({ trait: 'sigB' }));
     expect(fs.existsSync(historyFilePath(tmpDir, 'sigA'))).toBe(true);
     expect(fs.existsSync(historyFilePath(tmpDir, 'sigB'))).toBe(true);
+  });
+
+  it('writes unsafe trait names to a normalized history file path', () => {
+    const record = makeRecord({ trait: '../user churn' });
+
+    appendHistoryRecord(tmpDir, record);
+
+    expect(fs.existsSync(historyFilePath(tmpDir, '../user churn'))).toBe(true);
+    expect(readLatestHistoryRecord(tmpDir, '../user churn')?.trait).toBe('../user churn');
   });
 });
 

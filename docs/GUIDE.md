@@ -8,7 +8,7 @@ Node.js 18 or higher is required.
 
 ### Python
 
-`scheml train` uses the bundled Python backend to produce ONNX models and other training artifacts. Python is required for training, not for normal predictive runtime use.
+`scheml train` uses the bundled Python backend to produce ONNX models and other trait artifacts. Python is required for training, not for normal predictive runtime use.
 
 | Requirement | Version |
 |---|---|
@@ -21,19 +21,20 @@ Node.js 18 or higher is required.
 Install the Python dependencies once before your first training run:
 
 ```bash
-scheml check --config ./scheml.config.ts --schema ./prisma/schema.prisma --output ./.scheml
+pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 ```
 
-This validates that the current schema still matches the emitted artifact contract.
+This installs the bundled training backend requirements used by `scheml train`.
 
 ### 4. Run Predictions
 
 Use `PredictionSession` directly:
 
 ```typescript
-import { PredictionSession } from '@vncsleal/scheml';
+import { createPredictionSession } from '@vncsleal/scheml';
+import config from './scheml.config';
 
-const session = new PredictionSession();
+const session = createPredictionSession(config);
 
 await session.loadTrait('userLTV', {
   artifactsDir: '.scheml',
@@ -62,6 +63,27 @@ Current runtime coverage:
 - temporal via `predict()` and `predictBatch()`
 - anomaly via `predict()` and `predictBatch()`
 - similarity via `predictSimilarity()`
+- generative via `predictGenerative()` using the configured `generativeProvider` by default
+
+For generative traits, define the provider once in config:
+
+```typescript
+import { openai } from '@ai-sdk/openai';
+import { defineConfig } from '@vncsleal/scheml';
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  generativeProvider: openai('gpt-4.1-mini'),
+  traits: [retentionMessage],
+});
+```
+
+Then call runtime generation without re-supplying the provider every time:
+
+```typescript
+const message = await session.predictGenerative(retentionMessage, user);
+```
 
 ### `extendClient()`
 
@@ -78,6 +100,8 @@ Current modes:
 - `live`
 
 Live mode now fails loudly if a live-capable trait is missing its metadata artifact.
+
+Materialized mode reads from database columns named after the trait. For example, a predictive trait with `name: 'churnRisk'` materializes into and reads from a `churnRisk` column. `output.field` still describes trait output metadata, but it is not used as the persisted column name.
 
 ## Adapter Examples
 
@@ -103,6 +127,8 @@ const churnRisk = defineTrait(users, {
   features: ['signupDays', 'planTier'],
   output: { field: 'churnScore', taskType: 'binary_classification' },
 });
+
+In this example, the materialized database column remains `churnRisk`, not `churnScore`.
 
 export default defineConfig({
   adapter: 'drizzle',
@@ -140,6 +166,17 @@ export default defineConfig({
 ```
 
 Zod provides schema reading, not ORM extraction or query interception.
+
+## Trait Graph Validation
+
+ScheML treats `config.traits` as a dependency graph, not just a flat list.
+
+- use `traits: [otherTrait]` with object references when one trait depends on another
+- config loading validates the full graph before command execution
+- duplicate names, missing references, and cycles fail fast as configuration errors
+- training order is derived from dependencies, so prerequisite traits run before dependents
+
+When you run `scheml train --trait someTrait`, ScheML includes `someTrait` together with its dependencies and trains the resulting closure in topological order.
 
 ## Trait Kinds
 
@@ -188,7 +225,7 @@ const matches = await session.predictSimilarity('productSimilarity', product, {
 
 ### Generative
 
-Use for prompt-contract metadata. These traits describe context and output shape; they are not loaded through ONNX runtime prediction APIs.
+Use for prompt-contract metadata backed by a configured AI provider. These traits describe context and output shape, are validated during `scheml train`, and execute at runtime through `predictGenerative()` rather than ONNX.
 
 ## Feature Resolvers
 
@@ -237,7 +274,7 @@ Nullable values need a valid imputation path in the compiled contract. Common st
 
 ## Quality Gates
 
-Quality gates define the minimum acceptable model quality.
+Quality gates define the minimum acceptable trained artifact quality.
 
 ```typescript
 qualityGates: [
@@ -251,6 +288,12 @@ If a gate fails during training:
 - artifact generation aborts
 - `scheml train` exits non-zero
 - no new artifact should be treated as valid
+
+Current enforcement scope:
+
+- predictive and temporal traits enforce gates against reported test metrics during training
+- anomaly, similarity, and generative traits do not yet provide evaluable training metrics for gate enforcement
+- if you configure `qualityGates` on those unsupported trait types, `scheml train` fails fast with a configuration error
 
 ## Batch Predictions
 
@@ -287,6 +330,16 @@ Similarity traits use `predictSimilarity()`, not `predict()`.
 - No partial results are returned
 - Large batches block (you must chunk)
 
+### Materialize Cleanup Guarantees
+
+`scheml materialize` now treats resource cleanup as part of the command contract.
+
+- the prediction session is always disposed after execution
+- the adapter extractor is always disconnected after execution
+- this cleanup runs on both successful writes and thrown errors
+
+This matters most for adapters that hold open ORM or driver connections during extraction and writeback.
+
 ## Error Handling
 
 All errors are typed with structured context:
@@ -303,7 +356,7 @@ try {
   const result = await session.predict('userLTV', user, resolvers);
 } catch (error) {
   if (error instanceof SchemaDriftError) {
-    // Schema changed since model was compiled
+    // Schema changed since the artifact was compiled
     console.error(`Schema mismatch since compilation`);
     process.exit(1); // FATAL
   } else if (error instanceof UnseenCategoryError) {
@@ -332,13 +385,13 @@ Artifacts are immutable and versioned:
 **Best practices:**
 1. Commit artifacts to git
 2. Review metadata.json in PRs (shows what changed)
-3. Tag releases with model versions
+3. Tag releases with trait artifact versions
 4. Never manually edit artifacts
-5. To update a model, retrain and commit new artifacts
+5. To update a trait, retrain and commit new artifacts
 
-## Updating Models
+## Updating Traits
 
-To change a model:
+To change a trait:
 
 1. Edit `scheml.config.ts`
 2. Run `npm run train`
@@ -348,7 +401,7 @@ To change a model:
 To change Prisma schema:
 
 1. Run `prisma migrate`
-2. Re-train all models (schema hash will change)
+2. Re-train all affected traits (schema hash will change)
 3. Commit new artifacts and schema
 4. Deploy
 
@@ -363,7 +416,7 @@ Add to your CI pipeline:
 
 ```yaml
 # .github/workflows/train.yml
-name: Train Models
+name: Train Traits
 
 on: [push]
 
@@ -377,6 +430,11 @@ jobs:
           node-version: 20
       - run: pnpm install --frozen-lockfile
       - run: pnpm run train
+```
+
+### `FeatureExtractionError`
+
+```text
 Model "userLTV", feature "accountAge": Resolver threw: Cannot read property 'createdAt' of null
 ```
 
@@ -394,7 +452,7 @@ accountAge: (user) => {
 Model "userLTV" quality gate failed: rmse gte 500, got 625
 ```
 
-**Solution:** Model doesn't meet quality bar. Options:
+**Solution:** The trained artifact doesn't meet the quality bar. Options:
 1. Improve features
 2. Get more training data
 3. Adjust algorithm hyperparameters

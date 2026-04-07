@@ -79,7 +79,7 @@ To generate demo artifacts for the getscheml.vercel.app live demo:
 pnpm train:demo
 ```
 
-This trains the models and writes artifacts to `../../apps/website/demo-artifacts/` instead of `.scheml/`.
+This trains the demo traits and writes artifacts to `../../apps/website/demo-artifacts/` instead of `.scheml/`.
 
 ## Project Layout
 

@@ -8,21 +8,13 @@ import * as path from 'path';
 import { Argv } from 'yargs';
 import chalk from 'chalk';
 import { historyDir, readHistoryRecords, type HistoryRecord } from '../history';
+import { assertValidTraitName } from '../traitNames';
 
 type AuditCommandArgs = {
   output: string;
   trait?: string;
   json?: boolean;
 };
-
-function sanitizeTraitName(name: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(
-      `Trait name "${name}" contains invalid characters. Only letters, digits, underscores, and hyphens are allowed.`
-    );
-  }
-  return name;
-}
 
 function listTraits(outputDir: string): string[] {
   const dir = historyDir(outputDir);
@@ -72,7 +64,7 @@ export const auditCommand = {
     const traitFilter = argv.trait;
     const jsonMode = argv.json ?? false;
 
-    const traits = traitFilter ? [sanitizeTraitName(traitFilter)] : listTraits(outputDir);
+    const traits = traitFilter ? [assertValidTraitName(traitFilter)] : listTraits(outputDir);
     const history = traits.map((trait) => ({
       trait,
       records: readHistoryRecords(outputDir, trait),
