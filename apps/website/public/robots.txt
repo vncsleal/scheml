@@ -20,4 +20,4 @@ Allow: /
 User-agent: PerplexityBot
 Allow: /
 
-Sitemap: https://getprisml.vercel.app/sitemap.xml
+Sitemap: https://getscheml.vercel.app/sitemap.xml

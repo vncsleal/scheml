@@ -1,7 +1,7 @@
 {
-  "name": "PrisML",
-  "short_name": "PrisML",
-  "description": "Compiler-first ML for TypeScript + Prisma with ONNX Runtime.",
+  "name": "ScheML",
+  "short_name": "ScheML",
+  "description": "Compiler-first ML for TypeScript. Define intelligence traits, compile artefacts, run in-process.",
   "start_url": "/",
   "display": "browser",
   "theme_color": "#161616",
