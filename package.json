@@ -1,7 +1,7 @@
 {
   "name": "@vncsleal/scheml-root",
   "version": "0.1.0",
-  "description": "ScheML: Compiler-first ML library for TypeScript + Prisma",
+  "description": "ScheML: Compiler-first ML library for TypeScript applications",
   "private": true,
   "license": "MIT",
   "author": "Vinicius Leal <oi@iamvini.co> (https://github.com/vncsleal)",
@@ -16,9 +16,12 @@
     "machine-learning",
     "typescript",
     "prisma",
+      "drizzle",
+    "typeorm",
     "compiler",
     "onnx",
     "inference"
+
   ],
   "scripts": {
     "dev": "turbo run dev",
