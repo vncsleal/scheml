@@ -106,6 +106,7 @@ export const materializeCommand = {
     let predictionSession: PredictionSession | undefined;
     let extractorDisconnect: (() => Promise<void>) | undefined;
     let materializeError: Error | undefined;
+    let cleanupError: Error | undefined;
 
     if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
       throw new Error('Trait name is required. Usage: scheml materialize --trait <name>');
@@ -253,19 +254,19 @@ export const materializeCommand = {
       }
 
       if (cleanupFailures.length > 0) {
-        const cleanupError = new Error(
-          `Materialize cleanup failed: ${cleanupFailures.join('; ')}`
-        );
-        if (materializeError) {
-          if (jsonMode) {
-            process.stderr.write(`${cleanupError.message}\n`);
+          const err = new Error(
+            `Materialize cleanup failed: ${cleanupFailures.join('; ')}`
+          );
+          if (materializeError) {
+            if (jsonMode) {
+              process.stderr.write(`${err.message}\n`);
+            } else {
+              spinner.warn(err.message);
+            }
           } else {
-            spinner.warn(cleanupError.message);
+            cleanupError = err;
           }
-        } else {
-          throw cleanupError;
         }
       }
-    }
-  },
-};
+      if (cleanupError) throw cleanupError;
+    },  };
