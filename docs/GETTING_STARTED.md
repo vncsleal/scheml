@@ -20,8 +20,8 @@ pip install -r node_modules/@vncsleal/scheml/python/requirements.txt
 
 - Node.js 18+
 - TypeScript 5.0+
-- Prisma 5.0+
-- Python 3.9+ (for training backend)
+- An ORM adapter: Prisma 5.0+, Drizzle 0.29+, TypeORM 0.3+, or Zod 3.0+ (all optional peer dependencies — install whichever you use)
+- Python 3.9+ (for training backend only)
 
 ## 5-Minute Setup
 
@@ -97,11 +97,11 @@ console.log(user.estimatedValue); // predicted value
 import { PredictionSession } from '@vncsleal/scheml';
 
 const session = new PredictionSession();
-await session.initializeModel(
-  '.scheml/userValue.metadata.json',
-  '.scheml/userValue.onnx',
-  schemaHash
-);
+await session.loadTrait('userValue', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
 
 const result = await session.predict('userValue', user, {
   createdAt: (u) => u.createdAt.getTime(),
@@ -113,7 +113,6 @@ console.log(result.prediction); // e.g., 1500
 
 ## Next Steps
 
-- See [examples/basic](../examples/basic) for a complete working example
 - Read [GUIDE.md](../docs/GUIDE.md) for detailed feature documentation
 - Read [API.md](../docs/API.md) for complete API reference
 - Read [ARCHITECTURE.md](../docs/ARCHITECTURE.md) for design deep dive

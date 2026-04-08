@@ -180,12 +180,10 @@ export default defineConfig({
 Built-in factories:
 
 ```typescript
-import {
-  createPrismaAdapter,
-  createDrizzleAdapter,
-  createTypeOrmAdapter,
-  createZodAdapter,
-} from '@vncsleal/scheml';
+import { createPrismaAdapter, createZodAdapter, createTypeOrmAdapter } from '@vncsleal/scheml';
+
+// Drizzle adapter is an optional subpath (requires drizzle-orm peer dep)
+import { createDrizzleAdapter } from '@vncsleal/scheml/adapters/drizzle';
 ```
 
 Registry helpers:

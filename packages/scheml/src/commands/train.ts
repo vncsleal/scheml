@@ -726,8 +726,8 @@ export const trainCommand = {
               window_size: DEFAULT_WINDOW_SIZE,
               aggregations: DEFAULT_AGGREGATIONS,
               task_type: trait.output.taskType,
-              algorithm: 'automl',
-              hyperparameters: {},
+              algorithm: trait.algorithm?.name ?? 'automl',
+              hyperparameters: trait.algorithm?.hyperparameters ?? {},
             })
           );
 
@@ -784,6 +784,11 @@ export const trainCommand = {
             taskType: trait.output.taskType,
             bestEstimator: seqResponse.bestEstimator,
             features: seqFeatures,
+            output: { field: trait.output.field, shape: [1] },
+            tensorSpec: {
+              inputShape: [1, seqFeatures?.count ?? 0],
+              outputShape: [1],
+            },
             trainingMetrics: seqResponse.metrics,
           };
           fs.writeFileSync(

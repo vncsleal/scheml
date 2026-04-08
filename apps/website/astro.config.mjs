@@ -8,29 +8,8 @@ const vercelUrl = process.env.VERCEL_URL
 
 export default defineConfig({
   adapter: vercel({
-    includeFiles: [
-      // Demo model artifacts
-      'demo-artifacts/schema.source',
-      'demo-artifacts/userChurn.metadata.json',
-      'demo-artifacts/userChurn.onnx',
-      'demo-artifacts/serverAnomaly.metadata.json',
-      'demo-artifacts/productSimilarity.metadata.json',
-      'demo-artifacts/productSimilarity.embeddings.npy',
-      'demo-artifacts/engagementSequence.metadata.json',
-      'demo-artifacts/engagementSequence.onnx',
-      // onnxruntime-web WASM files — nft doesn't trace dynamically-resolved
-      // binary assets, so they must be listed explicitly.
-      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm',
-      'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs',
-    ],
+    includeFiles: ['./demo-bundle'],
   }),
   site: vercelUrl,
   output: 'hybrid',
-  vite: {
-    ssr: {
-      external: ['@vncsleal/scheml', 'onnxruntime-web'],
-    },
-  },
 });

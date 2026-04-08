@@ -92,11 +92,10 @@ export {
 
 export { ZodSchemaReader, createZodAdapter } from './adapters/zod';
 
-export {
-  DrizzleSchemaReader,
-  DrizzleDataExtractor,
-  createDrizzleAdapter,
-} from './adapters/drizzle';
+// DrizzleSchemaReader, DrizzleDataExtractor, createDrizzleAdapter are available
+// via the optional subpath '@vncsleal/scheml/adapters/drizzle'. They are not
+// re-exported from the main entrypoint so consumers without drizzle-orm installed
+// do not pull in the adapter module.
 
 export {
   TypeOrmSchemaReader,

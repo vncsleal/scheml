@@ -43,7 +43,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
-from flaml import AutoML
 
 # Reuse build helpers from train.py via direct import
 sys.path.insert(0, str(Path(__file__).parent))

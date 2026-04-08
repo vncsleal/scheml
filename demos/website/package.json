@@ -1,0 +1,23 @@
+{
+  "name": "scheml-demo-producer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "prisma generate",
+    "db:push": "prisma db push --skip-generate",
+    "seed": "tsx prisma/seed.ts",
+    "clean:bundle": "rm -rf ../../apps/website/demo-bundle && mkdir -p ../../apps/website/demo-bundle",
+    "train": "scheml train --config ./scheml.config.ts --output ../../apps/website/demo-bundle",
+    "manifest": "tsx scripts/write-manifest.ts",
+    "build": "pnpm run clean:bundle && pnpm run generate && pnpm run db:push && pnpm run seed && pnpm run train && pnpm run manifest"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@vncsleal/scheml": "workspace:*",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
+}

@@ -1,7 +1,5 @@
-// This file is used by ScheML at compile time to discover traits.
-// Traits are discovered via AST analysis and should use defineTrait().
-
-import { defineTrait } from '@vncsleal/scheml';
+import { defineConfig, defineTrait } from '@vncsleal/scheml';
+import type { AnyTraitDefinition } from '@vncsleal/scheml';
 
 type User = {
   id: string;
@@ -85,4 +83,16 @@ export const engagementSequenceTrait = defineTrait('EngagementEvent', {
   orderBy: 'occurredAt',
   target: 'willChurn',
   output: { field: 'predictedChurn', taskType: 'binary_classification' },
+});
+
+export default defineConfig({
+  adapter: 'prisma',
+  schema: './prisma/schema.prisma',
+  traits: [
+    userLTVTrait,
+    userChurnTrait,
+    serverAnomalyTrait,
+    productSimilarityTrait,
+    engagementSequenceTrait,
+  ] as unknown as AnyTraitDefinition[],
 });

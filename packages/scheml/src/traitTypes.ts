@@ -157,6 +157,9 @@ export interface TemporalTrait<TEntity = Record<string, unknown>> extends BaseTr
     taskType: TaskType;
     resolver?: OutputResolver<TEntity>;
   };
+
+  /** Optional estimator override for the aggregated tabular temporal model */
+  algorithm?: AlgorithmConfig;
 }
 
 // ---------------------------------------------------------------------------

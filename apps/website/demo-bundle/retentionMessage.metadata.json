@@ -1,0 +1,22 @@
+{
+  "traitType": "generative",
+  "artifactFormat": "json",
+  "traitName": "retentionMessage",
+  "schemaHash": "fa5654430042af0da2fbec90928f9d1494d42410ae4a3ac89605b1e425ee1abf",
+  "compiledAt": "2026-04-07T15:20:55.979Z",
+  "version": "0.3.1",
+  "metadataSchemaVersion": "1.0.0",
+  "contextFields": [
+    "planTier",
+    "willChurn",
+    "monthlySpend"
+  ],
+  "promptTemplate": "Return the next retention motion for this account in one concise decision.",
+  "outputSchemaShape": "choice",
+  "choiceOptions": [
+    "retain",
+    "escalate",
+    "celebrate"
+  ],
+  "entityName": "User"
+}

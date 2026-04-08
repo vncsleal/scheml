@@ -244,20 +244,138 @@ function isNumberArrayLike(value: unknown): value is ArrayLike<number> {
   return Array.from(value as ArrayLike<unknown>).every((item) => typeof item === 'number');
 }
 
-function readNumericTensorData(
+function isBigIntArrayLike(value: unknown): value is ArrayLike<bigint> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as { length?: unknown };
+  if (typeof candidate.length !== 'number') {
+    return false;
+  }
+
+  return Array.from(value as ArrayLike<unknown>).every((item) => typeof item === 'bigint');
+}
+
+function isStringArrayLike(value: unknown): value is ArrayLike<string> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as { length?: unknown };
+  if (typeof candidate.length !== 'number') {
+    return false;
+  }
+
+  return Array.from(value as ArrayLike<unknown>).every((item) => typeof item === 'string');
+}
+
+function isBooleanArrayLike(value: unknown): value is ArrayLike<boolean> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as { length?: unknown };
+  if (typeof candidate.length !== 'number') {
+    return false;
+  }
+
+  return Array.from(value as ArrayLike<unknown>).every((item) => typeof item === 'boolean');
+}
+
+function readTensorData(
   outputTensor: ort.Tensor,
   modelName: string,
   outputName: string
-): number[] {
+): Array<number | string> {
   const tensorData = (outputTensor as { data?: unknown }).data;
-  if (!isNumberArrayLike(tensorData)) {
-    throw new ONNXRuntimeError(
-      modelName,
-      `ONNX output "${outputName}" did not contain numeric tensor data`
-    );
+
+  if (isNumberArrayLike(tensorData)) {
+    return Array.from(tensorData);
   }
 
-  return Array.from(tensorData);
+  if (isBigIntArrayLike(tensorData)) {
+    return Array.from(tensorData, (value) => {
+      const numericValue = Number(value);
+      if (!Number.isSafeInteger(numericValue)) {
+        throw new ONNXRuntimeError(
+          modelName,
+          `ONNX output "${outputName}" contained bigint values outside the safe integer range`
+        );
+      }
+      return numericValue;
+    });
+  }
+
+  if (isStringArrayLike(tensorData)) {
+    return Array.from(tensorData);
+  }
+
+  if (isBooleanArrayLike(tensorData)) {
+    return Array.from(tensorData, (value) => (value ? 1 : 0));
+  }
+
+  throw new ONNXRuntimeError(
+    modelName,
+    `ONNX output "${outputName}" contained unsupported tensor data`
+  );
+}
+
+function toPredictionValue(
+  modelName: string,
+  taskType: string,
+  outputData: Array<number | string>
+): number | string {
+  if (outputData.length === 0) {
+    throw new ONNXRuntimeError(modelName, 'ONNX output was empty');
+  }
+
+  if (taskType === 'regression') {
+    const firstValue = outputData[0];
+    if (typeof firstValue !== 'number') {
+      throw new ONNXRuntimeError(modelName, 'Regression output did not contain a numeric value');
+    }
+    return firstValue;
+  }
+
+  if (taskType === 'binary_classification') {
+    if (outputData.length === 1) {
+      return String(outputData[0]);
+    }
+
+    const numericValues = outputData.every((value) => typeof value === 'number')
+      ? (outputData as number[])
+      : null;
+
+    if (!numericValues) {
+      return String(outputData[0]);
+    }
+
+    return numericValues[0] >= 0.5 ? '1' : '0';
+  }
+
+  if (outputData.length === 1) {
+    return String(outputData[0]);
+  }
+
+  const numericValues = outputData.every((value) => typeof value === 'number')
+    ? (outputData as number[])
+    : null;
+
+  if (!numericValues) {
+    return String(outputData[0]);
+  }
+
+  let maxIndex = 0;
+  let maxValue = numericValues[0] ?? -Infinity;
+  for (let i = 1; i < numericValues.length; i++) {
+    if (numericValues[i] > maxValue) {
+      maxValue = numericValues[i];
+      maxIndex = i;
+    }
+  }
+
+  return String(maxIndex);
 }
 
 function getEntityFieldValue(entity: unknown, field: string): unknown {
@@ -731,28 +849,8 @@ export class PredictionSession {
         throw new Error(`ONNX output "${outputName}" not found`);
       }
 
-      const outputData = readNumericTensorData(outputTensor, modelName, outputName);
-
-      let prediction: number | string;
-      if (metadata.taskType === 'regression') {
-        prediction = outputData[0];
-      } else if (metadata.taskType === 'binary_classification') {
-        prediction = outputData.length === 1 ? String(outputData[0]) : outputData[0] >= 0.5 ? '1' : '0';
-      } else {
-        if (outputData.length === 1) {
-          prediction = String(outputData[0]);
-        } else {
-          let maxIndex = 0;
-          let maxValue = outputData[0] ?? -Infinity;
-          for (let i = 1; i < outputData.length; i++) {
-            if (outputData[i] > maxValue) {
-              maxValue = outputData[i];
-              maxIndex = i;
-            }
-          }
-          prediction = String(maxIndex);
-        }
-      }
+      const outputData = readTensorData(outputTensor, modelName, outputName);
+      const prediction = toPredictionValue(modelName, metadata.taskType, outputData);
 
       return { modelName, prediction, timestamp: new Date().toISOString() };
     } catch (error) {
@@ -880,29 +978,8 @@ export class PredictionSession {
           throw new Error(`ONNX output "${outputName}" not found`);
         }
 
-        const outputData = readNumericTensorData(outputTensor, modelName, outputName);
-
-        let prediction: number | string;
-        if (metadata.taskType === 'regression') {
-          prediction = outputData[0];
-        } else if (metadata.taskType === 'binary_classification') {
-          prediction =
-            outputData.length === 1 ? String(outputData[0]) : outputData[0] >= 0.5 ? '1' : '0';
-        } else {
-          if (outputData.length === 1) {
-            prediction = String(outputData[0]);
-          } else {
-            let maxIndex = 0;
-            let maxValue = outputData[0] ?? -Infinity;
-            for (let j = 1; j < outputData.length; j++) {
-              if (outputData[j] > maxValue) {
-                maxValue = outputData[j];
-                maxIndex = j;
-              }
-            }
-            prediction = String(maxIndex);
-          }
-        }
+        const outputData = readTensorData(outputTensor, modelName, outputName);
+        const prediction = toPredictionValue(modelName, metadata.taskType, outputData);
 
         results.push({ modelName, prediction, timestamp: new Date().toISOString() });
       } catch (error) {

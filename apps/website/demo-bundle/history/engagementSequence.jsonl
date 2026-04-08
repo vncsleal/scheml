@@ -1,0 +1,1 @@
+{"trait":"engagementSequence","model":"EngagementEvent","adapter":"prisma","schemaHash":"0dc604a2f6fbedbf424ceb3369f1170aaab685401e1abc4242858b2c83d11f65","definedAt":"2026-04-07T15:20:55.876Z","definedBy":"human:Vinicius Leal","trainedAt":"2026-04-07T15:20:55.978Z","artifactVersion":"1","qualityGates":{"accuracy":{"threshold":0.7,"result":1}},"status":"trained"}

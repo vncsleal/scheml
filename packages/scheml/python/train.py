@@ -19,7 +19,6 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.ensemble import GradientBoostingRegressor, GradientBoostingClassifier
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
-from flaml import AutoML
 from dataset_contract import load_dataset, validate_dataset
 
 
@@ -33,6 +32,13 @@ def build_automl_model(task_type: str, X_train, y_train, time_budget: int = 60):
     Use FLAML AutoML to select and tune the best algorithm automatically.
     Returns (fitted_estimator, best_estimator_name).
     """
+    try:
+        from flaml import AutoML
+    except ImportError as exc:
+        raise ImportError(
+            "flaml.automl is not available. Please install flaml[automl] to enable AutoML functionalities."
+        ) from exc
+
     automl = AutoML()
     flaml_task = "regression" if task_type == "regression" else "classification"
     automl.fit(

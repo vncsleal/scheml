@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { Code } from 'astro:components';
+import { Code } from 'astro/components';
 
 const title = 'ScheML — Compiler-First ML for TypeScript';
 const description = 'ScheML is to machine learning what Prisma is to databases. Define intelligence traits in TypeScript — compile once, run in-process.';
@@ -278,7 +278,7 @@ const result = await session.predictGenerative(
                 </svg>
               </button>
             </div>
-            <a href="/demo" class="btn btn--secondary">Live demo</a>
+            <a href="/demo" class="btn btn--secondary">Open demo</a>
             <a href="https://github.com/vncsleal/scheml" target="_blank" rel="noopener noreferrer" class="btn btn--secondary">
               View source
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

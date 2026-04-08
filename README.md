@@ -1,6 +1,6 @@
 # ScheML
 
-Compiler-first machine learning for TypeScript + Prisma.
+Compiler-first machine learning for TypeScript applications.
 
 ScheML is for developers who want a narrow, local, reviewable ML workflow:
 - define traits in TypeScript
@@ -12,7 +12,7 @@ It is not a hosted ML platform, an online learning system, or a runtime experime
 
 ## Who It Is For
 
-ScheML is aimed at TypeScript and Prisma teams that want:
+ScheML is aimed at TypeScript teams that want:
 - deterministic builds
 - schema-aware trait artifacts
 - local inference without adding a separate prediction service
@@ -87,11 +87,11 @@ For direct ONNX inference without the ORM layer:
 import { PredictionSession } from '@vncsleal/scheml';
 
 const session = new PredictionSession();
-await session.initializeModel(
-  '.scheml/churnRisk.metadata.json',
-  '.scheml/churnRisk.onnx',
-  schemaHash
-);
+await session.loadTrait('churnRisk', {
+  artifactsDir: '.scheml',
+  schemaPath: './prisma/schema.prisma',
+  adapter: 'prisma',
+});
 
 const result = await session.predict('churnRisk', user, {
   loginCount: (u) => u.loginCount,
@@ -112,10 +112,13 @@ console.log(result.prediction);
 ## Development
 
 ```bash
+nvm use
 pnpm install
 pnpm --dir packages/scheml test
 pnpm --dir packages/scheml build
 ```
+
+The website app targets Node 20.x. Using the pinned repo version avoids Astro/Vercel engine warnings during local development.
 
 ## License
 

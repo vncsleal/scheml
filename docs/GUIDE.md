@@ -128,14 +128,14 @@ const churnRisk = defineTrait(users, {
   output: { field: 'churnScore', taskType: 'binary_classification' },
 });
 
-In this example, the materialized database column remains `churnRisk`, not `churnScore`.
-
 export default defineConfig({
   adapter: 'drizzle',
   schema: './src/db/schema.ts',
   traits: [churnRisk],
 });
 ```
+
+The materialized database column is always the trait name (`churnRisk`), not `output.field` (`churnScore`).
 
 ### TypeORM
 

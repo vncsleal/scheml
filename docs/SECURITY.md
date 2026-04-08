@@ -4,12 +4,12 @@
 
 ### Schema Validation
 
-Every trained trait artifact is bound to a specific Prisma schema via SHA256 hash:
+Every trained trait artifact is bound to an adapter-normalized entity hash (SHA256):
 
-- Normalizes schema (removes whitespace, comments)
-- Computes deterministic hash
-- Records hash in metadata
-- At runtime, **rejects predictions** if hash doesn't match
+- The adapter reads the schema into a normalized schema graph
+- A deterministic hash of the relevant entity is computed
+- The hash is recorded in artifact metadata
+- At runtime, **rejects predictions** if the current hash does not match the artifact
 
 **Effect:** Prevents silent bugs from schema drift after artifact compilation.
 
@@ -79,13 +79,13 @@ ScheML does **not**:
 - Cache predictions
 
 Data flows:
-- Training: Prisma → Python backend (local) → ONNX artifacts
+- Training: adapter extractor → Python backend (local) → ONNX artifacts
 - Prediction: Application → session.predict() → output
 
 ### Training Data
 
 During `scheml train`:
-- Data is extracted via your Prisma instance
+- Data is extracted via the configured adapter
 - Processed locally via Python backend
 - Not sent to external services
 - Temporary `*.dataset.json` files are written to `.scheml/` for the Python backend. These files are deleted immediately after the Python process completes (whether it succeeds or fails).

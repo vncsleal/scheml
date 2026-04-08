@@ -23,6 +23,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:demo-bundle": "pnpm --filter scheml-demo-producer build",
     "lint": "turbo run lint",
     "format": "turbo run format",
     "test": "turbo run test",
@@ -30,7 +31,7 @@
   },
   "workspaces": [
     "packages/*",
-    "examples/*",
+    "demos/*",
     "apps/*"
   ],
   "devDependencies": {

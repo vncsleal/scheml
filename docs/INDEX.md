@@ -17,7 +17,3 @@
 ## Project Docs
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - contribution guide
-
-## Examples
-
-- [examples/basic](../examples/basic) - working example project

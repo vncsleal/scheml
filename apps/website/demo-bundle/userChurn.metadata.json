@@ -1,33 +1,33 @@
 {
+  "traitType": "predictive",
+  "artifactFormat": "onnx",
+  "traitName": "userChurn",
+  "schemaHash": "fa5654430042af0da2fbec90928f9d1494d42410ae4a3ac89605b1e425ee1abf",
+  "entityName": "User",
+  "compiledAt": "2026-04-07T15:20:53.047Z",
   "version": "0.3.1",
-  "metadataSchemaVersion": "1.2.0",
-  "modelName": "userChurn",
-  "taskType": "binary_classification",
-  "algorithm": {
-    "name": "gbm",
-    "hyperparameters": {
-      "nEstimators": 200,
-      "learningRate": 0.1,
-      "maxDepth": 5
+  "metadataSchemaVersion": "1.0.0",
+  "qualityGates": [
+    {
+      "metric": "precision",
+      "threshold": 0.8,
+      "comparison": "gte"
+    },
+    {
+      "metric": "recall",
+      "threshold": 0.75,
+      "comparison": "gte"
     }
-  },
+  ],
+  "taskType": "binary_classification",
   "bestEstimator": "gbm",
   "features": {
     "features": [
       {
-        "name": "daysSinceActive",
+        "name": "lastActiveAt",
         "index": 0,
         "columnCount": 1,
-        "originalType": "number",
-        "imputation": {
-          "strategy": "constant",
-          "value": 68.33072916666667
-        },
-        "scaling": {
-          "strategy": "standard",
-          "mean": 68.33072916666667,
-          "std": 27.377330446648433
-        }
+        "originalType": "date"
       },
       {
         "name": "monthlySpend",
@@ -36,12 +36,12 @@
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 182.73468749999992
+          "value": 354.02151041666656
         },
         "scaling": {
           "strategy": "standard",
-          "mean": 182.73468749999992,
-          "std": 120.34853316646205
+          "mean": 354.02151041666656,
+          "std": 316.65373842437947
         }
       },
       {
@@ -51,18 +51,18 @@
         "originalType": "number",
         "imputation": {
           "strategy": "constant",
-          "value": 5.197916666666667
+          "value": 5.247395833333333
         },
         "scaling": {
           "strategy": "standard",
-          "mean": 5.197916666666667,
-          "std": 2.155998375012269
+          "mean": 5.247395833333333,
+          "std": 2.1779538107244836
         }
       }
     ],
     "count": 3,
     "order": [
-      "daysSinceActive",
+      "lastActiveAt",
       "monthlySpend",
       "supportTickets"
     ]
@@ -85,13 +85,10 @@
   "featureDependencies": [
     {
       "modelName": "User",
-      "path": "User.daysSinceActive",
-      "scalarType": "number",
+      "path": "User.lastActiveAt",
+      "scalarType": "date",
       "nullable": false,
-      "extractable": false,
-      "issues": [
-        "Feature \"daysSinceActive\" is not a direct field on model \"User\""
-      ]
+      "extractable": true
     },
     {
       "modelName": "User",
@@ -110,56 +107,46 @@
   ],
   "encoding": {},
   "imputation": {
-    "daysSinceActive": {
-      "strategy": "constant",
-      "value": 68.33072916666667
-    },
     "monthlySpend": {
       "strategy": "constant",
-      "value": 182.73468749999992
+      "value": 354.02151041666656
     },
     "supportTickets": {
       "strategy": "constant",
-      "value": 5.197916666666667
+      "value": 5.247395833333333
     }
   },
   "scaling": {
-    "daysSinceActive": {
-      "strategy": "standard",
-      "mean": 68.33072916666667,
-      "std": 27.377330446648433
-    },
     "monthlySpend": {
       "strategy": "standard",
-      "mean": 182.73468749999992,
-      "std": 120.34853316646205
+      "mean": 354.02151041666656,
+      "std": 316.65373842437947
     },
     "supportTickets": {
       "strategy": "standard",
-      "mean": 5.197916666666667,
-      "std": 2.155998375012269
+      "mean": 5.247395833333333,
+      "std": 2.1779538107244836
     }
   },
-  "prismaSchemaHash": "1d49fc098cc1dfb2f1676fa0fc82e26e45fcad24d8c0aafb80a60e84e22ee7cb",
   "trainingMetrics": [
     {
       "metric": "accuracy",
-      "value": 0.9375,
+      "value": 0.9270833333333334,
       "split": "test"
     },
     {
       "metric": "precision",
-      "value": 0.9655172413793104,
+      "value": 0.92,
       "split": "test"
     },
     {
       "metric": "recall",
-      "value": 0.9333333333333333,
+      "value": 0.9387755102040817,
       "split": "test"
     },
     {
       "metric": "f1",
-      "value": 0.9491525423728814,
+      "value": 0.9292929292929293,
       "split": "test"
     }
   ],
@@ -168,7 +155,7 @@
     "splitSeed": 42,
     "trainSize": 384,
     "testSize": 96,
-    "materializedAt": "2026-04-04T19:26:57.617Z"
+    "materializedAt": "2026-04-07T15:20:53.048Z"
   },
-  "compiledAt": "2026-04-04T19:27:00.192Z"
+  "onnxFile": "userChurn.onnx"
 }
