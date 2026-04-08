@@ -1,5 +1,6 @@
 {
-  "buildCommand": "pnpm --filter @vncsleal/scheml build && pnpm run build",
-  "installCommand": "pnpm install",
-  "framework": "astro"
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"framework": "astro",
+	"installCommand": "pnpm install",
+	"buildCommand": "pnpm --filter @vncsleal/scheml build && pnpm build"
 }
