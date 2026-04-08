@@ -1,6 +1,6 @@
-# getscheml.vercel.app
+# scheml.vercel.app
 
-Marketing and documentation site for [ScheML](https://getscheml.vercel.app).
+Marketing and documentation site for [ScheML](https://scheml.vercel.app).
 
 ## Stack
 
@@ -32,7 +32,13 @@ pnpm build    # outputs to dist/
 pnpm preview  # preview the production build locally
 ```
 
-Deployments happen automatically via the [Vercel](https://vercel.com) GitHub integration on push to `main`.
+Production deploys are handled by the GitHub Actions workflow at `.github/workflows/website-deploy.yml`.
+
+The workflow requires these repository secrets:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
 ## Project Layout
 

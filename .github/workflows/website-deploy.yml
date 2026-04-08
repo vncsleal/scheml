@@ -1,0 +1,53 @@
+name: Website Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: website-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Website
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://scheml.vercel.app
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @vncsleal/scheml
+        working-directory: packages/scheml
+        run: pnpm build
+
+      - name: Pull Vercel project settings
+        working-directory: apps/website
+        run: pnpm dlx vercel@48.9.1 pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build website for Vercel
+        working-directory: apps/website
+        run: pnpm dlx vercel@48.9.1 build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy website to Vercel
+        working-directory: apps/website
+        run: pnpm dlx vercel@48.9.1 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
