@@ -106,6 +106,15 @@ export const materializeCommand = {
     let predictionSession: PredictionSession | undefined;
     let extractorDisconnect: (() => Promise<void>) | undefined;
     let materializeError: Error | undefined;
+    let successState:
+      | {
+          traitName: string;
+          entityName: string;
+          rowsProcessed: number;
+          rowsWritten: number;
+          column: string;
+        }
+      | undefined;
 
     if (typeof argv.trait !== 'string' || argv.trait.length === 0) {
       throw new Error('Trait name is required. Usage: scheml materialize --trait <name>');
@@ -203,36 +212,18 @@ export const materializeCommand = {
         status: 'materialized',
       });
 
-      if (jsonMode) {
-        process.stdout.write(
-          JSON.stringify({
-            ok: true,
-            trait: trait.name,
-            entity: entityName,
-            rowsProcessed: rows.length,
-            rowsWritten: written,
-            column: materializedColumn,
-          }) + '\n'
-        );
-        return;
-      }
-
-      spinner.succeed(`Materialized ${written} rows for trait ${chalk.bold(trait.name)}`);
-      console.log(chalk.green('\n[OK] Materialization complete.'));
-      console.log(chalk.dim(`Column: ${materializedColumn}`));
-      console.log(chalk.dim(`Rows written: ${written}`));
+      successState = {
+        traitName: trait.name,
+        entityName,
+        rowsProcessed: rows.length,
+        rowsWritten: written,
+        column: materializedColumn,
+      };
     } catch (error) {
       materializeError = error as Error;
-      if (jsonMode) {
-        process.exitCode = 1;
-        process.stdout.write(
-          JSON.stringify({ ok: false, error: (error as Error).message, code: 'MATERIALIZE_FAILED' }) +
-            '\n'
-        );
-        return;
+      if (!jsonMode) {
+        spinner.fail(materializeError.message);
       }
-      spinner.fail((error as Error).message);
-      throw error;
     } finally {
       const cleanupFailures: string[] = [];
 
@@ -263,9 +254,48 @@ export const materializeCommand = {
             spinner.warn(cleanupError.message);
           }
         } else {
-          throw cleanupError;
+          materializeError = cleanupError;
+          if (!jsonMode) {
+            spinner.fail(cleanupError.message);
+          }
         }
       }
     }
+
+    if (materializeError) {
+      if (jsonMode) {
+        process.exitCode = 1;
+        process.stdout.write(
+          JSON.stringify({ ok: false, error: materializeError.message, code: 'MATERIALIZE_FAILED' }) +
+            '\n'
+        );
+        return;
+      }
+
+      throw materializeError;
+    }
+
+    if (!successState) {
+      return;
+    }
+
+    if (jsonMode) {
+      process.stdout.write(
+        JSON.stringify({
+          ok: true,
+          trait: successState.traitName,
+          entity: successState.entityName,
+          rowsProcessed: successState.rowsProcessed,
+          rowsWritten: successState.rowsWritten,
+          column: successState.column,
+        }) + '\n'
+      );
+      return;
+    }
+
+    spinner.succeed(`Materialized ${successState.rowsWritten} rows for trait ${chalk.bold(successState.traitName)}`);
+    console.log(chalk.green('\n[OK] Materialization complete.'));
+    console.log(chalk.dim(`Column: ${successState.column}`));
+    console.log(chalk.dim(`Rows written: ${successState.rowsWritten}`));
   },
 };
