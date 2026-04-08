@@ -834,7 +834,7 @@ console.log(result.timestamp);   // "2026-04-07T12:00:00.000Z"
     };
 
     // ── Trait tab switching ──────────────────────────────────────────────
-    const traitTabs    = document.querySelectorAll('.trait-tab');
+    const traitTabs    = document.querySelectorAll<HTMLElement>('.trait-tab');
     const inferenceTag   = document.getElementById('inferenceTag');
     const inferenceTitle = document.getElementById('inferenceTitle');
     const inferenceDesc  = document.getElementById('inferenceDesc');
@@ -1036,7 +1036,7 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
       tab.addEventListener('click', () => switchTrait(tab.dataset.trait || 'predictive'));
     });
 
-    const activeTab = document.querySelector('.trait-tab.active');
+    const activeTab = document.querySelector<HTMLElement>('.trait-tab.active');
     if (activeTab && activeTab.dataset.trait) switchTrait(activeTab.dataset.trait);
 
     // ── Range inputs live-value sync ─────────────────────────────────────
@@ -1056,7 +1056,7 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
     setRangeValue(document.getElementById('similarityPrice'), document.getElementById('similarityPriceValue'));
     setRangeValue(document.getElementById('similarityBattery'), document.getElementById('similarityBatteryValue'));
     setRangeValue(document.getElementById('similarityWeight'), document.getElementById('similarityWeightValue'));
-    document.querySelectorAll('.temporal-input').forEach((input) => {
+    document.querySelectorAll<HTMLInputElement>('.temporal-input').forEach((input) => {
       const valueEl = input.parentElement?.querySelector('.temporal-value');
       setRangeValue(input, valueEl);
     });
@@ -1065,51 +1065,51 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
       document.querySelectorAll(selector).forEach((button) => button.classList.toggle('is-active', button === activeButton));
     };
 
-    document.querySelectorAll('[data-predictive-preset]').forEach((button) => {
+    document.querySelectorAll<HTMLElement>('[data-predictive-preset]').forEach((button) => {
       button.addEventListener('click', () => {
         activatePreset('[data-predictive-preset]', button);
-        const preset = predictivePresets[button.dataset.predictivePreset];
-        document.getElementById('predictiveDays').value = String(preset.daysSinceActive);
-        document.getElementById('predictiveSpend').value = String(preset.monthlySpend);
-        document.getElementById('predictiveTickets').value = String(preset.supportTickets);
-        document.getElementById('predictiveDaysValue').textContent = String(preset.daysSinceActive);
-        document.getElementById('predictiveSpendValue').textContent = String(preset.monthlySpend);
-        document.getElementById('predictiveTicketsValue').textContent = String(preset.supportTickets);
+        const preset = predictivePresets[button.dataset.predictivePreset!];
+        (document.getElementById('predictiveDays') as HTMLInputElement).value = String(preset.daysSinceActive);
+        (document.getElementById('predictiveSpend') as HTMLInputElement).value = String(preset.monthlySpend);
+        (document.getElementById('predictiveTickets') as HTMLInputElement).value = String(preset.supportTickets);
+        document.getElementById('predictiveDaysValue')!.textContent = String(preset.daysSinceActive);
+        document.getElementById('predictiveSpendValue')!.textContent = String(preset.monthlySpend);
+        document.getElementById('predictiveTicketsValue')!.textContent = String(preset.supportTickets);
       });
     });
 
-    document.querySelectorAll('[data-anomaly-preset]').forEach((button) => {
+    document.querySelectorAll<HTMLElement>('[data-anomaly-preset]').forEach((button) => {
       button.addEventListener('click', () => {
         activatePreset('[data-anomaly-preset]', button);
-        const preset = anomalyPresets[button.dataset.anomalyPreset];
-        document.getElementById('anomalyCpu').value = String(preset.cpuUsage);
-        document.getElementById('anomalyMemory').value = String(preset.memoryPressure);
-        document.getElementById('anomalyError').value = String(preset.errorRate);
-        document.getElementById('anomalyCpuValue').textContent = String(preset.cpuUsage);
-        document.getElementById('anomalyMemoryValue').textContent = String(preset.memoryPressure);
-        document.getElementById('anomalyErrorValue').textContent = String(preset.errorRate);
+        const preset = anomalyPresets[button.dataset.anomalyPreset!];
+        (document.getElementById('anomalyCpu') as HTMLInputElement).value = String(preset.cpuUsage);
+        (document.getElementById('anomalyMemory') as HTMLInputElement).value = String(preset.memoryPressure);
+        (document.getElementById('anomalyError') as HTMLInputElement).value = String(preset.errorRate);
+        document.getElementById('anomalyCpuValue')!.textContent = String(preset.cpuUsage);
+        document.getElementById('anomalyMemoryValue')!.textContent = String(preset.memoryPressure);
+        document.getElementById('anomalyErrorValue')!.textContent = String(preset.errorRate);
       });
     });
 
-    document.querySelectorAll('[data-similarity-preset]').forEach((button) => {
+    document.querySelectorAll<HTMLElement>('[data-similarity-preset]').forEach((button) => {
       button.addEventListener('click', () => {
         activatePreset('[data-similarity-preset]', button);
-        const preset = similarityPresets[button.dataset.similarityPreset];
-        document.getElementById('similarityCategory').value = String(preset.categoryIndex);
-        document.getElementById('similarityPrice').value = String(preset.price);
-        document.getElementById('similarityBattery').value = String(preset.batteryHours);
-        document.getElementById('similarityWeight').value = String(preset.weightKg);
-        document.getElementById('similarityPriceValue').textContent = String(preset.price);
-        document.getElementById('similarityBatteryValue').textContent = String(preset.batteryHours);
-        document.getElementById('similarityWeightValue').textContent = String(preset.weightKg);
+        const preset = similarityPresets[button.dataset.similarityPreset!];
+        (document.getElementById('similarityCategory') as HTMLInputElement).value = String(preset.categoryIndex);
+        (document.getElementById('similarityPrice') as HTMLInputElement).value = String(preset.price);
+        (document.getElementById('similarityBattery') as HTMLInputElement).value = String(preset.batteryHours);
+        (document.getElementById('similarityWeight') as HTMLInputElement).value = String(preset.weightKg);
+        document.getElementById('similarityPriceValue')!.textContent = String(preset.price);
+        document.getElementById('similarityBatteryValue')!.textContent = String(preset.batteryHours);
+        document.getElementById('similarityWeightValue')!.textContent = String(preset.weightKg);
       });
     });
 
-    document.querySelectorAll('[data-temporal-preset]').forEach((button) => {
+    document.querySelectorAll<HTMLElement>('[data-temporal-preset]').forEach((button) => {
       button.addEventListener('click', () => {
         activatePreset('[data-temporal-preset]', button);
-        const preset = temporalPresets[button.dataset.temporalPreset];
-        document.querySelectorAll('.temporal-input').forEach((input, index) => {
+        const preset = temporalPresets[button.dataset.temporalPreset!];
+        document.querySelectorAll<HTMLInputElement>('.temporal-input').forEach((input, index) => {
           input.value = String(preset.scores[index]);
           const valEl = input.parentElement?.querySelector('.temporal-value');
           if (valEl) valEl.textContent = String(preset.scores[index]);
@@ -1119,7 +1119,7 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     const renderGenerativePreview = (key) => {
       const example = generativeExamples[key];
-      document.getElementById('generativeLabel').textContent = example.label;
+      document.getElementById('generativeLabel')!.textContent = example.label;
       const ctx = example.context;
       const likelyAction = ctx.willChurn ? 'escalate' : (Number(ctx.monthlySpend) >= 1000 ? 'celebrate' : 'retain');
       const preview = document.getElementById('generativeCallPreview');
@@ -1135,7 +1135,7 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         </div>
         <div class="gen-section">
           <p class="contract-section__label">Prompt</p>
-          <p class="gen-prompt-text">${(document.getElementById('generativePromptInput')?.value ?? generativePromptTemplate).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+          <p class="gen-prompt-text">${((document.getElementById('generativePromptInput') as HTMLTextAreaElement | null)?.value ?? generativePromptTemplate).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
         </div>
         <div class="gen-section">
           <p class="contract-section__label">Valid outputs (schema constraint)</p>
@@ -1147,35 +1147,35 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     renderGenerativePreview(initialGenerativeKey);
     document.getElementById('generativePromptInput')?.addEventListener('input', () => {
-      const activeBtn = document.querySelector('[data-generative-preset].is-active');
+      const activeBtn = document.querySelector<HTMLElement>('[data-generative-preset].is-active');
       const key = activeBtn?.dataset?.generativePreset ?? initialGenerativeKey;
       renderGenerativePreview(key);
     });
-    document.querySelectorAll('[data-generative-preset]').forEach((button) => {
+    document.querySelectorAll<HTMLElement>('[data-generative-preset]').forEach((button) => {
       button.addEventListener('click', () => {
         activatePreset('[data-generative-preset]', button);
         renderGenerativePreview(button.dataset.generativePreset);
         // Reset live result when switching preset
-        document.getElementById('generativeLiveResult').hidden = true;
-        document.getElementById('generativePill').textContent = 'contract only';
-        document.getElementById('generativePill').className = 'status-pill status-pill--info';
-        document.getElementById('generativeResultPanel').dataset.tone = '';
+        (document.getElementById('generativeLiveResult') as HTMLElement).hidden = true;
+        document.getElementById('generativePill')!.textContent = 'contract only';
+        document.getElementById('generativePill')!.className = 'status-pill status-pill--info';
+        document.getElementById('generativeResultPanel')!.dataset.tone = '';
       });
     });
 
     document.getElementById('generativeForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button[type="submit"]');
-      const status = document.getElementById('generativeStatus');
+      const button = (event.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const status = document.getElementById('generativeStatus')!;
       button.disabled = true;
       button.textContent = 'Calling Groq...';
       status.textContent = '';
       try {
         // Get context from the active preset
-        const activePresetBtn = document.querySelector('[data-generative-preset].is-active');
+        const activePresetBtn = document.querySelector<HTMLElement>('[data-generative-preset].is-active');
         const key = activePresetBtn?.dataset?.generativePreset ?? initialGenerativeKey;
         const ctx = generativeExamples[key]?.context ?? {};
-        const prompt = (document.getElementById('generativePromptInput')?.value ?? '').trim();
+        const prompt = ((document.getElementById('generativePromptInput') as HTMLTextAreaElement | null)?.value ?? '').trim();
         const response = await fetch('/api/demo/generative', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -1185,16 +1185,16 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         if (!data.ok) throw new Error(data.error ?? 'Generative inference failed');
         const action = data.result.action;
         const choices = ['retain', 'escalate', 'celebrate'];
-        document.getElementById('generativeLiveChoices').innerHTML = choices
+        document.getElementById('generativeLiveChoices')!.innerHTML = choices
           .map((c) => `<span class="choice-chip${c === action ? ' choice-chip--live' : ''}">${c}</span>`)
           .join('');
-        document.getElementById('generativeLatency').textContent = String(data.result.latencyMs);
-        document.getElementById('generativeLiveResult').hidden = false;
-        const pill = document.getElementById('generativePill');
+        document.getElementById('generativeLatency')!.textContent = String(data.result.latencyMs);
+        (document.getElementById('generativeLiveResult') as HTMLElement).hidden = false;
+        const pill = document.getElementById('generativePill')!;
         pill.textContent = action;
         const pillMod = action === 'escalate' ? 'danger' : action === 'celebrate' ? 'healthy' : 'info';
         pill.className = `status-pill status-pill--${pillMod}`;
-        document.getElementById('generativeResultPanel').dataset.tone = action === 'escalate' ? 'danger' : action === 'celebrate' ? 'healthy' : '';
+        document.getElementById('generativeResultPanel')!.dataset.tone = action === 'escalate' ? 'danger' : action === 'celebrate' ? 'healthy' : '';
         flashPanel(document.getElementById('generativeResultPanel'));
       } catch (error) {
         status.textContent = error instanceof Error ? error.message : 'Request failed';
@@ -1206,16 +1206,16 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     document.getElementById('predictiveForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button[type="submit"]');
-      const status = document.getElementById('predictiveStatus');
+      const button = (event.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const status = document.getElementById('predictiveStatus')!;
       button.disabled = true;
       button.textContent = 'Running...';
       status.textContent = '';
       try {
         const payload = {
-          daysSinceActive: Number(document.getElementById('predictiveDays').value),
-          monthlySpend: Number(document.getElementById('predictiveSpend').value),
-          supportTickets: Number(document.getElementById('predictiveTickets').value),
+          daysSinceActive: Number((document.getElementById('predictiveDays') as HTMLInputElement).value),
+          monthlySpend: Number((document.getElementById('predictiveSpend') as HTMLInputElement).value),
+          supportTickets: Number((document.getElementById('predictiveTickets') as HTMLInputElement).value),
         };
         const response = await fetch('/api/demo/predict', {
           method: 'POST',
@@ -1224,15 +1224,15 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         });
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || 'Prediction failed');
-        document.getElementById('predictiveLabel').textContent = data.prediction.label;
-        document.getElementById('predictiveRaw').textContent = String(data.prediction.prediction);
-        document.getElementById('predictiveLatency').textContent = `${data.prediction.latencyMs} ms`;
+        document.getElementById('predictiveLabel')!.textContent = data.prediction.label;
+        document.getElementById('predictiveRaw')!.textContent = String(data.prediction.prediction);
+        document.getElementById('predictiveLatency')!.textContent = `${data.prediction.latencyMs} ms`;
         updateLatencyBar(document.getElementById('latencyPrisml'), document.getElementById('latencyFill'), data.prediction.latencyMs);
-        const pill = document.getElementById('predictivePill');
+        const pill = document.getElementById('predictivePill')!;
         const isChurnPred = String(data.prediction.prediction) === '1';
         pill.textContent = isChurnPred ? '1 — churn' : '0 — safe';
         pill.className = `status-pill ${isChurnPred ? 'status-pill--danger' : 'status-pill--healthy'}`;
-        document.getElementById('predictiveResultPanel').dataset.tone = isChurnPred ? 'danger' : 'healthy';
+        document.getElementById('predictiveResultPanel')!.dataset.tone = isChurnPred ? 'danger' : 'healthy';
         flashPanel(document.getElementById('predictiveResultPanel'));
       } catch (error) {
         status.textContent = error instanceof Error ? error.message : 'Request failed';
@@ -1244,16 +1244,16 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     document.getElementById('anomalyForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button[type="submit"]');
-      const status = document.getElementById('anomalyStatus');
+      const button = (event.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const status = document.getElementById('anomalyStatus')!;
       button.disabled = true;
       button.textContent = 'Scoring...';
       status.textContent = '';
       try {
         const payload = {
-          cpuUsage: Number(document.getElementById('anomalyCpu').value),
-          memoryPressure: Number(document.getElementById('anomalyMemory').value),
-          errorRate: Number(document.getElementById('anomalyError').value),
+          cpuUsage: Number((document.getElementById('anomalyCpu') as HTMLInputElement).value),
+          memoryPressure: Number((document.getElementById('anomalyMemory') as HTMLInputElement).value),
+          errorRate: Number((document.getElementById('anomalyError') as HTMLInputElement).value),
         };
         const response = await fetch('/api/demo/anomaly', {
           method: 'POST',
@@ -1262,13 +1262,13 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         });
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || 'Anomaly request failed');
-        document.getElementById('anomalyLabel').textContent = data.result.label;
-        document.getElementById('anomalyScore').textContent = data.result.score.toFixed(4);
-        document.getElementById('anomalyLatency').textContent = `${data.result.latencyMs} ms`;
-        const pill = document.getElementById('anomalyPill');
+        document.getElementById('anomalyLabel')!.textContent = data.result.label;
+        document.getElementById('anomalyScore')!.textContent = data.result.score.toFixed(4);
+        document.getElementById('anomalyLatency')!.textContent = `${data.result.latencyMs} ms`;
+        const pill = document.getElementById('anomalyPill')!;
         pill.textContent = data.result.isAnomaly ? 'anomaly' : 'normal';
         pill.className = `status-pill ${data.result.isAnomaly ? 'status-pill--danger' : 'status-pill--healthy'}`;
-        document.getElementById('anomalyResultPanel').dataset.tone = data.result.isAnomaly ? 'danger' : 'healthy';
+        document.getElementById('anomalyResultPanel')!.dataset.tone = data.result.isAnomaly ? 'danger' : 'healthy';
         flashPanel(document.getElementById('anomalyResultPanel'));
         updateLatencyBar(document.getElementById('anomalyLatencyBar'), document.getElementById('anomalyLatencyFill'), data.result.latencyMs);
       } catch (error) {
@@ -1281,17 +1281,17 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     document.getElementById('similarityForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button[type="submit"]');
-      const status = document.getElementById('similarityStatus');
+      const button = (event.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const status = document.getElementById('similarityStatus')!;
       button.disabled = true;
       button.textContent = 'Searching...';
       status.textContent = '';
       try {
         const payload = {
-          categoryIndex: Number(document.getElementById('similarityCategory').value),
-          price: Number(document.getElementById('similarityPrice').value),
-          batteryHours: Number(document.getElementById('similarityBattery').value),
-          weightKg: Number(document.getElementById('similarityWeight').value),
+          categoryIndex: Number((document.getElementById('similarityCategory') as HTMLInputElement).value),
+          price: Number((document.getElementById('similarityPrice') as HTMLInputElement).value),
+          batteryHours: Number((document.getElementById('similarityBattery') as HTMLInputElement).value),
+          weightKg: Number((document.getElementById('similarityWeight') as HTMLInputElement).value),
           limit: 4,
         };
         const response = await fetch('/api/demo/similarity', {
@@ -1301,10 +1301,10 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         });
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || 'Similarity request failed');
-        document.getElementById('similarityLabel').textContent = `${data.result.matches.length} nearest neighbours`;
-        document.getElementById('similarityPill').textContent = `${data.result.matches.length} matches`;
-        document.getElementById('similarityPill').className = 'status-pill status-pill--info';
-        document.getElementById('similarityMatches').innerHTML = data.result.matches.map((match, i) => {
+        document.getElementById('similarityLabel')!.textContent = `${data.result.matches.length} nearest neighbours`;
+        document.getElementById('similarityPill')!.textContent = `${data.result.matches.length} matches`;
+        document.getElementById('similarityPill')!.className = 'status-pill status-pill--info';
+        document.getElementById('similarityMatches')!.innerHTML = data.result.matches.map((match, i) => {
           const score = Number(match.score);
           const barPct = Math.round(score * 100);
           return `
@@ -1333,13 +1333,13 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
 
     document.getElementById('temporalForm')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button[type="submit"]');
-      const status = document.getElementById('temporalStatus');
+      const button = (event.currentTarget as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      const status = document.getElementById('temporalStatus')!;
       button.disabled = true;
       button.textContent = 'Running...';
       status.textContent = '';
       try {
-        const scores = [...document.querySelectorAll('.temporal-input')].map((input) => Number(input.value));
+        const scores = [...document.querySelectorAll<HTMLInputElement>('.temporal-input')].map((input) => Number(input.value));
         const response = await fetch('/api/demo/temporal', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -1347,16 +1347,16 @@ console.log(result.result);  // "retain" | "escalate" | "celebrate"
         });
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || 'Temporal request failed');
-        document.getElementById('temporalLabel').textContent = data.result.label;
-        document.getElementById('temporalPrediction').textContent = String(data.result.prediction);
-        document.getElementById('temporalLatency').textContent = `${data.result.latencyMs} ms`;
+        document.getElementById('temporalLabel')!.textContent = data.result.label;
+        document.getElementById('temporalPrediction')!.textContent = String(data.result.prediction);
+        document.getElementById('temporalLatency')!.textContent = `${data.result.latencyMs} ms`;
         const isChurnSeq = String(data.result.prediction) === '1';
-        document.getElementById('temporalPill').textContent = isChurnSeq ? '1 — churn' : '0 — stable';
-        document.getElementById('temporalPill').className = `status-pill ${isChurnSeq ? 'status-pill--danger' : 'status-pill--healthy'}`;
-        document.getElementById('temporalResultPanel').dataset.tone = isChurnSeq ? 'danger' : 'healthy';
+        document.getElementById('temporalPill')!.textContent = isChurnSeq ? '1 — churn' : '0 — stable';
+        document.getElementById('temporalPill')!.className = `status-pill ${isChurnSeq ? 'status-pill--danger' : 'status-pill--healthy'}`;
+        document.getElementById('temporalResultPanel')!.dataset.tone = isChurnSeq ? 'danger' : 'healthy';
         flashPanel(document.getElementById('temporalResultPanel'));
         updateLatencyBar(document.getElementById('seqLatencyBar'), document.getElementById('seqLatencyFill'), data.result.latencyMs);
-        document.getElementById('temporalDerived').innerHTML = Object.entries(data.result.derivedFeatures).map(([key, value]) => {
+        document.getElementById('temporalDerived')!.innerHTML = Object.entries(data.result.derivedFeatures).map(([key, value]) => {
           const num = Number(value);
           // clamp 0-1 range for the track; treat values > 1 as already 0..100 scale
           const pct = num <= 1 ? Math.round(num * 100) : Math.min(100, Math.round(num));
