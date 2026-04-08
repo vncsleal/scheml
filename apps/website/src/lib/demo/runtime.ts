@@ -1,5 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { PredictionSession, type SimilarityArtifactMetadata, type TemporalArtifactMetadata } from '@vncsleal/scheml';
 
@@ -62,21 +61,7 @@ export type TemporalInput = {
 
 const DAY_MS = 86_400_000;
 const DEMO_NOW = new Date('2026-04-07T12:00:00.000Z');
-// Walk up from the current module's location to find demo-bundle/demo.manifest.json.
-// This works both in local dev (source file at src/lib/demo/) and on Vercel Lambda
-// (bundled chunk at apps/website/.vercel/output/_functions/chunks/) without
-// relying on a hardcoded number of '../' segments.
-function findDemoBundleDir(): string {
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  for (let i = 0; i < 8; i++) {
-    const candidate = path.join(dir, 'demo-bundle');
-    if (existsSync(path.join(candidate, 'demo.manifest.json'))) return candidate;
-    dir = path.dirname(dir);
-  }
-  throw new Error(`demo-bundle not found within 8 directory levels of ${fileURLToPath(import.meta.url)}`);
-}
-
-const bundleDir = findDemoBundleDir();
+const bundleDir = path.resolve(process.cwd(), 'demo-bundle');
 const schemaPath = path.join(bundleDir, 'schema.source');
 const manifestPath = path.join(bundleDir, 'demo.manifest.json');
 

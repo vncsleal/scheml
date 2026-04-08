@@ -42,8 +42,8 @@ importers:
         specifier: ^1.6.1
         version: 1.6.1
       '@vncsleal/scheml':
-        specifier: workspace:*
-        version: link:../../packages/scheml
+        specifier: ^0.1.0
+        version: 0.1.0(@prisma/client@5.22.0(prisma@5.22.0))(ai@6.0.146(zod@3.25.76))(drizzle-orm@0.45.2(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0(prisma@5.22.0))(prisma@5.22.0))(typeorm@0.3.28)(zod@3.25.76)
       astro:
         specifier: ^4.16.2
         version: 4.16.19(@types/node@25.2.0)(rollup@4.57.1)(typescript@5.9.3)
@@ -1133,6 +1133,28 @@ packages:
 
   '@vitest/utils@1.6.1':
     resolution: {integrity: sha512-jOrrUvXM4Av9ZWiG1EajNto0u96kWAhJ1LmPmJhXXQx/32MecEKd10pOLYgS2BQx1TgkGhloPU1ArDW2vvaY6g==}
+
+  '@vncsleal/scheml@0.1.0':
+    resolution: {integrity: sha512-Rvy++br7nAya5Gm1zMaKCCZq9Rd5XgK0QdifZN9wDro62673Banmi5oMjgwOuR/goIwiT0WWNP9NS0g0pAsXvw==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@prisma/client': '>=5.0.0'
+      ai: '>=4.0.0'
+      drizzle-orm: '>=0.29.0'
+      typeorm: '>=0.3.0'
+      zod: '>=3.0.0'
+    peerDependenciesMeta:
+      '@prisma/client':
+        optional: true
+      ai:
+        optional: true
+      drizzle-orm:
+        optional: true
+      typeorm:
+        optional: true
+      zod:
+        optional: true
 
   '@volar/kit@2.4.28':
     resolution: {integrity: sha512-cKX4vK9dtZvDRaAzeoUdaAJEew6IdxHNCRrdp5Kvcl6zZOqb6jTOfk3kXkIkG3T7oTFXguEMt5+9ptyqYR84Pg==}
@@ -3405,12 +3427,28 @@ packages:
 
 snapshots:
 
+  '@ai-sdk/gateway@3.0.88(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.22(zod@3.25.76)
+      '@vercel/oidc': 3.1.0
+      zod: 3.25.76
+    optional: true
+
   '@ai-sdk/gateway@3.0.88(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.22(zod@4.3.6)
       '@vercel/oidc': 3.1.0
       zod: 4.3.6
+
+  '@ai-sdk/provider-utils@4.0.22(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 3.25.76
+    optional: true
 
   '@ai-sdk/provider-utils@4.0.22(zod@4.3.6)':
     dependencies:
@@ -4350,6 +4388,21 @@ snapshots:
       loupe: 2.3.7
       pretty-format: 29.7.0
 
+  '@vncsleal/scheml@0.1.0(@prisma/client@5.22.0(prisma@5.22.0))(ai@6.0.146(zod@3.25.76))(drizzle-orm@0.45.2(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0(prisma@5.22.0))(prisma@5.22.0))(typeorm@0.3.28)(zod@3.25.76)':
+    dependencies:
+      chalk: 5.6.2
+      dotenv: 16.6.1
+      jiti: 2.6.1
+      onnxruntime-node: 1.24.3
+      ora: 8.2.0
+      yargs: 17.7.2
+    optionalDependencies:
+      '@prisma/client': 5.22.0(prisma@5.22.0)
+      ai: 6.0.146(zod@3.25.76)
+      drizzle-orm: 0.45.2(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0(prisma@5.22.0))(prisma@5.22.0)
+      typeorm: 0.3.28
+      zod: 3.25.76
+
   '@volar/kit@2.4.28(typescript@5.9.3)':
     dependencies:
       '@volar/language-service': 2.4.28
@@ -4419,6 +4472,15 @@ snapshots:
   adm-zip@0.5.16: {}
 
   agent-base@7.1.4: {}
+
+  ai@6.0.146(zod@3.25.76):
+    dependencies:
+      '@ai-sdk/gateway': 3.0.88(zod@3.25.76)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.22(zod@3.25.76)
+      '@opentelemetry/api': 1.9.0
+      zod: 3.25.76
+    optional: true
 
   ai@6.0.146(zod@4.3.6):
     dependencies:
