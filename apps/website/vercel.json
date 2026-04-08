@@ -1,5 +1,0 @@
-{
-  "buildCommand": "pnpm --filter @vncsleal/scheml build && pnpm run build",
-  "installCommand": "pnpm install",
-  "framework": "astro"
-}
