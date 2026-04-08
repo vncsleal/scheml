@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { SimilarityArtifactMetadata, TemporalArtifactMetadata } from '@vncsleal/scheml';
@@ -67,7 +66,10 @@ export type TemporalInput = {
 
 const DAY_MS = 86_400_000;
 const DEMO_NOW = new Date('2026-04-07T12:00:00.000Z');
-const bundleDir = fileURLToPath(new URL('../../../demo-bundle', import.meta.url));
+// process.cwd() is /var/task on Vercel Lambda (where includeFiles places demo-bundle)
+// and apps/website/ in local dev — both correct. import.meta.url is NOT reliable
+// after Vite bundling because chunks land in chunks/ making relative paths wrong.
+const bundleDir = path.resolve(process.cwd(), 'demo-bundle');
 const schemaPath = path.join(bundleDir, 'schema.source');
 const manifestPath = path.join(bundleDir, 'demo.manifest.json');
 

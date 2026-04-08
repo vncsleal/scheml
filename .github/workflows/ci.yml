@@ -109,10 +109,6 @@ jobs:
         working-directory: packages/scheml
         run: pnpm build
 
-      - name: Install website dependencies
-        working-directory: apps/website
-        run: npm ci
-
       - name: Build website
         working-directory: apps/website
-        run: npm run build
+        run: pnpm run build
