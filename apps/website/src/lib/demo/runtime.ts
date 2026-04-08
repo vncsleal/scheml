@@ -1,12 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { SimilarityArtifactMetadata, TemporalArtifactMetadata } from '@vncsleal/scheml';
-
-const require = createRequire(import.meta.url);
-const ScheML = require('@vncsleal/scheml') as typeof import('@vncsleal/scheml');
-const { PredictionSession } = ScheML;
+import { PredictionSession, type SimilarityArtifactMetadata, type TemporalArtifactMetadata } from '@vncsleal/scheml';
 
 type DemoManifest = {
   generatedAt: string;

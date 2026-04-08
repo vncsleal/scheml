@@ -29,4 +29,12 @@ export default defineConfig({
   }),
   site: vercelUrl,
   output: 'hybrid',
+  vite: {
+    ssr: {
+      // Must be external so Vite emits a real import() that @vercel/nft can
+      // trace — createRequire() calls are invisible to nft and the package
+      // (plus its onnxruntime-node native binary) never makes it into the bundle.
+      external: ['@vncsleal/scheml'],
+    },
+  },
 });
