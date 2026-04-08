@@ -58,10 +58,6 @@ jobs:
         working-directory: apps/website
         run: pnpm dlx vercel@48.9.1 pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-      - name: Build website for Vercel
-        working-directory: apps/website
-        run: pnpm dlx vercel@48.9.1 build --prod --token="$VERCEL_TOKEN"
-
       - name: Deploy website to Vercel
         working-directory: apps/website
-        run: pnpm dlx vercel@48.9.1 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@48.9.1 deploy --prod --yes --token="$VERCEL_TOKEN"
