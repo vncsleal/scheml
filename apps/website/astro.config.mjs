@@ -1,4 +1,4 @@
-import { defineConfig } from 'astro/config';
+import { defineConfig, passthroughImageService } from 'astro/config';
 import vercel from '@astrojs/vercel/serverless';
 
 const vercelUrl = process.env.VERCEL_URL
@@ -20,6 +20,9 @@ export default defineConfig({
 			'demo-bundle/retentionMessage.metadata.json',
 		],
 	}),
+	image: {
+		service: passthroughImageService(),
+	},
 	site: vercelUrl,
 	output: 'hybrid',
 	vite: {

@@ -63,12 +63,8 @@ jobs:
           find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/darwin*' -prune -exec rm -rf {} +
           find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/win32*' -prune -exec rm -rf {} +
           find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/linux/arm64*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-darwin-*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-libvips-darwin-*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-win32-*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-libvips-win32-*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-linux-arm64*' -prune -exec rm -rf {} +
-          find apps/website/.vercel/output -path '*@img/sharp-libvips-linux-arm64*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*node_modules/sharp*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*node_modules/@img*' -prune -exec rm -rf {} +
 
       - name: Normalize prebuilt Vercel runtime
         run: |
