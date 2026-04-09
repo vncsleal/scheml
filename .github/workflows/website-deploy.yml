@@ -58,6 +58,18 @@ jobs:
         working-directory: apps/website
         run: pnpm build
 
+      - name: Prune prebuilt native binaries
+        run: |
+          find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/darwin*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/win32*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*onnxruntime-node/bin/napi-v6/linux/arm64*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-darwin-*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-libvips-darwin-*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-win32-*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-libvips-win32-*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-linux-arm64*' -prune -exec rm -rf {} +
+          find apps/website/.vercel/output -path '*@img/sharp-libvips-linux-arm64*' -prune -exec rm -rf {} +
+
       - name: Normalize prebuilt Vercel runtime
         run: |
           node -e "const fs=require('fs'); const path='apps/website/.vercel/output/functions/_render.func/.vc-config.json'; const json=JSON.parse(fs.readFileSync(path,'utf8')); json.runtime='nodejs20.x'; fs.writeFileSync(path, JSON.stringify(json, null, 2) + '\n');"
