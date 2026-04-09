@@ -58,5 +58,12 @@ jobs:
         working-directory: apps/website
         run: pnpm build
 
+      - name: Normalize prebuilt Vercel runtime
+        run: |
+          node -e "const fs=require('fs'); const path='apps/website/.vercel/output/functions/_render.func/.vc-config.json'; const json=JSON.parse(fs.readFileSync(path,'utf8')); json.runtime='nodejs20.x'; fs.writeFileSync(path, JSON.stringify(json, null, 2) + '\n');"
+          rm -rf .vercel/output
+          mkdir -p .vercel
+          cp -R apps/website/.vercel/output .vercel/output
+
       - name: Deploy website to Vercel
         run: pnpm dlx vercel@48.9.1 deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN"

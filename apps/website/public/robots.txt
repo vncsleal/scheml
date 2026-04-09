@@ -20,4 +20,4 @@ Allow: /
 User-agent: PerplexityBot
 Allow: /
 
-Sitemap: https://getscheml.vercel.app/sitemap.xml
+Sitemap: https://scheml.vercel.app/sitemap.xml
