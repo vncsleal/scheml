@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@astrojs/node": "^8.3.4",
-    "@vncsleal/scheml": "workspace:*",
+    "@vncsleal/scheml": "^0.1.0",
     "astro": "^4.16.2",
     "groq-sdk": "^1.1.2"
   },
