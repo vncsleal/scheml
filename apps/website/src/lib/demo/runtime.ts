@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PredictionSession, type SimilarityArtifactMetadata, type TemporalArtifactMetadata } from '@vncsleal/scheml';
 
 type DemoManifest = {
@@ -61,7 +62,27 @@ export type TemporalInput = {
 
 const DAY_MS = 86_400_000;
 const DEMO_NOW = new Date('2026-04-07T12:00:00.000Z');
-const bundleDir = path.resolve(process.cwd(), 'demo-bundle');
+const runtimeDir = path.dirname(fileURLToPath(import.meta.url));
+
+function resolveDemoBundleDir() {
+  const candidates = [
+    path.resolve(process.cwd(), 'demo-bundle'),
+    path.resolve(process.cwd(), 'apps/website/demo-bundle'),
+    path.resolve(runtimeDir, '../../../demo-bundle'),
+    path.resolve(runtimeDir, '../../../../demo-bundle'),
+    path.resolve(runtimeDir, '../../../../../demo-bundle'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(path.join(candidate, 'demo.manifest.json'))) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Unable to locate demo bundle. Checked: ${candidates.join(', ')}`);
+}
+
+const bundleDir = resolveDemoBundleDir();
 const schemaPath = path.join(bundleDir, 'schema.source');
 const manifestPath = path.join(bundleDir, 'demo.manifest.json');
 
