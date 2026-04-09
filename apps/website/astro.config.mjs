@@ -1,20 +1,30 @@
 import { defineConfig, passthroughImageService } from 'astro/config';
-import node from '@astrojs/node';
+import vercel from '@astrojs/vercel/serverless';
 
-const siteUrl = process.env.SITE_URL ?? 'https://scheml.vercel.app';
+const vercelUrl = process.env.VERCEL_URL
+	? `https://${process.env.VERCEL_URL}`
+	: 'https://scheml.vercel.app';
 
 export default defineConfig({
-	output: 'server',
-	adapter: node({
-		mode: 'standalone',
+	adapter: vercel({
+		includeFiles: [
+			'demo-bundle/demo.manifest.json',
+			'demo-bundle/schema.source',
+			'demo-bundle/userChurn.metadata.json',
+			'demo-bundle/userChurn.onnx',
+			'demo-bundle/serverAnomaly.metadata.json',
+			'demo-bundle/productSimilarity.metadata.json',
+			'demo-bundle/productSimilarity.embeddings.npy',
+			'demo-bundle/engagementSequence.metadata.json',
+			'demo-bundle/engagementSequence.onnx',
+			'demo-bundle/retentionMessage.metadata.json',
+		],
 	}),
 	image: {
 		service: passthroughImageService(),
 	},
-	server: {
-		host: true,
-	},
-	site: siteUrl,
+	site: vercelUrl,
+	output: 'hybrid',
 	vite: {
 		ssr: {
 			external: ['@vncsleal/scheml'],

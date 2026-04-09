@@ -9,11 +9,11 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "start": "node ./dist/server/entry.mjs"
+    "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/node": "^8.3.4",
+    "@astrojs/vercel": "^7.8.0",
+    "@vercel/analytics": "^1.6.1",
     "@vncsleal/scheml": "^0.1.0",
     "astro": "^4.16.2",
     "groq-sdk": "^1.1.2"

@@ -24,7 +24,7 @@ pnpm -r --filter @vncsleal/scheml test -- --watch
 packages/
   scheml/    @vncsleal/scheml (types, errors, CLI, runtime, Python backend)
 apps/
-  website/   ScheML website — Astro + standalone Node runtime
+  website/   scheml.vercel.app — Astro + Vercel
 examples/
   basic/     Working example
 docs/

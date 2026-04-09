@@ -5,7 +5,7 @@ Marketing and documentation site for [ScheML](https://scheml.vercel.app).
 ## Stack
 
 - **[Astro 4](https://astro.build/)** — static site with SSR pages
-- **[@astrojs/node](https://docs.astro.build/en/guides/integrations-guide/node/)** — standalone Node.js adapter for deployment
+- **[@astrojs/vercel](https://docs.astro.build/en/guides/integrations-guide/vercel/)** — Vercel adapter for deployment
 
 ## Local Development
 
@@ -25,39 +25,22 @@ pnpm dev
 
 The site starts at `http://localhost:4321`.
 
-To run the production server locally:
-
-```sh
-pnpm -F @vncsleal/scheml build
-pnpm -F scheml-website build
-pnpm -F scheml-website start
-```
-
-The demo uses the committed `demo-bundle/` directory at runtime, which matches how ScheML users load immutable artifacts from disk inside a normal Node application.
-
-## Build & Run
+## Build & Deploy
 
 ```sh
 pnpm build    # outputs to dist/
-pnpm start    # runs the standalone Node server
+pnpm preview  # preview the production build locally
 ```
 
-Set `SITE_URL` in production so canonical URLs and metadata point at the deployed origin.
+Production deploys are handled by the GitHub Actions workflow at `.github/workflows/website-deploy.yml`.
 
-## Container Deployment
+The workflow requires these repository secrets:
 
-Build the website as a normal containerized Node process:
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
-```sh
-docker build -f apps/website/Dockerfile -t scheml-website .
-docker run --rm -p 4321:4321 -e SITE_URL=https://scheml.vercel.app scheml-website
-```
-
-The container carries:
-
-- the standalone Astro server
-- the built `@vncsleal/scheml` package from this repo
-- the committed `demo-bundle/` runtime artifacts
+The demo uses the committed `demo-bundle/` directory, which is explicitly included in the Vercel serverless function bundle.
 
 ## Project Layout
 
@@ -68,6 +51,6 @@ apps/website/
 │   ├── pages/           # Route pages (.astro)
 ├── public/              # Static assets
 ├── demo-bundle/         # Runtime ScheML artifacts used by the demo
-├── Dockerfile           # Container image for standalone deployment
-└── astro.config.mjs     # Astro config (Node standalone adapter)
+├── vercel.json          # Vercel project config
+└── astro.config.mjs     # Astro config (Vercel adapter)
 ```
