@@ -73,5 +73,10 @@ jobs:
           mkdir -p .vercel
           cp -R apps/website/.vercel/output .vercel/output
 
+      - name: Inspect prebuilt function size
+        run: |
+          du -sh .vercel/output/functions/_render.func
+          find .vercel/output/functions/_render.func -type f -exec du -h {} + | sort -hr | sed -n '1,25p'
+
       - name: Deploy website to Vercel
         run: pnpm dlx vercel@48.9.1 deploy --prebuilt --archive=tgz --prod --yes --token="$VERCEL_TOKEN"
