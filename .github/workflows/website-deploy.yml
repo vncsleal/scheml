@@ -66,4 +66,4 @@ jobs:
           cp -R apps/website/.vercel/output .vercel/output
 
       - name: Deploy website to Vercel
-        run: pnpm dlx vercel@48.9.1 deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@48.9.1 deploy --prebuilt --archive=tgz --prod --yes --token="$VERCEL_TOKEN"
