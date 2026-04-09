@@ -1,0 +1,11 @@
+.git
+.github
+.turbo
+node_modules
+**/node_modules
+**/.astro
+**/.vercel
+**/dist
+**/coverage
+**/test-results
+scheml-test
